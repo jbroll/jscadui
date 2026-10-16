@@ -545,6 +545,20 @@ from the 2026-10-01 review.
 
 ## Remaining issues
 
+- **Intermittent phantom `Syntax error` in `editor-api.test.js` under parallel
+  turbo load (open, backlogged 2026-10-16).** `apps/jscad-web/test/editor-api.test.js
+  > flags an unknown option` twice returned a single
+  `{severity: 'error', message: 'Syntax error', from: 58, to: 59}` diagnostic
+  for valid JavaScript instead of the expected unknown-option warning. The lint
+  path (`apiDiagnostics` → `lintTree` over the static `api/index.json`) is pure
+  with no shared state across vitest workers, so a wrong tree points at
+  load-induced corruption, not logic: both reds came from full parallel turbo
+  runs (`npm run test:unit`, 55 tasks), against ~15 green isolated runs, plain
+  full-suite runs, and repeat `test:unit` runs. When it recurs, log
+  `state.doc.toString()` and the lezer tree shape on mismatch instead of
+  re-running blind; do not "fix" with a retry, which would mask real lint
+  regressions.
+
 - **The CI host has no `rowboat` sibling beside a job worktree, so
   `ci/web` and `ci/render` fail at setup.** `apps/jscad-web/package.json` and
   its `server/` link rowboat through `file:../../../rowboat/...` (three levels
