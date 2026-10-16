@@ -23,8 +23,6 @@ const MONTH = '2026-10'
 const tmp = () => mkdtempSync(join(tmpdir(), 'inference-'))
 
 const modelEntry = (over: Record<string, unknown> = {}) => ({
-  id: 'deepseek',
-  label: 'DeepSeek V4.1 Flash',
   model: 'deepseek-v4.1-flash',
   maxTokens: 8192,
   inputUsdPerMTok: 1,
@@ -33,8 +31,6 @@ const modelEntry = (over: Record<string, unknown> = {}) => ({
 })
 
 const museEntry = {
-  id: 'muse',
-  label: 'Muse Spark 1.3',
   model: 'muse-spark-1.3-contributor',
   maxTokens: 4096,
   inputUsdPerMTok: 3,
@@ -177,24 +173,24 @@ describe('inference config', () => {
   it('derives the endpoint path from kind and model instead of reading it', () => {
     const parsed = parseInferenceConfig(inferenceJson(), 'jscad-inference.json')
     expect(parsed.options.map((o) => [o.id, o.path])).toEqual([
-      ['deepseek', 'v1/chat/completions'],
-      ['muse', 'v1/responses'],
+      ['deepseek-v4.1-flash', 'v1/chat/completions'],
+      ['muse-spark-1.3-contributor', 'v1/responses'],
     ])
   })
 
-  it('refuses duplicate option ids, even across providers', () => {
+  it('refuses duplicate models, even across providers', () => {
     const config = { providers: [provider(), provider({ kind: 'meta', key: 'other', models: [modelEntry()] })] }
-    expect(() => parseInferenceConfig(JSON.stringify(config), 'jscad-inference.json')).toThrow(/duplicate|id/)
+    expect(() => parseInferenceConfig(JSON.stringify(config), 'jscad-inference.json')).toThrow(/duplicate|model/)
   })
 
   it('attaches one key to every model under its provider', () => {
-    const config = { providers: [provider({ models: [modelEntry(), { ...museEntry, id: 'muse-go', model: 'muse-spark-1.3-contributor' }] })] }
+    const config = { providers: [provider({ models: [modelEntry(), { ...museEntry, model: 'grok-4' }] })] }
     const options = parseInferenceConfig(JSON.stringify(config), 'jscad-inference.json').options
     expect(options.map((o) => o.key)).toEqual(['sk-server-secret', 'sk-server-secret'])
   })
 
   it('accepts the two free options', () => {
-    expect(parseInferenceConfig(inferenceJson(), 'jscad-inference.json').options.map((o) => o.id)).toEqual(['deepseek', 'muse'])
+    expect(parseInferenceConfig(inferenceJson(), 'jscad-inference.json').options.map((o) => o.id)).toEqual(['deepseek-v4.1-flash', 'muse-spark-1.3-contributor'])
   })
 })
 
@@ -211,8 +207,8 @@ describe('GET /api/relay/jscad-web/v1/models', () => {
     const res = await request(app).get('/api/relay/jscad-web/v1/models').set('Origin', 'https://app.test')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([
-      { id: 'deepseek', label: 'DeepSeek V4.1 Flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true },
-      { id: 'muse', label: 'Muse Spark 1.3', kind: 'meta', model: 'muse-spark-1.3-contributor', available: true },
+      { id: 'deepseek-v4.1-flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true },
+      { id: 'muse-spark-1.3-contributor', kind: 'meta', model: 'muse-spark-1.3-contributor', available: true },
     ])
     expect(JSON.stringify(res.body)).not.toMatch(/secret|UsdPerMTok/)
   })
@@ -243,7 +239,7 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
   it('rewrites the body: pins model and stream, caps tokens, sets include_usage, passes tools and effort', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
     const { app } = buildApp({ config: inferenceJson(), logDir: tmp() })
-    const res = await post(app, 'deepseek', 'v1/chat/completions').send({
+    const res = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({
       model: 'client-model',
       stream: false,
       max_tokens: 999999,
@@ -265,14 +261,14 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
   it('keeps the smaller client token cap', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
     const { app } = buildApp({ config: inferenceJson() })
-    await post(app, 'deepseek', 'v1/chat/completions').send({ max_tokens: 100, messages: [] })
+    await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ max_tokens: 100, messages: [] })
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).max_tokens).toBe(100)
   })
 
   it('caps max_output_tokens for a responses option and leaves stream_options alone', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1}}}\n\n'))
     const { app } = buildApp({ config: inferenceJson() })
-    const res = await post(app, 'muse', 'v1/responses').send({ max_output_tokens: 100000, input: 'x' })
+    const res = await post(app, 'muse-spark-1.3-contributor', 'v1/responses').send({ max_output_tokens: 100000, input: 'x' })
     expect(res.status).toBe(200)
     const body = JSON.parse(fetchMock.mock.calls[0][1].body)
     expect(body.model).toBe('muse-spark-1.3-contributor')
@@ -284,21 +280,21 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
   it('drops the client credential and injects the server key, accepting the sentinel interchangeably', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
     const { app } = buildApp({ config: inferenceJson() })
-    await post(app, 'deepseek', 'v1/chat/completions').set('Authorization', 'Bearer jscad-web-free').set('x-api-key', 'client-key').send({ messages: [] })
+    await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').set('Authorization', 'Bearer jscad-web-free').set('x-api-key', 'client-key').send({ messages: [] })
     const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>
     expect(headers.authorization).toBe('Bearer sk-server-secret')
     expect(headers['x-api-key']).toBeUndefined()
 
     fetchMock.mockClear()
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
-    await post(app, 'deepseek', 'v1/chat/completions').set('Authorization', 'Bearer client-sentinel').send({ messages: [] })
+    await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').set('Authorization', 'Bearer client-sentinel').send({ messages: [] })
     expect((fetchMock.mock.calls[0][1].headers as Record<string, string>).authorization).toBe('Bearer sk-server-secret')
   })
 
   it('404s an unknown option and a wrong path without calling upstream', async () => {
     const { app } = buildApp({ config: inferenceJson() })
     expect((await post(app, 'nope', 'v1/chat/completions').send({})).status).toBe(404)
-    expect((await post(app, 'deepseek', 'v1/responses').send({})).status).toBe(404)
+    expect((await post(app, 'deepseek-v4.1-flash', 'v1/responses').send({})).status).toBe(404)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -306,10 +302,10 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n'))
     const logDir = tmp()
     const { app } = buildApp({ config: inferenceJson(), logDir })
-    await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [], max_tokens: 4 })
+    await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [], max_tokens: 4 })
     await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
     const [rec] = records(logDir)
-    expect(rec).toMatchObject({ chatId: null, kind: 'opencode-go', path: 'v1/chat/completions', inference: 'deepseek', status: 200 })
+    expect(rec).toMatchObject({ chatId: null, kind: 'opencode-go', path: 'v1/chat/completions', inference: 'deepseek-v4.1-flash', status: 200 })
     expect(rec.costUsd).toBeCloseTo((10 * 1 + 5 * 2) / 1e6, 12)
     expect(JSON.stringify(rec)).not.toMatch(/sk-server-secret|meta-server-secret/)
   })
@@ -318,7 +314,7 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
     const logDir = tmp()
     const { app } = buildApp({ config: inferenceJson(), logDir })
-    await post(app, 'deepseek', 'v1/chat/completions').set('x-jscad-chat-id', 'chat-7').send({ messages: [] })
+    await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').set('x-jscad-chat-id', 'chat-7').send({ messages: [] })
     await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
     expect(records(logDir)[0].chatId).toBe('chat-7')
   })
@@ -327,7 +323,7 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     fetchMock.mockImplementation(async () => sse('data: {"choices":[{"delta":{"content":"hello world"}}]}\n\n'))
     const logDir = tmp()
     const { app } = buildApp({ config: inferenceJson(), logDir })
-    await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [{ role: 'user', content: '123456' }] })
+    await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [{ role: 'user', content: '123456' }] })
     await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
     const [rec] = records(logDir)
     const sentBytes = Buffer.byteLength(String(fetchMock.mock.calls[0][1].body))
@@ -339,15 +335,15 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
   it('charges the IP group so an over-budget second turn is refused with the 402 body', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n'))
     const { app } = buildApp({ config: inferenceJson({ perIpDailyUsd: 0.00001 }) })
-    expect((await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })).status).toBe(200)
-    const second = await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })
+    expect((await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })).status).toBe(200)
+    const second = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })
     expect(second.status).toBe(402)
     expect(second.body).toEqual({ error: { code: 'inference_quota_exhausted', scope: 'day', message: expect.any(String) } })
   })
 
   it('refuses a spent month with scope month before any rewrite', async () => {
     const { app } = buildApp({ config: inferenceJson(), spend: { month: MONTH, monthSpent: 5, day: DAY, ipSpend: {} } })
-    const res = await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })
+    const res = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })
     expect(res.status).toBe(402)
     expect(res.body.error).toMatchObject({ code: 'inference_quota_exhausted', scope: 'month' })
     expect(fetchMock).not.toHaveBeenCalled()
@@ -355,7 +351,7 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
 
   it('refuses a body over the 100 KB json limit before forwarding', async () => {
     const { app } = buildApp({ config: inferenceJson() })
-    const res = await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [{ role: 'user', content: 'x'.repeat(120_000) }] })
+    const res = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [{ role: 'user', content: 'x'.repeat(120_000) }] })
     expect(res.status).toBe(413)
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -364,12 +360,12 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     const pending: Array<(r: Response) => void> = []
     fetchMock.mockImplementation(() => new Promise<Response>((resolve) => pending.push(resolve)))
     const { app } = buildApp({ config: inferenceJson() })
-    const held = [post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] }), post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })]
+    const held = [post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] }), post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })]
     // superagent sends when the thenable is awaited; start both without awaiting.
     for (const t of held) void t.then(() => {}, () => {})
     await vi.waitFor(() => expect(pending).toHaveLength(2))
 
-    const third = await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })
+    const third = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })
     expect(third.status).toBe(429)
     expect(third.headers['retry-after']).toBe('2')
 
@@ -390,7 +386,7 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     })
     const logDir = tmp()
     const { app } = buildApp({ config: inferenceJson(), logDir })
-    const pendingReq = post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })
+    const pendingReq = post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })
     const settled = pendingReq.then(
       () => 'settled',
       () => 'settled',
@@ -402,7 +398,7 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     await settled
     await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
     const [rec] = records(logDir)
-    expect(rec).toMatchObject({ inference: 'deepseek', error: 'client closed' })
+    expect(rec).toMatchObject({ inference: 'deepseek-v4.1-flash', error: 'client closed' })
     expect(rec.costUsd).toBeGreaterThan(0)
   })
 
@@ -419,7 +415,7 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     )
     const logDir = tmp()
     const { app, spendPath } = buildApp({ config: inferenceJson(), logDir })
-    const pendingReq = post(app, 'deepseek', 'v1/chat/completions').send({ messages: [{ role: 'user', content: 'hello there' }] })
+    const pendingReq = post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [{ role: 'user', content: 'hello there' }] })
     const settled = pendingReq.then(
       () => 'settled',
       () => 'settled',
@@ -430,7 +426,7 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     await settled
     await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
     const [rec] = records(logDir)
-    expect(rec).toMatchObject({ inference: 'deepseek', error: 'client closed' })
+    expect(rec).toMatchObject({ inference: 'deepseek-v4.1-flash', error: 'client closed' })
     // The prompt had already gone upstream, so the estimated input is charged and
     // the meter advances: a repeated abort cannot run the free model for free.
     const sentBytes = Buffer.byteLength(String(fetchMock.mock.calls[0][1].body))
@@ -452,7 +448,7 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     })
     const logDir = tmp()
     const { app } = buildApp({ config: inferenceJson(), logDir, dnsLookup, onClose: () => sawClose?.() })
-    const pendingReq = post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })
+    const pendingReq = post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })
     const settled = pendingReq.then(
       () => 'settled',
       () => 'settled',
@@ -466,6 +462,6 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     await settled
     await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(records(logDir)[0]).toMatchObject({ inference: 'deepseek', error: 'client closed', costUsd: 0 })
+    expect(records(logDir)[0]).toMatchObject({ inference: 'deepseek-v4.1-flash', error: 'client closed', costUsd: 0 })
   })
 })

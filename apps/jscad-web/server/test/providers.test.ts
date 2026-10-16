@@ -18,8 +18,6 @@ const MONTH = '2026-10'
 const tmp = () => mkdtempSync(join(tmpdir(), 'providers-'))
 
 const modelEntry = (over: Record<string, unknown> = {}) => ({
-  id: 'deepseek',
-  label: 'DeepSeek V4.1 Flash',
   model: 'deepseek-v4.1-flash',
   maxTokens: 8192,
   inputUsdPerMTok: 1,
@@ -116,7 +114,7 @@ describe('GET /api/relay/jscad-web/v1/models', () => {
     const res = await request(app).get('/api/relay/jscad-web/v1/models').set('Origin', 'https://app.test')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([
-      { id: 'deepseek', label: 'DeepSeek V4.1 Flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true },
+      { id: 'deepseek-v4.1-flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true },
     ])
     expect(fetchMock).not.toHaveBeenCalled()
     expect(JSON.stringify(res.body)).not.toMatch(/secret|UsdPerMTok/)
@@ -158,7 +156,7 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
   it('injects the server key, drops the sentinel, pins the model, and streams', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
     const { app } = buildApp({ config: inferenceJson() })
-    const res = await post(app, 'deepseek', 'v1/chat/completions')
+    const res = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions')
       .set('Authorization', 'Bearer jscad-web-free')
       .set('x-api-key', 'jscad-web-free')
       .send({ model: 'client-model', stream: false, max_tokens: 999, messages: [] })
@@ -178,24 +176,24 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n'))
     const logDir = tmp()
     const { app } = buildApp({ config: inferenceJson(), logDir })
-    await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })
+    await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })
     await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
     const [rec] = records(logDir)
-    expect(rec).toMatchObject({ chatId: null, kind: 'opencode-go', path: 'v1/chat/completions', inference: 'deepseek', status: 200 })
+    expect(rec).toMatchObject({ chatId: null, kind: 'opencode-go', path: 'v1/chat/completions', inference: 'deepseek-v4.1-flash', status: 200 })
     expect(rec.costUsd).toBeCloseTo((10 * 1 + 5 * 2) / 1e6, 12)
     expect(JSON.stringify(rec)).not.toMatch(/sk-server-secret/)
   })
 
   it('404s a wrong path and an unknown id without contacting upstream', async () => {
     const { app } = buildApp({ config: inferenceJson() })
-    expect((await post(app, 'deepseek', 'v1/wrong').send({})).status).toBe(404)
+    expect((await post(app, 'deepseek-v4.1-flash', 'v1/wrong').send({})).status).toBe(404)
     expect((await post(app, 'nope', 'v1/chat/completions').send({})).status).toBe(404)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('refuses a spent month with the inference_quota_exhausted 402 before any upstream call', async () => {
     const { app } = buildApp({ config: inferenceJson(), spend: { month: MONTH, monthSpent: 5, day: DAY, ipSpend: {} } })
-    const res = await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })
+    const res = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })
     expect(res.status).toBe(402)
     expect(res.body).toEqual({ error: { code: 'inference_quota_exhausted', scope: 'month', message: expect.any(String) } })
     expect(fetchMock).not.toHaveBeenCalled()

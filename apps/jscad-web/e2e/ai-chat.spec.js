@@ -118,7 +118,7 @@ const PARITY_ROUNDS = [
 ]
 
 // The jscad-web free provider's catalog, as `GET /api/relay/jscad-web/v1/models` returns it.
-const INFERENCE_OPTIONS = [{ id: 'deepseek', label: 'DeepSeek v4 flash', kind: 'opencode-go', model: 'deepseek-v4-flash', available: true }]
+const INFERENCE_OPTIONS = [{ id: 'deepseek-v4-flash', kind: 'opencode-go', model: 'deepseek-v4-flash', available: true }]
 
 // A round `{ text, hold: true }` streams its text and then keeps the reply open; `delayMs` holds back every reply's start.
 // A round with `reasoning` streams it first as `reasoning_content`, then waits `pauseMs`; one without `name` answers `text`.
@@ -509,7 +509,7 @@ test.describe('AI chat', () => {
     await expect(page.locator('.ai-provider-select option[value="jscad-web"]')).toHaveCount(1)
     await page.locator('.ai-provider-select').selectOption('jscad-web')
     // The model menu lists the live catalog like any provider; the key controls stay visible but disabled.
-    await expect(page.locator('.ai-model-select')).toContainText('DeepSeek v4 flash')
+    await expect(page.locator('.ai-model-select')).toContainText('deepseek-v4-flash')
     await expect(page.locator('.ai-key-input')).toBeVisible()
     await expect(page.locator('.ai-key-input')).toBeDisabled()
     await page.locator('.ai-dialog-footer button').click()
@@ -517,7 +517,7 @@ test.describe('AI chat', () => {
     await page.locator('.chat-input').fill('model a cube')
     await page.locator('.chat-send').click()
     await expect(page.locator('.chat-messages')).toContainText('Free reply.', { timeout: 30_000 })
-    expect(stub.paths).toEqual(['/api/relay/jscad-web/deepseek/v1/chat/completions'])
+    expect(stub.paths).toEqual(['/api/relay/jscad-web/deepseek-v4-flash/v1/chat/completions'])
     expect(stub.requests).toHaveLength(1)
     expect(stub.requests[0].model).toBe('deepseek-v4-flash')
     stub.server.close()

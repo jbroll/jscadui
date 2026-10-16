@@ -228,11 +228,10 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   // option label like every other `kind · model` line.
   let inferenceOptions = []
   const freeActive = () => state.free === true && state.kind === 'jscad-web'
-  const freeOption = () => inferenceOptions.find((opt) => opt.id === state.inference) ?? null
 
   const refreshSummary = () => {
     if (freeActive()) {
-      summary.textContent = `jscad-web · ${freeOption()?.label ?? state.model ?? state.inference}`
+      summary.textContent = `jscad-web · ${state.model || state.inference}`
       return
     }
     summary.textContent = state.model ? `${state.kind} · ${state.model}` : `${state.kind} · no model set`
@@ -262,7 +261,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   const syncModelControls = (models) => {
     modelSelect.innerHTML = ''
     for (const m of models) {
-      const option = el('option', '', m.label ?? m.id ?? m)
+      const option = el('option', '', m.id ?? m)
       option.value = m.id ?? m
       // Only the free catalog marks availability; own-key lists have no flag.
       if (m.available === false) {
@@ -540,7 +539,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
         }
         inferenceOptions = catalog
         state.capabilities = new Map()
-        syncModelControls(catalog.map((o) => ({ id: o.model, label: o.label, available: o.available })))
+        syncModelControls(catalog.map((o) => ({ id: o.model, available: o.available })))
         syncFreeModelSelection()
         modelStatus.textContent = ''
         refreshEffort()

@@ -938,9 +938,9 @@ describe('relay base url', () => {
 
   it('maps a free selection to the jscad-web route', async () => {
     window.localStorage.removeItem('jscad-ai.relay')
-    expect(relayBaseUrl({ kind: 'jscad-web', inference: 'deepseek', free: true })).toBe('https://jscad.rkroll.com/api/relay/jscad-web/deepseek')
+    expect(relayBaseUrl({ kind: 'jscad-web', inference: 'deepseek-v4.1-flash', free: true })).toBe('https://jscad.rkroll.com/api/relay/jscad-web/deepseek-v4.1-flash')
     window.localStorage.setItem('jscad-ai.relay', 'http://127.0.0.1:9999')
-    expect(relayBaseUrl({ kind: 'jscad-web', inference: 'muse', free: true })).toBe('http://127.0.0.1:9999/api/relay/jscad-web/muse')
+    expect(relayBaseUrl({ kind: 'jscad-web', inference: 'muse-spark-1.3', free: true })).toBe('http://127.0.0.1:9999/api/relay/jscad-web/muse-spark-1.3')
     window.localStorage.removeItem('jscad-ai.relay')
   })
 
@@ -1146,7 +1146,7 @@ describe('conversation context', () => {
 describe('recording consent in the chat drawer', () => {
   const OWN_KEY = { kind: 'openai', model: 'm', apiKey: 'k' }
   const CUSTOM_KEY = { ...OWN_KEY, baseUrl: 'https://direct.test' }
-  const FREE_KEY = { kind: 'jscad-web', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true }
+  const FREE_KEY = { kind: 'jscad-web', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek-v4.1-flash', free: true }
 
   const openChat = (getProvider) => {
     document.body.innerHTML = '<div id="chat"></div>'
@@ -1234,13 +1234,13 @@ describe('free turn routing', () => {
     initChat({
       container,
       requestTool: async () => '{}',
-      getProvider: () => ({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true }),
+      getProvider: () => ({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek-v4.1-flash', free: true }),
       runTurnFn,
     })
     container.querySelector('.chat-input').value = 'hi'
     container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
-    expect(fetchMock.mock.calls[0][0]).toBe('https://jscad.rkroll.com/api/relay/jscad-web/deepseek/v1/chat/completions')
+    expect(fetchMock.mock.calls[0][0]).toBe('https://jscad.rkroll.com/api/relay/jscad-web/deepseek-v4.1-flash/v1/chat/completions')
     expect(fetchMock.mock.calls[0][1].headers.authorization).toBe('Bearer jscad-web-free')
     vi.unstubAllGlobals()
   })
@@ -1257,7 +1257,7 @@ describe('free quota error', () => {
     initChat({
       container,
       requestTool: async () => '{}',
-      getProvider: () => ({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true }),
+      getProvider: () => ({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek-v4.1-flash', free: true }),
       runTurnFn: async () => {
         throw quota
       },

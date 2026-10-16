@@ -1264,7 +1264,8 @@ older than `CHAT_LOG_RETAIN_DAYS` (90 by default, `server/RELAY.md`).
 A visitor can try the chat before signing up or adding a key. The gear dialog
 lists `jscad-web` as one provider like the others; its model menu fills from
 the relay's free catalog (`GET
-/api/relay/jscad-web/v1/models` returns `[{id, label, kind, model, available}]`
+/api/relay/jscad-web/v1/models` returns `[{id, kind, model, available}]`
+(`id` is the model slug)
 — never keys or prices). Choosing it stores `{inference, free: true}` in
 `jscad-ai.selection`, pins that option's model, and hides the key, base URL and
 model controls, since the relay holds the credential. The client carries exactly

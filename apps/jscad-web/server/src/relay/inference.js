@@ -10,7 +10,7 @@ export const DEFAULT_INFERENCE_PATH = '/etc/jscad-relay/jscad-inference.json'
 export const DEFAULT_MONTHLY_USD = 5
 export const DEFAULT_PER_IP_DAILY_USD = 0.1
 
-/** @typedef {{ id: string, label: string, kind: string, path: string, model: string, key: string, maxTokens: number, inputUsdPerMTok: number, outputUsdPerMTok: number }} InferenceOption */
+/** @typedef {{ id: string, kind: string, path: string, model: string, key: string, maxTokens: number, inputUsdPerMTok: number, outputUsdPerMTok: number }} InferenceOption */
 /** @typedef {{ monthlyUsd: number, perIpDailyUsd: number, options: InferenceOption[] }} InferenceConfig */
 
 // Mirrors RESPONSES_MODELS / MESSAGES_MODELS in
@@ -112,9 +112,11 @@ const requireMaxTokens = (value, where) => {
 }
 
 /**
- * Parses one model entry inside a provider. The endpoint path is derived
- * from kind and model via expectedPathFor, never taken from the file, so
- * the operator cannot pin an endpoint the model does not use.
+ * Parses one model entry inside a provider. The model slug is the entry's
+ * whole identity: it names the route, the pinned upstream model, and the menu
+ * row. The endpoint path is derived from kind and model via expectedPathFor,
+ * never taken from the file, so the operator cannot pin an endpoint the model
+ * does not use.
  * @param {unknown} value
  * @param {string} where
  * @param {Set<string>} seen
@@ -127,10 +129,9 @@ const parseModel = (value, where, seen, kind, key) => {
     throw new Error(`relay: inference ${where} must be an object`)
   }
   const raw = /** @type {Record<string, unknown>} */ (value)
-  const id = requireString(raw.id, 'id', where)
-  if (seen.has(id)) throw new Error(`relay: inference ${where} duplicate id '${id}'`)
-  seen.add(id)
   const model = requireString(raw.model, 'model', where)
+  if (seen.has(model)) throw new Error(`relay: inference ${where} duplicate model '${model}'`)
+  seen.add(model)
   const expected = expectedPathFor(kind, model)
   // `kind` is already an inference kind, so a null expectation means the model
   // needs the messages protocol, which a bearer key cannot serve.
@@ -138,8 +139,7 @@ const parseModel = (value, where, seen, kind, key) => {
     throw new Error(`relay: inference ${where} cannot serve model '${model}': the inference relay only injects keys for chat-completions and responses models`)
   }
   return {
-    id,
-    label: requireString(raw.label, 'label', where),
+    id: model,
     kind,
     path: expected,
     model,
@@ -152,11 +152,11 @@ const parseModel = (value, where, seen, kind, key) => {
 
 /**
  * Parses one provider: one kind, one server-held key, and the models that
- * key serves. Extra fields (e.g. a human `label`) are ignored.
+ * key serves. Extra fields are ignored.
  * @param {unknown} value
  * @param {string} where
- * @param {Set<string>} seen ids across the whole file, so the same model
- * under two providers keeps two distinct entries
+ * @param {Set<string>} seen models across the whole file: the slug is the
+ * route id, so listing one model twice is a duplicate
  * @returns {InferenceOption[]}
  */
 const parseProvider = (value, where, seen) => {

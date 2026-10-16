@@ -366,8 +366,8 @@ describe('account header', () => {
 describe('free provider', () => {
   // The relay's jscad-web catalog: one usable option and one out of monthly budget.
   const INFERENCE = [
-    { id: 'deepseek', label: 'DeepSeek v4 flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true },
-    { id: 'muse', label: 'Muse Spark 1.3', kind: 'meta', model: 'muse-spark-1.3', available: false },
+    { id: 'deepseek-v4.1-flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true },
+    { id: 'muse-spark-1.3', kind: 'meta', model: 'muse-spark-1.3', available: false },
   ]
   const CATALOG_URL = '/api/relay/jscad-web/v1/models'
 
@@ -420,17 +420,17 @@ describe('free provider', () => {
     await openGear(inferenceFetch(INFERENCE))
     await selectFree()
     const rows = [...document.querySelectorAll('.ai-model-select option')]
-    expect(rows.map((o) => o.textContent)).toContain('DeepSeek v4 flash')
+    expect(rows.map((o) => o.textContent)).toContain('deepseek-v4.1-flash')
     const muse = rows.find((o) => o.value === 'muse-spark-1.3')
     expect(muse.disabled).toBe(true)
-    expect(muse.textContent).toBe('Muse Spark 1.3 (monthly limit reached)')
+    expect(muse.textContent).toBe('muse-spark-1.3 (monthly limit reached)')
   })
 
   it('persists a free selection and returns the sentinel-key config', async () => {
     const { getProviderConfig } = await openGear(inferenceFetch(INFERENCE))
     await selectFree()
-    expect(JSON.parse(localStorage.getItem('jscad-ai.selection'))).toMatchObject({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', inference: 'deepseek', free: true })
-    expect(getProviderConfig()).toMatchObject({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true })
+    expect(JSON.parse(localStorage.getItem('jscad-ai.selection'))).toMatchObject({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', inference: 'deepseek-v4.1-flash', free: true })
+    expect(getProviderConfig()).toMatchObject({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek-v4.1-flash', free: true })
   })
 
   it('switches free models in the model menu and re-pins the route', async () => {
@@ -440,8 +440,8 @@ describe('free provider', () => {
     const menu = document.querySelector('.ai-model-select')
     menu.value = 'muse-spark-1.3'
     menu.dispatchEvent(new Event('change'))
-    expect(JSON.parse(localStorage.getItem('jscad-ai.selection'))).toMatchObject({ kind: 'jscad-web', model: 'muse-spark-1.3', inference: 'muse', free: true })
-    expect(getProviderConfig()).toMatchObject({ inference: 'muse' })
+    expect(JSON.parse(localStorage.getItem('jscad-ai.selection'))).toMatchObject({ kind: 'jscad-web', model: 'muse-spark-1.3', inference: 'muse-spark-1.3', free: true })
+    expect(getProviderConfig()).toMatchObject({ inference: 'muse-spark-1.3' })
   })
 
   it('routes a free turn to the jscad-web free base with the sentinel key', async () => {
@@ -454,7 +454,7 @@ describe('free provider', () => {
       const config = getProviderConfig()
       const provider = createProvider({ ...config, baseUrl: relayBaseUrl(config) })
       for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) void e
-      expect(fetchMock.mock.calls[0][0]).toBe('https://jscad.rkroll.com/api/relay/jscad-web/deepseek/v1/chat/completions')
+      expect(fetchMock.mock.calls[0][0]).toBe('https://jscad.rkroll.com/api/relay/jscad-web/deepseek-v4.1-flash/v1/chat/completions')
       expect(fetchMock.mock.calls[0][1].headers.authorization).toBe('Bearer jscad-web-free')
     } finally {
       vi.unstubAllGlobals()
@@ -463,7 +463,7 @@ describe('free provider', () => {
 
   it('fails closed for a free record with no model', async () => {
     const { getProviderConfig } = await loadAccount()
-    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'jscad-web', free: true, inference: 'deepseek' }))
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'jscad-web', free: true, inference: 'deepseek-v4.1-flash' }))
     expect(getProviderConfig()).toBeNull()
   })
 

@@ -108,8 +108,6 @@ bad file never silently forwards.
       "key": "sk-...",
       "models": [
         {
-          "id": "deepseek-flash",
-          "label": "DeepSeek V4.1 Flash",
           "model": "deepseek-v4.1-flash",
           "maxTokens": 8192,
           "inputUsdPerMTok": 0.30,
@@ -122,8 +120,6 @@ bad file never silently forwards.
       "key": "...",
       "models": [
         {
-          "id": "muse",
-          "label": "Muse Spark 1.3",
           "model": "muse-spark-1.3-contributor",
           "maxTokens": 4096,
           "inputUsdPerMTok": 1.25,
@@ -141,8 +137,8 @@ endpoint is derived from kind and model, never read from the file. Loading
 refuses a kind other than `opencode-go` or `meta` (both take
 `authorization: Bearer`) and a model that needs the messages protocol (a
 bearer key cannot serve it), both in
-`packages/agent-loop/src/providers.js`; `id`s must be unique across the
-whole file. Prices are the provider's per-million-token pay-as-you-go
+`packages/agent-loop/src/providers.js`; model slugs must be unique across the
+whole file — the slug names the route, the pinned model, and the menu row. Prices are the provider's per-million-token pay-as-you-go
 rates — use peak rates so the meter overcounts rather than under; zero is
 allowed for a free model, missing or negative is refused. `monthlyUsd`
 (default 5) and `perIpDailyUsd` (default 0.1) default when absent. Model
@@ -156,7 +152,7 @@ The hook owns both routes; it never proxies the catalog and never returns keys
 or prices.
 
 - `GET /api/relay/jscad-web/v1/models` returns
-  `[{id, label, kind, model, available}]`. `available` is false once the month's
+  `[{id, kind, model, available}]` (`id` is the model slug). `available` is false once the month's
   budget is spent, and the client lists it disabled with
   `(monthly limit reached)`.
 - `POST /api/relay/jscad-web/<id>/<path>` serves one option: `<id>` is the first
