@@ -5,7 +5,7 @@ import { loadAllowlistFile } from './allowlist.js'
 import { createChatLog, teeRelayUpstream } from './chatLog.js'
 import { costUsd, createMeter, estimateTokens, ipGroup, parseUsage } from './meter.js'
 import { RATE_PER_MIN, RelayRefusal, createLimiter, isTrustedRequest, pickForwardHeaders, resolveTarget } from './policy.js'
-import { DEFAULT_SHARED_PATH, loadSharedFile } from './shared.js'
+import { DEFAULT_INFERENCE_PATH, loadInferenceFile } from './inference.js'
 
 export interface RelayRouteOptions {
   allowlistPath: string
@@ -18,9 +18,11 @@ export interface RelayRouteOptions {
   chatLogDir?: string
   /** Days of chat log to keep: `CHAT_LOG_RETAIN_DAYS`, then 90. */
   chatLogRetainDays?: number
-  /** Shared (demo) options file: `RELAY_SHARED`, then `/etc/jscad-relay/shared.json`. */
+  /** Free inference options file: `RELAY_INFERENCE`, then the deprecated `RELAY_SHARED`, then `/etc/jscad-relay/jscad-inference.json`. */
   sharedPath?: string
   /** Meter state file: `RELAY_SPEND_PATH`, then `./data/relay-spend.json`. */
+  inferenceSpendPath?: string
+  /** @deprecated use `inferenceSpendPath`. */
   sharedSpendPath?: string
   /** Clock seam for the meter; defaults to `Date.now`. */
   now?: () => number
@@ -29,10 +31,10 @@ export interface RelayRouteOptions {
 const DEFAULT_CHAT_LOG_DIR = './data/chat-logs'
 const DEFAULT_CHAT_LOG_RETAIN_DAYS = 90
 const DEFAULT_SPEND_PATH = './data/relay-spend.json'
-const SHARED_CACHE_MS = 5_000
+const INFERENCE_CACHE_MS = 5_000
 // Two turns per IP group may be in flight; a third is refused, and agent-loop
 // retries the 429, which suits a concurrency bound.
-const MAX_SHARED_IN_FLIGHT = 2
+const MAX_INFERENCE_IN_FLIGHT = 2
 const DAY_MS = 24 * 60 * 60 * 1000
 // One file per UTC day, named after that day, so retention reads the names.
 const LOG_FILE_NAME = /^\d{4}-\d{2}-\d{2}\.jsonl$/
@@ -77,12 +79,12 @@ const readAllowlist = (path: string): Record<string, string> => {
 }
 
 /**
- * The body a shared option forwards: the client's, with the model pinned to the
+ * The body a free option forwards: the client's, with the model pinned to the
  * option's, `stream` on, and the output cap the smaller of the client's and the
  * option's. Chat completions also ask for `stream_options.include_usage` so the
  * meter can read the real cost; tools and effort pass through untouched.
  */
-const rewriteSharedBody = (client: unknown, option: { model: string; path: string; maxTokens: number }): Record<string, unknown> => {
+const rewriteInferenceBody = (client: unknown, option: { model: string; path: string; maxTokens: number }): Record<string, unknown> => {
   const source = client !== null && typeof client === 'object' && !Array.isArray(client) ? (client as Record<string, unknown>) : {}
   const cap = (value: unknown) =>
     typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.min(value, option.maxTokens) : option.maxTokens
@@ -123,34 +125,35 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
     return true
   }
 
-  // Demo provider: operator-owned options on server-held keys. Read through the
-  // same 5-second cache as the allowlist so an edit applies without a restart.
-  const sharedPath = options.sharedPath ?? process.env.RELAY_SHARED ?? DEFAULT_SHARED_PATH
-  const spendPath = options.sharedSpendPath ?? process.env.RELAY_SPEND_PATH ?? DEFAULT_SPEND_PATH
+  // Inference provider: operator-owned free models on server-held keys. Read
+  // through the same 5-second cache as the allowlist so an edit applies without
+  // a restart.
+  const inferencePath = options.sharedPath ?? process.env.RELAY_INFERENCE ?? process.env.RELAY_SHARED ?? DEFAULT_INFERENCE_PATH
+  const spendPath = options.inferenceSpendPath ?? options.sharedSpendPath ?? process.env.RELAY_SPEND_PATH ?? DEFAULT_SPEND_PATH
   const meter = createMeter({ statePath: spendPath, now: options.now })
-  let sharedCache: { at: number; path: string; config: ReturnType<typeof loadSharedFile> } | null = null
-  const readShared = (): ReturnType<typeof loadSharedFile> => {
+  let inferenceCache: { at: number; path: string; config: ReturnType<typeof loadInferenceFile> } | null = null
+  const readInference = (): ReturnType<typeof loadInferenceFile> => {
     const at = Date.now()
-    if (sharedCache && sharedCache.path === sharedPath && at - sharedCache.at < SHARED_CACHE_MS) return sharedCache.config
-    const config = loadSharedFile(sharedPath)
-    sharedCache = { at, path: sharedPath, config }
+    if (inferenceCache && inferenceCache.path === inferencePath && at - inferenceCache.at < INFERENCE_CACHE_MS) return inferenceCache.config
+    const config = loadInferenceFile(inferencePath)
+    inferenceCache = { at, path: inferencePath, config }
     return config
   }
-  /** In-flight demo turns per IP group, so one network cannot hold the keys open. */
+  /** In-flight free turns per IP group, so one network cannot hold the keys open. */
   const inFlight = new Map<string, number>()
 
-  app.get('/api/relay/shared', (req, res) => {
+  app.get('/api/relay/inference', (req, res) => {
     if (!corsFor(req, res)) {
       res.status(403).json({ error: 'untrusted origin' })
       return
     }
-    let config: ReturnType<typeof loadSharedFile>
+    let config: ReturnType<typeof loadInferenceFile>
     try {
-      config = readShared()
+      config = readInference()
     } catch (err) {
-      // A broken file hides demo rather than breaking the page; the operator
-      // learns from the log.
-      logger({ relay: 'shared-config-error', message: (err as Error).message })
+      // A broken file hides the free models rather than breaking the page; the
+      // operator learns from the log.
+      logger({ relay: 'inference-config-error', message: (err as Error).message })
       res.json([])
       return
     }
@@ -158,19 +161,19 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
     res.json(config.options.map((o) => ({ id: o.id, label: o.label, kind: o.kind, model: o.model, available })))
   })
 
-  app.post('/api/relay/shared/:id/*splat', async (req, res) => {
+  app.post('/api/relay/inference/:id/*splat', async (req, res) => {
     const ts = new Date().toISOString()
     const started = Date.now()
     if (!corsFor(req, res)) {
       res.status(403).json({ error: 'untrusted origin' })
       return
     }
-    let config: ReturnType<typeof loadSharedFile>
+    let config: ReturnType<typeof loadInferenceFile>
     try {
-      config = readShared()
+      config = readInference()
     } catch (err) {
-      logger({ relay: 'shared-config-error', message: (err as Error).message })
-      res.status(500).json({ error: 'relay: shared config unavailable' })
+      logger({ relay: 'inference-config-error', message: (err as Error).message })
+      res.status(500).json({ error: 'relay: inference config unavailable' })
       return
     }
     const { id, splat } = req.params as unknown as { id: string; splat?: string[] | string }
@@ -179,7 +182,7 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
     // so anything else is not this option.
     const option = config.options.find((o) => o.id === id)
     if (!option || subPath !== option.path) {
-      res.status(404).json({ error: 'unknown shared option' })
+      res.status(404).json({ error: 'unknown inference option' })
       return
     }
     const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown'
@@ -189,18 +192,18 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
       const scope = quota.scope
       res.status(402).json({
         error: {
-          code: 'shared_quota_exhausted',
+          code: 'inference_quota_exhausted',
           scope,
           message:
             scope === 'month'
-              ? 'shared keys monthly budget exhausted'
-              : 'shared keys daily budget exhausted for this network',
+              ? 'inference monthly budget exhausted'
+              : 'inference daily budget exhausted for this network',
         },
       })
       return
     }
     const group = ipGroup(ip)
-    if ((inFlight.get(group) ?? 0) >= MAX_SHARED_IN_FLIGHT) {
+    if ((inFlight.get(group) ?? 0) >= MAX_INFERENCE_IN_FLIGHT) {
       res.setHeader('Retry-After', '2')
       res.status(429).json({ error: 'too many in flight' })
       return
@@ -224,14 +227,14 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
 
     // The client key is whatever the sentinel was; it is dropped here and never
     // trusted. Only the operator's key goes upstream.
-    const bodyText = JSON.stringify(rewriteSharedBody(req.body, option))
+    const bodyText = JSON.stringify(rewriteInferenceBody(req.body, option))
     const headers = pickForwardHeaders(req.headers)
     delete headers.authorization
     delete headers['x-api-key']
     headers.authorization = `Bearer ${option.key}`
     const chatIdHeader = req.headers['x-jscad-chat-id']
     const chatId = typeof chatIdHeader === 'string' && chatIdHeader !== '' ? chatIdHeader : null
-    // Demo turns are always recorded, chat id or not.
+    // Free turns are always recorded, chat id or not.
     const tee = teeRelayUpstream({ log, ts, kind: option.kind, path: option.path, request: Buffer.from(bodyText), chatId, started })
 
     let table: Record<string, string>
@@ -255,7 +258,7 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
     // The client left while we were resolving: no request reached the provider,
     // so nothing is charged, but the abandoned turn is still recorded.
     if (abort.signal.aborted) {
-      tee.finish(499, { error: 'client closed', shared: option.id, costUsd: 0 })
+      tee.finish(499, { error: 'client closed', inference: option.id, costUsd: 0 })
       release()
       return
     }
@@ -269,11 +272,11 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
         // still bill for the prompt it received, so charge the input estimate.
         const cost = costUsd({ inputTokens: estimateTokens(Buffer.byteLength(bodyText)), outputTokens: 0 }, option)
         meter.charge(ip, cost)
-        tee.finish(499, { error: 'client closed', shared: option.id, costUsd: cost })
+        tee.finish(499, { error: 'client closed', inference: option.id, costUsd: cost })
       } else {
         // Never connected, so nothing was sent and nothing is charged.
         res.status(502).json({ error: 'upstream unreachable' })
-        tee.finish(502, { response: 'upstream unreachable', shared: option.id, costUsd: 0 })
+        tee.finish(502, { response: 'upstream unreachable', inference: option.id, costUsd: 0 })
       }
       release()
       return
@@ -298,7 +301,7 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
             option,
           )
       meter.charge(ip, cost)
-      tee.finish(status, { ...(error ? { error } : {}), shared: option.id, costUsd: cost })
+      tee.finish(status, { ...(error ? { error } : {}), inference: option.id, costUsd: cost })
       release()
     }
     try {
@@ -322,7 +325,7 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
       return
     }
     settle(upstreamRes.status)
-    logger({ relay: `shared:${option.id}`, status: upstreamRes.status, bytes })
+    logger({ relay: `inference:${option.id}`, status: upstreamRes.status, bytes })
   })
 
   app.options('/api/relay/*splat', (req, res) => {

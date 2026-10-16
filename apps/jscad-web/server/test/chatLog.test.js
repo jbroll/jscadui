@@ -15,11 +15,11 @@ describe('appendChatRecord', () => {
     expect(lines.map((l) => JSON.parse(l).ts)).toEqual(['2026-09-27T10:00:00.000Z', '2026-09-27T11:00:00.000Z'])
   })
 
-  it('keeps the optional shared and costUsd fields', () => {
+  it('keeps the optional inference and costUsd fields', () => {
     const dir = mkdtempSync(join(tmpdir(), 'chatlog-'))
-    appendChatRecord(dir, record('2026-09-27T10:00:00.000Z', { shared: 'deepseek-flash', costUsd: 0.0004 }))
+    appendChatRecord(dir, record('2026-09-27T10:00:00.000Z', { inference: 'deepseek-flash', costUsd: 0.0004 }))
     const line = JSON.parse(readFileSync(join(dir, '2026-09-27.jsonl'), 'utf8').trim())
-    expect(line).toMatchObject({ shared: 'deepseek-flash', costUsd: 0.0004 })
+    expect(line).toMatchObject({ inference: 'deepseek-flash', costUsd: 0.0004 })
   })
 
   it('warns and never throws when the dir cannot be created', () => {

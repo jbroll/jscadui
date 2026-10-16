@@ -95,9 +95,9 @@ export const teeRelayUpstream = ({ log, ts, kind, path, request, chatId = null, 
     },
     /**
      * @param {number} status
-     * @param {{ error?: string, response?: string, shared?: string, costUsd?: number }} [extra]
+     * @param {{ error?: string, response?: string, inference?: string, costUsd?: number }} [extra]
      *   `response` overrides the accumulated text (an upstream that never streamed
-     *   anything, e.g. unreachable); `shared`/`costUsd` are the Phase 2 fields.
+     *   anything, e.g. unreachable); `inference`/`costUsd` are the Phase 2 fields.
      * @returns {ChatRecord | null} the record written, or null when logging is off
      */
     finish(status, extra = {}) {
@@ -112,7 +112,7 @@ export const teeRelayUpstream = ({ log, ts, kind, path, request, chatId = null, 
         response: extra.response ?? response + decoder.decode(),
         ms: Date.now() - started,
         ...(extra.error ? { error: extra.error } : {}),
-        ...(extra.shared !== undefined ? { shared: extra.shared } : {}),
+        ...(extra.inference !== undefined ? { inference: extra.inference } : {}),
         ...(extra.costUsd !== undefined ? { costUsd: extra.costUsd } : {}),
       }
       log.write(record)

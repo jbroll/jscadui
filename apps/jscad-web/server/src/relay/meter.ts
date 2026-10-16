@@ -1,6 +1,6 @@
-// Spend meter for the shared (demo) keys: the month's total and the per-IP
-// group spend for the current UTC day, persisted to one JSON file so a restart
-// does not reset it. One instance per server process.
+// Spend meter for the jscad-web inference (free) models: the month's total and
+// the per-IP group spend for the current UTC day, persisted to one JSON file so
+// a restart does not reset it. One instance per server process.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { isIP } from 'node:net'
 import { dirname } from 'node:path'

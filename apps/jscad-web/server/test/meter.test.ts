@@ -114,7 +114,7 @@ describe('meter budgets', () => {
   })
 })
 
-describe('shared 402 body', () => {
+describe('inference 402 body', () => {
   const NOW_ISO = '2026-10-15T18:00:00.000Z'
   const config = JSON.stringify({
     monthlyUsd: 5,
@@ -124,12 +124,12 @@ describe('shared 402 body', () => {
     ],
   })
 
-  it('answers 402 with the shared_quota_exhausted body naming the scope', async () => {
+  it('answers 402 with the inference_quota_exhausted body naming the scope', async () => {
     const dir = tmp()
     const allowlistPath = join(dir, 'providers.json')
     writeFileSync(allowlistPath, JSON.stringify({ 'opencode-go': 'https://upstream.test' }))
-    const sharedPath = join(dir, 'shared.json')
-    writeFileSync(sharedPath, config)
+    const inferencePath = join(dir, 'jscad-inference.json')
+    writeFileSync(inferencePath, config)
     const spendPath = join(dir, 'relay-spend.json')
     writeFileSync(spendPath, JSON.stringify({ month: '2026-10', monthSpent: 5, day: '2026-10-15', ipSpend: {} }))
     const fetchMock = vi.fn()
@@ -137,8 +137,8 @@ describe('shared 402 body', () => {
     app.use(express.json())
     mountRelayRoutes(app, {
       allowlistPath,
-      sharedPath,
-      sharedSpendPath: spendPath,
+      sharedPath: inferencePath,
+      inferenceSpendPath: spendPath,
       trustedOrigins: ['https://app.test'],
       logger: () => {},
       fetchFn: fetchMock,
@@ -147,9 +147,9 @@ describe('shared 402 body', () => {
       // Keep any log record out of the repo's ./data.
       chatLogDir: join(dir, 'chat-logs'),
     })
-    const res = await request(app).post('/api/relay/shared/deepseek/v1/chat/completions').set('Origin', 'https://app.test').send({ messages: [] })
+    const res = await request(app).post('/api/relay/inference/deepseek/v1/chat/completions').set('Origin', 'https://app.test').send({ messages: [] })
     expect(res.status).toBe(402)
-    expect(res.body).toEqual({ error: { code: 'shared_quota_exhausted', scope: 'month', message: expect.any(String) } })
+    expect(res.body).toEqual({ error: { code: 'inference_quota_exhausted', scope: 'month', message: expect.any(String) } })
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })

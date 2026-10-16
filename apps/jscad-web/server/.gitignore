@@ -4,6 +4,6 @@ secrets.env
 secrets-*.env
 .env.tenant.*
 rowboat-tenant.*.json
-# Local staging copy of /etc/jscad-relay/shared.json (same schema, real
+# Local staging copy of /etc/jscad-relay/jscad-inference.json (same schema, real
 # keys). Copy to the host, never commit.
-shared.local.json
+jscad-inference.local.json

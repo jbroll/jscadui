@@ -5,7 +5,14 @@ import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { mountRelayRoutes } from '../src/relay/routes.js'
-import { MESSAGES_MODELS, RESPONSES_MODELS, expectedPathFor, loadSharedFile, parseSharedConfig } from '../src/relay/shared.js'
+import {
+  DEFAULT_INFERENCE_PATH,
+  MESSAGES_MODELS,
+  RESPONSES_MODELS,
+  expectedPathFor,
+  loadInferenceFile,
+  parseInferenceConfig,
+} from '../src/relay/inference.js'
 import { MESSAGES_MODELS as AGENT_LOOP_MESSAGES, RESPONSES_MODELS as AGENT_LOOP_RESPONSES } from '../../../../packages/agent-loop/src/providers.js'
 
 // One fixed instant so day/month rollovers in the meter are deterministic.
@@ -13,7 +20,7 @@ const NOW = Date.parse('2026-10-15T18:00:00Z')
 const DAY = '2026-10-15'
 const MONTH = '2026-10'
 
-const tmp = () => mkdtempSync(join(tmpdir(), 'shared-'))
+const tmp = () => mkdtempSync(join(tmpdir(), 'inference-'))
 
 const modelEntry = (over: Record<string, unknown> = {}) => ({
   id: 'deepseek',
@@ -41,7 +48,7 @@ const provider = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
-const sharedJson = (over: Record<string, unknown> = {}) =>
+const inferenceJson = (over: Record<string, unknown> = {}) =>
   JSON.stringify({
     monthlyUsd: 5,
     perIpDailyUsd: 0.1,
@@ -73,8 +80,8 @@ const buildApp = ({
   const dir = tmp()
   const allowlistPath = join(dir, 'providers.json')
   writeFileSync(allowlistPath, JSON.stringify({ 'opencode-go': 'https://upstream.test', meta: 'https://upstream.test' }))
-  const sharedPath = join(dir, 'shared.json')
-  if (config !== undefined) writeFileSync(sharedPath, config)
+  const inferencePath = join(dir, 'jscad-inference.json')
+  if (config !== undefined) writeFileSync(inferencePath, config)
   const spendPath = join(dir, 'relay-spend.json')
   if (spend !== undefined) writeFileSync(spendPath, JSON.stringify(spend))
   const app = express()
@@ -83,8 +90,8 @@ const buildApp = ({
   if (onClose) app.use((_req, res, next) => { res.on('close', onClose); next() })
   mountRelayRoutes(app, {
     allowlistPath,
-    sharedPath,
-    sharedSpendPath: spendPath,
+    sharedPath: inferencePath,
+    inferenceSpendPath: spendPath,
     trustedOrigins: ['https://app.test'],
     logger: (entry) => logs.push(entry),
     fetchFn: fetchMock,
@@ -94,7 +101,7 @@ const buildApp = ({
     // served turn can never write into the repo's ./data.
     chatLogDir: logDir ?? join(dir, 'chat-logs'),
   })
-  return { app, dir, sharedPath, spendPath }
+  return { app, dir, inferencePath, spendPath }
 }
 
 const records = (dir: string): Record<string, unknown>[] =>
@@ -109,7 +116,7 @@ const records = (dir: string): Record<string, unknown>[] =>
     )
 
 const post = (app: express.Express, id: string, path: string) =>
-  request(app).post(`/api/relay/shared/${id}/${path}`).set('Origin', 'https://app.test')
+  request(app).post(`/api/relay/inference/${id}/${path}`).set('Origin', 'https://app.test')
 
 beforeEach(() => {
   fetchMock = vi.fn()
@@ -118,8 +125,12 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('shared config', () => {
-  it('mirrors agent-loop routing sets and sends each demo model down its endpoint', () => {
+describe('inference config', () => {
+  it('defaults to the jscad-inference.json path', () => {
+    expect(DEFAULT_INFERENCE_PATH.endsWith('jscad-inference.json')).toBe(true)
+  })
+
+  it('mirrors agent-loop routing sets and sends each free model down its endpoint', () => {
     expect([...RESPONSES_MODELS].sort()).toEqual([...AGENT_LOOP_RESPONSES].sort())
     expect([...MESSAGES_MODELS].sort()).toEqual([...AGENT_LOOP_MESSAGES].sort())
     expect(expectedPathFor('opencode-go', 'deepseek-v4.1-flash')).toBe('v1/chat/completions')
@@ -128,14 +139,20 @@ describe('shared config', () => {
     expect(expectedPathFor('opencode-go', 'minimax-m3')).toBeNull()
   })
 
+  it('names the inference config in a parse error', () => {
+    expect(() => parseInferenceConfig('{ not json', 'jscad-inference.json')).toThrow(
+      /relay: inference config jscad-inference\.json is not valid JSON/,
+    )
+  })
+
   it('refuses a messages-protocol model, which a bearer key cannot serve', () => {
     const messages = { ...modelEntry(), model: 'minimax-m3' }
     const config = { providers: [provider({ models: [messages] })] }
-    expect(() => parseSharedConfig(JSON.stringify(config), 'shared.json')).toThrow(/minimax-m3/)
+    expect(() => parseInferenceConfig(JSON.stringify(config), 'jscad-inference.json')).toThrow(/minimax-m3/)
   })
 
   it('treats a missing file as no options, with the Phase 1 budget defaults', () => {
-    const config = loadSharedFile(join(tmp(), 'absent.json'))
+    const config = loadInferenceFile(join(tmp(), 'absent.json'))
     expect(config.options).toEqual([])
     expect(config.monthlyUsd).toBe(5)
     expect(config.perIpDailyUsd).toBe(0.1)
@@ -144,21 +161,21 @@ describe('shared config', () => {
   it('refuses a missing, null or negative price, and accepts a zero (free) price', () => {
     for (const bad of [undefined, null, -1]) {
       const config = { providers: [provider({ models: [modelEntry({ inputUsdPerMTok: bad })] })] }
-      expect(() => parseSharedConfig(JSON.stringify(config), 'shared.json')).toThrow(/inputUsdPerMTok/)
+      expect(() => parseInferenceConfig(JSON.stringify(config), 'jscad-inference.json')).toThrow(/inputUsdPerMTok/)
       const configOut = { providers: [provider({ models: [modelEntry({ outputUsdPerMTok: bad })] })] }
-      expect(() => parseSharedConfig(JSON.stringify(configOut), 'shared.json')).toThrow(/outputUsdPerMTok/)
+      expect(() => parseInferenceConfig(JSON.stringify(configOut), 'jscad-inference.json')).toThrow(/outputUsdPerMTok/)
     }
     const free = { providers: [provider({ models: [modelEntry({ inputUsdPerMTok: 0, outputUsdPerMTok: 0 })] })] }
-    expect(parseSharedConfig(JSON.stringify(free), 'shared.json').options[0]).toMatchObject({ inputUsdPerMTok: 0, outputUsdPerMTok: 0 })
+    expect(parseInferenceConfig(JSON.stringify(free), 'jscad-inference.json').options[0]).toMatchObject({ inputUsdPerMTok: 0, outputUsdPerMTok: 0 })
   })
 
   it('refuses a kind other than opencode-go or meta', () => {
     const config = { providers: [provider({ kind: 'openai' })] }
-    expect(() => parseSharedConfig(JSON.stringify(config), 'shared.json')).toThrow(/kind/)
+    expect(() => parseInferenceConfig(JSON.stringify(config), 'jscad-inference.json')).toThrow(/kind/)
   })
 
   it('derives the endpoint path from kind and model instead of reading it', () => {
-    const parsed = parseSharedConfig(sharedJson(), 'shared.json')
+    const parsed = parseInferenceConfig(inferenceJson(), 'jscad-inference.json')
     expect(parsed.options.map((o) => [o.id, o.path])).toEqual([
       ['deepseek', 'v1/chat/completions'],
       ['muse', 'v1/responses'],
@@ -167,31 +184,62 @@ describe('shared config', () => {
 
   it('refuses duplicate option ids, even across providers', () => {
     const config = { providers: [provider(), provider({ kind: 'meta', key: 'other', models: [modelEntry()] })] }
-    expect(() => parseSharedConfig(JSON.stringify(config), 'shared.json')).toThrow(/duplicate|id/)
+    expect(() => parseInferenceConfig(JSON.stringify(config), 'jscad-inference.json')).toThrow(/duplicate|id/)
   })
 
   it('attaches one key to every model under its provider', () => {
     const config = { providers: [provider({ models: [modelEntry(), { ...museEntry, id: 'muse-go', model: 'muse-spark-1.3-contributor' }] })] }
-    const options = parseSharedConfig(JSON.stringify(config), 'shared.json').options
+    const options = parseInferenceConfig(JSON.stringify(config), 'jscad-inference.json').options
     expect(options.map((o) => o.key)).toEqual(['sk-server-secret', 'sk-server-secret'])
   })
 
-  it('accepts the two demo options', () => {
-    expect(parseSharedConfig(sharedJson(), 'shared.json').options.map((o) => o.id)).toEqual(['deepseek', 'muse'])
+  it('accepts the two free options', () => {
+    expect(parseInferenceConfig(inferenceJson(), 'jscad-inference.json').options.map((o) => o.id)).toEqual(['deepseek', 'muse'])
   })
 })
 
-describe('GET /api/relay/shared', () => {
+describe('GET /api/relay/inference', () => {
   it('returns an empty list when the config file is missing', async () => {
     const { app } = buildApp({})
-    const res = await request(app).get('/api/relay/shared').set('Origin', 'https://app.test')
+    const res = await request(app).get('/api/relay/inference').set('Origin', 'https://app.test')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
 
+  it('accepts the deprecated RELAY_SHARED env var as a file fallback', async () => {
+    const dir = tmp()
+    const allowlistPath = join(dir, 'providers.json')
+    writeFileSync(allowlistPath, JSON.stringify({ 'opencode-go': 'https://upstream.test' }))
+    const file = join(dir, 'jscad-inference.json')
+    writeFileSync(file, inferenceJson({ providers: [provider()] }))
+    const hadInference = process.env.RELAY_INFERENCE
+    const hadShared = process.env.RELAY_SHARED
+    delete process.env.RELAY_INFERENCE
+    process.env.RELAY_SHARED = file
+    try {
+      const app = express()
+      app.use(express.json())
+      mountRelayRoutes(app, {
+        allowlistPath,
+        trustedOrigins: ['https://app.test'],
+        logger: () => {},
+        fetchFn: fetchMock,
+        dnsLookup: async () => [{ address: '93.184.216.34' }],
+        chatLogDir: join(dir, 'chat-logs'),
+      })
+      const res = await request(app).get('/api/relay/inference').set('Origin', 'https://app.test')
+      expect(res.body.map((o: { id: string }) => o.id)).toEqual(['deepseek'])
+    } finally {
+      if (hadInference === undefined) delete process.env.RELAY_INFERENCE
+      else process.env.RELAY_INFERENCE = hadInference
+      if (hadShared === undefined) delete process.env.RELAY_SHARED
+      else process.env.RELAY_SHARED = hadShared
+    }
+  })
+
   it('lists options without keys or prices', async () => {
-    const { app } = buildApp({ config: sharedJson() })
-    const res = await request(app).get('/api/relay/shared').set('Origin', 'https://app.test')
+    const { app } = buildApp({ config: inferenceJson() })
+    const res = await request(app).get('/api/relay/inference').set('Origin', 'https://app.test')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([
       { id: 'deepseek', label: 'DeepSeek V4.1 Flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true },
@@ -201,31 +249,31 @@ describe('GET /api/relay/shared', () => {
   })
 
   it('marks every option unavailable once the month budget is spent', async () => {
-    const { app } = buildApp({ config: sharedJson(), spend: { month: MONTH, monthSpent: 5, day: DAY, ipSpend: {} } })
-    const res = await request(app).get('/api/relay/shared').set('Origin', 'https://app.test')
+    const { app } = buildApp({ config: inferenceJson(), spend: { month: MONTH, monthSpent: 5, day: DAY, ipSpend: {} } })
+    const res = await request(app).get('/api/relay/inference').set('Origin', 'https://app.test')
     expect(res.body.every((o: { available: boolean }) => o.available === false)).toBe(true)
   })
 
-  it('hides demo (empty list) when the config cannot be parsed, and logs it', async () => {
+  it('hides free options (empty list) when the config cannot be parsed, and logs it', async () => {
     const logs: unknown[] = []
     const { app } = buildApp({ config: '{ not json', logs })
-    const res = await request(app).get('/api/relay/shared').set('Origin', 'https://app.test')
+    const res = await request(app).get('/api/relay/inference').set('Origin', 'https://app.test')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
-    expect(logs.some((l) => JSON.stringify(l).includes('shared'))).toBe(true)
+    expect(logs.some((l) => JSON.stringify(l).includes('inference'))).toBe(true)
   })
 
   it('refuses an untrusted origin', async () => {
-    const { app } = buildApp({ config: sharedJson() })
-    const res = await request(app).get('/api/relay/shared').set('Origin', 'https://evil.test')
+    const { app } = buildApp({ config: inferenceJson() })
+    const res = await request(app).get('/api/relay/inference').set('Origin', 'https://evil.test')
     expect(res.status).toBe(403)
   })
 })
 
-describe('POST /api/relay/shared/:id/*splat', () => {
+describe('POST /api/relay/inference/:id/*splat', () => {
   it('rewrites the body: pins model and stream, caps tokens, sets include_usage, passes tools and effort', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
-    const { app } = buildApp({ config: sharedJson(), logDir: tmp() })
+    const { app } = buildApp({ config: inferenceJson(), logDir: tmp() })
     const res = await post(app, 'deepseek', 'v1/chat/completions').send({
       model: 'client-model',
       stream: false,
@@ -247,14 +295,14 @@ describe('POST /api/relay/shared/:id/*splat', () => {
 
   it('keeps the smaller client token cap', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
-    const { app } = buildApp({ config: sharedJson() })
+    const { app } = buildApp({ config: inferenceJson() })
     await post(app, 'deepseek', 'v1/chat/completions').send({ max_tokens: 100, messages: [] })
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).max_tokens).toBe(100)
   })
 
   it('caps max_output_tokens for a responses option and leaves stream_options alone', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1}}}\n\n'))
-    const { app } = buildApp({ config: sharedJson() })
+    const { app } = buildApp({ config: inferenceJson() })
     const res = await post(app, 'muse', 'v1/responses').send({ max_output_tokens: 100000, input: 'x' })
     expect(res.status).toBe(200)
     const body = JSON.parse(fetchMock.mock.calls[0][1].body)
@@ -266,33 +314,33 @@ describe('POST /api/relay/shared/:id/*splat', () => {
 
   it('drops the client credential and injects the server key, accepting the sentinel interchangeably', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
-    const { app } = buildApp({ config: sharedJson() })
-    await post(app, 'deepseek', 'v1/chat/completions').set('Authorization', 'Bearer demo-limited-free').set('x-api-key', 'client-key').send({ messages: [] })
+    const { app } = buildApp({ config: inferenceJson() })
+    await post(app, 'deepseek', 'v1/chat/completions').set('Authorization', 'Bearer jscad-web-free').set('x-api-key', 'client-key').send({ messages: [] })
     const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>
     expect(headers.authorization).toBe('Bearer sk-server-secret')
     expect(headers['x-api-key']).toBeUndefined()
 
     fetchMock.mockClear()
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
-    await post(app, 'deepseek', 'v1/chat/completions').set('Authorization', 'Bearer shared').send({ messages: [] })
+    await post(app, 'deepseek', 'v1/chat/completions').set('Authorization', 'Bearer client-sentinel').send({ messages: [] })
     expect((fetchMock.mock.calls[0][1].headers as Record<string, string>).authorization).toBe('Bearer sk-server-secret')
   })
 
   it('404s an unknown option and a wrong path without calling upstream', async () => {
-    const { app } = buildApp({ config: sharedJson() })
+    const { app } = buildApp({ config: inferenceJson() })
     expect((await post(app, 'nope', 'v1/chat/completions').send({})).status).toBe(404)
     expect((await post(app, 'deepseek', 'v1/responses').send({})).status).toBe(404)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('always logs the turn with shared and costUsd, even without a chat id, and never the key', async () => {
+  it('always logs the turn with inference and costUsd, even without a chat id, and never the key', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n'))
     const logDir = tmp()
-    const { app } = buildApp({ config: sharedJson(), logDir })
+    const { app } = buildApp({ config: inferenceJson(), logDir })
     await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [], max_tokens: 4 })
     await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
     const [rec] = records(logDir)
-    expect(rec).toMatchObject({ chatId: null, kind: 'opencode-go', path: 'v1/chat/completions', shared: 'deepseek', status: 200 })
+    expect(rec).toMatchObject({ chatId: null, kind: 'opencode-go', path: 'v1/chat/completions', inference: 'deepseek', status: 200 })
     expect(rec.costUsd).toBeCloseTo((10 * 1 + 5 * 2) / 1e6, 12)
     expect(JSON.stringify(rec)).not.toMatch(/sk-server-secret|meta-server-secret/)
   })
@@ -300,7 +348,7 @@ describe('POST /api/relay/shared/:id/*splat', () => {
   it('keeps the chat id on the record when the client sends one', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
     const logDir = tmp()
-    const { app } = buildApp({ config: sharedJson(), logDir })
+    const { app } = buildApp({ config: inferenceJson(), logDir })
     await post(app, 'deepseek', 'v1/chat/completions').set('x-jscad-chat-id', 'chat-7').send({ messages: [] })
     await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
     expect(records(logDir)[0].chatId).toBe('chat-7')
@@ -309,7 +357,7 @@ describe('POST /api/relay/shared/:id/*splat', () => {
   it('estimates the charge when the stream carries no usage', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"choices":[{"delta":{"content":"hello world"}}]}\n\n'))
     const logDir = tmp()
-    const { app } = buildApp({ config: sharedJson(), logDir })
+    const { app } = buildApp({ config: inferenceJson(), logDir })
     await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [{ role: 'user', content: '123456' }] })
     await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
     const [rec] = records(logDir)
@@ -321,23 +369,23 @@ describe('POST /api/relay/shared/:id/*splat', () => {
 
   it('charges the IP group so an over-budget second turn is refused with the 402 body', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n'))
-    const { app } = buildApp({ config: sharedJson({ perIpDailyUsd: 0.00001 }) })
+    const { app } = buildApp({ config: inferenceJson({ perIpDailyUsd: 0.00001 }) })
     expect((await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })).status).toBe(200)
     const second = await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })
     expect(second.status).toBe(402)
-    expect(second.body).toEqual({ error: { code: 'shared_quota_exhausted', scope: 'day', message: expect.any(String) } })
+    expect(second.body).toEqual({ error: { code: 'inference_quota_exhausted', scope: 'day', message: expect.any(String) } })
   })
 
   it('refuses a spent month with scope month before any rewrite', async () => {
-    const { app } = buildApp({ config: sharedJson(), spend: { month: MONTH, monthSpent: 5, day: DAY, ipSpend: {} } })
+    const { app } = buildApp({ config: inferenceJson(), spend: { month: MONTH, monthSpent: 5, day: DAY, ipSpend: {} } })
     const res = await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })
     expect(res.status).toBe(402)
-    expect(res.body.error).toMatchObject({ code: 'shared_quota_exhausted', scope: 'month' })
+    expect(res.body.error).toMatchObject({ code: 'inference_quota_exhausted', scope: 'month' })
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('refuses a body over the 100 KB json limit before forwarding', async () => {
-    const { app } = buildApp({ config: sharedJson() })
+    const { app } = buildApp({ config: inferenceJson() })
     const res = await post(app, 'deepseek', 'v1/chat/completions').send({ messages: [{ role: 'user', content: 'x'.repeat(120_000) }] })
     expect(res.status).toBe(413)
     expect(fetchMock).not.toHaveBeenCalled()
@@ -346,7 +394,7 @@ describe('POST /api/relay/shared/:id/*splat', () => {
   it('refuses a third in-flight request from the same IP group with 429 and Retry-After: 2', async () => {
     const pending: Array<(r: Response) => void> = []
     fetchMock.mockImplementation(() => new Promise<Response>((resolve) => pending.push(resolve)))
-    const { app } = buildApp({ config: sharedJson() })
+    const { app } = buildApp({ config: inferenceJson() })
     const held = [post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] }), post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })]
     // superagent sends when the thenable is awaited; start both without awaiting.
     for (const t of held) void t.then(() => {}, () => {})
@@ -372,7 +420,7 @@ describe('POST /api/relay/shared/:id/*splat', () => {
       return { ok: true, status: 200, headers: new Headers({ 'content-type': 'text/event-stream' }), body } as unknown as Response
     })
     const logDir = tmp()
-    const { app } = buildApp({ config: sharedJson(), logDir })
+    const { app } = buildApp({ config: inferenceJson(), logDir })
     const pendingReq = post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })
     const settled = pendingReq.then(
       () => 'settled',
@@ -385,7 +433,7 @@ describe('POST /api/relay/shared/:id/*splat', () => {
     await settled
     await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
     const [rec] = records(logDir)
-    expect(rec).toMatchObject({ shared: 'deepseek', error: 'client closed' })
+    expect(rec).toMatchObject({ inference: 'deepseek', error: 'client closed' })
     expect(rec.costUsd).toBeGreaterThan(0)
   })
 
@@ -401,7 +449,7 @@ describe('POST /api/relay/shared/:id/*splat', () => {
         }),
     )
     const logDir = tmp()
-    const { app, spendPath } = buildApp({ config: sharedJson(), logDir })
+    const { app, spendPath } = buildApp({ config: inferenceJson(), logDir })
     const pendingReq = post(app, 'deepseek', 'v1/chat/completions').send({ messages: [{ role: 'user', content: 'hello there' }] })
     const settled = pendingReq.then(
       () => 'settled',
@@ -413,9 +461,9 @@ describe('POST /api/relay/shared/:id/*splat', () => {
     await settled
     await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
     const [rec] = records(logDir)
-    expect(rec).toMatchObject({ shared: 'deepseek', error: 'client closed' })
+    expect(rec).toMatchObject({ inference: 'deepseek', error: 'client closed' })
     // The prompt had already gone upstream, so the estimated input is charged and
-    // the meter advances: a repeated abort cannot run the demo free.
+    // the meter advances: a repeated abort cannot run the free model for free.
     const sentBytes = Buffer.byteLength(String(fetchMock.mock.calls[0][1].body))
     const expected = (Math.ceil(sentBytes / 3) * 1) / 1e6
     expect(expected).toBeGreaterThan(0)
@@ -434,7 +482,7 @@ describe('POST /api/relay/shared/:id/*splat', () => {
       sawClose = resolve
     })
     const logDir = tmp()
-    const { app } = buildApp({ config: sharedJson(), logDir, dnsLookup, onClose: () => sawClose?.() })
+    const { app } = buildApp({ config: inferenceJson(), logDir, dnsLookup, onClose: () => sawClose?.() })
     const pendingReq = post(app, 'deepseek', 'v1/chat/completions').send({ messages: [] })
     const settled = pendingReq.then(
       () => 'settled',
@@ -449,6 +497,6 @@ describe('POST /api/relay/shared/:id/*splat', () => {
     await settled
     await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(records(logDir)[0]).toMatchObject({ shared: 'deepseek', error: 'client closed', costUsd: 0 })
+    expect(records(logDir)[0]).toMatchObject({ inference: 'deepseek', error: 'client closed', costUsd: 0 })
   })
 })
