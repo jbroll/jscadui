@@ -253,9 +253,15 @@ const meshRefs = createMeshRefs()
 let streamDrawn = []
 
 // A grid draws cell by cell; the camera refits to what is drawn, so it only zooms out.
-const drawStream = (entities, box) => {
+const drawStream = (entities, box, totals) => {
   viewState.setModel(entities)
   streamDrawn = entities
+  // Cumulative geometry counters: the stats panel would otherwise show the
+  // previous model until the run finishes.
+  if (totals) {
+    document.documentElement.dataset.vertices = String(totals.vertices)
+    updatePipelineStats(statsContent, { triangles: totals.triangles, vertices: totals.vertices })
+  }
   if (viewState.zoomToFit && box) {
     const { fov, aspect } = viewState.viewer.getCamera()
     ctrl.fit(box.min, box.max, fov, aspect, 1 / 0.6)

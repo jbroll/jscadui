@@ -51,11 +51,20 @@ describe('stream runs', () => {
     expect(draw.mock.calls[0][1]).toEqual({ min: { x: 1, y: 1, z: 1 }, max: { x: 5, y: 5, z: 5 } })
   })
 
+  it('hands running totals to draw for cumulative stats', () => {
+    const { runs, draw } = setup()
+    runs.begin(() => false)
+    runs.accept([cell(1, 6)])
+    runs.accept([{ ...cell(2, 9), indices: new Uint32Array([0, 1, 2]) }])
+    vi.advanceTimersByTime(250)
+    expect(draw.mock.calls[0][2]).toEqual({ cells: 2, vertices: 15, triangles: 1 })
+  })
+
   it('replaces the previous model on finish even with no batches', () => {
     const { runs, draw } = setup()
     runs.begin(() => false)
     expect(runs.finish()).toEqual({ cells: 0, vertices: 0, triangles: 0, lost: 0 })
-    expect(draw).toHaveBeenCalledWith([], null)
+    expect(draw).toHaveBeenCalledWith([], null, { cells: 0, vertices: 0, triangles: 0 })
   })
 
   it('draws pending batches at once on finish and reports totals', () => {

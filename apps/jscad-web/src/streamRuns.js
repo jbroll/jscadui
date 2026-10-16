@@ -20,7 +20,7 @@ const lostError = (lost) => {
  * One streamed run at a time: the batches a grid sends while the load or
  * parameter change that started it is current. Batches and the final result
  * carry the request's runId, so an older request's late cells are dropped.
- * @param {{draw: (entities: object[], box: object | null) => void, onCells: (count: number) => void, onError: (error: Error) => void, resolve?: (entities: object[]) => object[], delayMs?: number}} options
+ * @param {{draw: (entities: object[], box: object | null, totals: {cells: number, vertices: number, triangles: number}) => void, onCells: (count: number) => void, onError: (error: Error) => void, resolve?: (entities: object[]) => object[], delayMs?: number}} options
  */
 export const createStreamRuns = ({ draw, onCells, onError, resolve = (e) => e, delayMs = 250 }) => {
   let run = null
@@ -32,7 +32,7 @@ export const createStreamRuns = ({ draw, onCells, onError, resolve = (e) => e, d
     run.timer = null
     if (run.isStale() || !(run.dirty || always)) return
     run.dirty = false
-    draw(run.entities, run.box)
+    draw(run.entities, run.box, { cells: run.cells, vertices: run.vertices, triangles: run.triangles })
   }
 
   const stop = () => {
