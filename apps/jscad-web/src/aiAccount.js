@@ -236,7 +236,8 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   const summary = el('div', 'ai-session ai-summary')
 
   // A free option pins one model on the relay; the dialog shows it as
-  // `jscad-web · <label>` and hides the key, custody, base URL and model controls.
+  // `jscad-web · <label>` and disables (never hides) the key, custody, base URL
+  // and model controls the relay owns.
   let inferenceOptions = []
   const freeActive = () => state.free === true && state.inference !== ''
   const freeOption = () => inferenceOptions.find((opt) => opt.id === state.inference) ?? null
@@ -379,14 +380,15 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   const modelField = field('Model', modelSelect)
   const modelInputField = field('Custom model id', modelInput)
 
-  // Free hides everything the relay owns for it: the key, its custody, the
+  // Free disables everything the relay owns for it: the key, its custody, the
   // custom base URL and the model controls (the option pins one model). The
-  // recording box is checked and locked, since free turns always record.
+  // wrappers stay visible, so the disabled state reads as "the relay owns this"
+  // rather than vanishing; effort stays enabled. The recording box is checked
+  // and locked, since free turns always record.
+  const relayOwnedControls = [key, mode, passphrase, saveKey, clearKey, modelSelect, modelInput, baseUrl]
   const applyFreeState = () => {
     const free = freeActive()
-    for (const node of [keyField, keepField, passphraseField, keyActions, modelField, modelInputField, advanced]) {
-      node.style.display = free ? 'none' : ''
-    }
+    for (const control of relayOwnedControls) control.disabled = free
     freeInfo.style.display = free ? '' : 'none'
     if (free) {
       freeInfo.textContent = `jscad-web · ${freeOption()?.label ?? state.inference} · ${state.model}`
@@ -561,7 +563,9 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     if (option && option.available !== false) {
       state.free = true
       state.inference = option.id
-      state.kind = option.kind
+      // The selection kind is first-class `jscad-web`; agent-loop routes it by
+      // model id. The catalog entry's own kind stays the upstream protocol.
+      state.kind = 'jscad-web'
       state.model = option.model
       state.baseUrl = ''
       baseUrl.value = ''

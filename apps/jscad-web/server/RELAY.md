@@ -25,9 +25,9 @@ jscad-web provider rides this one, dispatched by `kind` like every other.
 
 `getHook(kind)` in `providers/index.js` returns the jscad-web hook for the
 `jscad-web` wire kind and the default hook otherwise. A free option's underlying
-protocol (`opencode-go`, `meta`) is not the hook key: the client routes a free
-turn through `jscad-web` and keeps the underlying kind on its own selection for
-agent-loop's routing and effort.
+protocol (`opencode-go`, `meta`) is not the hook key: the catalog entry's `kind`
+is the upstream protocol, while the client selection's `kind` is `jscad-web`,
+which agent-loop routes by model id for its protocol and effort.
 
 ## Allowlist file
 

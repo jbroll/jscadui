@@ -321,7 +321,9 @@ const anthropicProvider = (config) => {
         'x-api-key': config.apiKey,
         'anthropic-version': ANTHROPIC_API_VERSION,
       }
-      if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
+      // Free jscad-web models are zen-served, like opencode-go; the relay
+      // forwards this header upstream.
+      if (config.kind === 'opencode-go' || config.kind === 'jscad-web') headers['x-opencode-session'] = sessionId
       if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
       yield* streamWithRetry(
         'anthropic',
@@ -420,12 +422,14 @@ const openaiProvider = (config) => {
       if (config.effort) body.reasoning_effort = config.effort
       if (config.temperature !== undefined) body.temperature = config.temperature
       if (config.maxTokens !== undefined) body.max_tokens = config.maxTokens
-      if (config.kind === 'openai' || config.kind === 'opencode-go') body.stream_options = { include_usage: true }
+      if (config.kind === 'openai' || config.kind === 'opencode-go' || config.kind === 'jscad-web') body.stream_options = { include_usage: true }
       const headers = {
         'content-type': 'application/json',
         authorization: `Bearer ${config.apiKey}`,
       }
-      if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
+      // Free jscad-web models are zen-served, like opencode-go; the relay
+      // forwards this header upstream.
+      if (config.kind === 'opencode-go' || config.kind === 'jscad-web') headers['x-opencode-session'] = sessionId
       if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
       yield* streamWithRetry(
         'openai',
@@ -438,7 +442,7 @@ const openaiProvider = (config) => {
 }
 
 /**
- * @param {{kind:'anthropic'|'openai'|'opencode-go'|'meta',apiKey:string,model:string,baseUrl?:string,sessionId?:string,effort?:string,chatId?:string,temperature?:number,maxTokens?:number}} config
+ * @param {{kind:'anthropic'|'openai'|'opencode-go'|'meta'|'jscad-web',apiKey:string,model:string,baseUrl?:string,sessionId?:string,effort?:string,chatId?:string,temperature?:number,maxTokens?:number}} config
  */
 export const createProvider = (config) => {
   if (!config.apiKey) throw new Error('createProvider: apiKey is required')
@@ -449,6 +453,7 @@ export const createProvider = (config) => {
       return openaiProvider(config)
     case 'opencode-go':
     case 'meta':
+    case 'jscad-web':
       if (RESPONSES_MODELS.has(config.model)) return responsesProvider(config)
       if (MESSAGES_MODELS.has(config.model)) return anthropicProvider(config)
       return openaiProvider(config)

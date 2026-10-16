@@ -938,9 +938,9 @@ describe('relay base url', () => {
 
   it('maps a free selection to the jscad-web route', async () => {
     window.localStorage.removeItem('jscad-ai.relay')
-    expect(relayBaseUrl({ kind: 'opencode-go', inference: 'deepseek', free: true })).toBe('https://jscad.rkroll.com/api/relay/jscad-web/deepseek')
+    expect(relayBaseUrl({ kind: 'jscad-web', inference: 'deepseek', free: true })).toBe('https://jscad.rkroll.com/api/relay/jscad-web/deepseek')
     window.localStorage.setItem('jscad-ai.relay', 'http://127.0.0.1:9999')
-    expect(relayBaseUrl({ kind: 'meta', inference: 'muse', free: true })).toBe('http://127.0.0.1:9999/api/relay/jscad-web/muse')
+    expect(relayBaseUrl({ kind: 'jscad-web', inference: 'muse', free: true })).toBe('http://127.0.0.1:9999/api/relay/jscad-web/muse')
     window.localStorage.removeItem('jscad-ai.relay')
   })
 
@@ -1146,7 +1146,7 @@ describe('conversation context', () => {
 describe('recording consent in the chat drawer', () => {
   const OWN_KEY = { kind: 'openai', model: 'm', apiKey: 'k' }
   const CUSTOM_KEY = { ...OWN_KEY, baseUrl: 'https://direct.test' }
-  const FREE_KEY = { kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true }
+  const FREE_KEY = { kind: 'jscad-web', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true }
 
   const openChat = (getProvider) => {
     document.body.innerHTML = '<div id="chat"></div>'
@@ -1234,7 +1234,7 @@ describe('free turn routing', () => {
     initChat({
       container,
       requestTool: async () => '{}',
-      getProvider: () => ({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true }),
+      getProvider: () => ({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true }),
       runTurnFn,
     })
     container.querySelector('.chat-input').value = 'hi'
@@ -1257,7 +1257,7 @@ describe('free quota error', () => {
     initChat({
       container,
       requestTool: async () => '{}',
-      getProvider: () => ({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true }),
+      getProvider: () => ({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true }),
       runTurnFn: async () => {
         throw quota
       },

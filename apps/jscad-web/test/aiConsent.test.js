@@ -108,16 +108,16 @@ describe('version bump', () => {
 describe('free notice', () => {
   it('allows a free turn when the accepted terms already record chats', () => {
     acceptTos(true)
-    expect(checkTurn({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })).toEqual({ ok: true })
+    expect(checkTurn({ kind: 'jscad-web', model: 'm', inference: 's1', free: true })).toEqual({ ok: true })
   })
 
   it('re-blocks a free turn for a user who opted out of recording', () => {
     acceptTos(false)
-    expect(checkTurn({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })).toEqual({ ok: false, reason: 'free-notice' })
+    expect(checkTurn({ kind: 'jscad-web', model: 'm', inference: 's1', free: true })).toEqual({ ok: false, reason: 'free-notice' })
   })
 
   it('checks the terms before the free notice', () => {
-    expect(checkTurn({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })).toEqual({ ok: false, reason: 'tos' })
+    expect(checkTurn({ kind: 'jscad-web', model: 'm', inference: 's1', free: true })).toEqual({ ok: false, reason: 'tos' })
   })
 })
 
@@ -128,7 +128,7 @@ describe('gate rows', () => {
   })
 
   it('adds the always-recorded notice for free, with recording checked and locked', () => {
-    const rows = consentRows({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })
+    const rows = consentRows({ kind: 'jscad-web', model: 'm', inference: 's1', free: true })
     expect(rows.map((row) => row.key)).toEqual(['code-execution', 'provider-sharing', 'free-recorded', 'recordOwnChats'])
     expect(rows.find((row) => row.key === 'recordOwnChats')).toMatchObject({ checked: true, locked: true })
   })
@@ -198,7 +198,7 @@ describe('gate dialog', () => {
   })
 
   it('locks the recording checkbox on for free', async () => {
-    const pending = openConsentGate({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })
+    const pending = openConsentGate({ kind: 'jscad-web', model: 'm', inference: 's1', free: true })
     const recording = box('recordOwnChats').querySelector('input')
     expect(recording.checked).toBe(true)
     expect(recording.disabled).toBe(true)
@@ -213,7 +213,7 @@ describe('gate dialog', () => {
 
   it('keeps a prior opt-out when the free notice is accepted', async () => {
     acceptTos(false)
-    const pending = openConsentGate({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })
+    const pending = openConsentGate({ kind: 'jscad-web', model: 'm', inference: 's1', free: true })
     const recording = box('recordOwnChats').querySelector('input')
     expect(recording.checked).toBe(true)
     expect(recording.disabled).toBe(true)
@@ -227,7 +227,7 @@ describe('gate dialog', () => {
     expect(getRecordOwnChats()).toBe(false)
     expect(localStorage.getItem('jscad-ai.log')).toBe('off')
     // Free turns stay gated on the notice rather than being silently allowed.
-    expect(checkTurn({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })).toEqual({ ok: false, reason: 'free-notice' })
+    expect(checkTurn({ kind: 'jscad-web', model: 'm', inference: 's1', free: true })).toEqual({ ok: false, reason: 'free-notice' })
   })
 
   it('keeps the prior opt-out when the recording question is skipped for a custom base URL', async () => {
@@ -337,7 +337,7 @@ describe('send gate', () => {
   it('asks for the free notice when a recording opt-out meets the free provider', async () => {
     acceptTos(false)
     const runTurnFn = vi.fn(async () => ({ messages: [] }))
-    const free = { kind: 'opencode-go', model: 'm', apiKey: 'jscad-web-free', inference: 's1', free: true }
+    const free = { kind: 'jscad-web', model: 'm', apiKey: 'jscad-web-free', inference: 's1', free: true }
     const { q, type } = openChat({ getProvider: () => free, runTurnFn, projectId: 'p1' })
     type('a cube')
     const gate = document.querySelector('.tos-gate')
@@ -356,7 +356,7 @@ describe('send gate', () => {
       onText('free reply')
       return { messages: [] }
     })
-    const free = { kind: 'opencode-go', model: 'm', apiKey: 'jscad-web-free', inference: 's1', free: true }
+    const free = { kind: 'jscad-web', model: 'm', apiKey: 'jscad-web-free', inference: 's1', free: true }
     const { q, type } = openChat({ getProvider: () => free, runTurnFn, projectId: 'p1' })
     type('a cube')
     const gate = document.querySelector('.tos-gate')

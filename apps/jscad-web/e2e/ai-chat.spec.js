@@ -507,10 +507,11 @@ test.describe('AI chat', () => {
     await page.locator('.ai-gear').click()
     await expect(page.locator('.ai-provider-select option[value="jscad-web:deepseek"]')).toHaveCount(1)
     await page.locator('.ai-provider-select').selectOption('jscad-web:deepseek')
-    // The option pins the model and hides the key controls; the relay owns the key.
+    // The option pins the model and disables (not hides) the key controls; the relay owns the key.
     await expect(page.locator('.ai-free-info')).toContainText('jscad-web · DeepSeek v4 flash')
     await expect(page.locator('.ai-free-info')).toContainText('deepseek-v4-flash')
-    await expect(page.locator('.ai-key-input')).toBeHidden()
+    await expect(page.locator('.ai-key-input')).toBeVisible()
+    await expect(page.locator('.ai-key-input')).toBeDisabled()
     await page.locator('.ai-dialog-footer button').click()
 
     await page.locator('.chat-input').fill('model a cube')

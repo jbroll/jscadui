@@ -414,8 +414,8 @@ describe('free provider', () => {
   it('persists a free selection and returns the sentinel-key config', async () => {
     const { getProviderConfig } = await openGear(inferenceFetch(INFERENCE))
     await selectFree('deepseek')
-    expect(JSON.parse(localStorage.getItem('jscad-ai.selection'))).toMatchObject({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', inference: 'deepseek', free: true })
-    expect(getProviderConfig()).toMatchObject({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true })
+    expect(JSON.parse(localStorage.getItem('jscad-ai.selection'))).toMatchObject({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', inference: 'deepseek', free: true })
+    expect(getProviderConfig()).toMatchObject({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true })
   })
 
   it('fails closed for a legacy shared/demo selection instead of migrating', async () => {
@@ -444,20 +444,54 @@ describe('free provider', () => {
 
   it('fails closed for a free record with no model', async () => {
     const { getProviderConfig } = await loadAccount()
-    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'opencode-go', free: true, inference: 'deepseek' }))
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'jscad-web', free: true, inference: 'deepseek' }))
     expect(getProviderConfig()).toBeNull()
   })
 
-  it('hides the key, custody, base URL and model controls for free', async () => {
+  it('disables the key, custody, base URL and model controls for free, keeping them visible', async () => {
     await openGear(inferenceFetch(INFERENCE))
     await selectFree('deepseek')
-    expect(document.querySelector('.ai-key-input').closest('.ai-field').style.display).toBe('none')
-    expect(document.querySelector('.ai-model-select').closest('.ai-field').style.display).toBe('none')
-    expect(document.querySelector('.ai-model-input').closest('.ai-field').style.display).toBe('none')
-    expect(document.querySelector('.ai-advanced').style.display).toBe('none')
+    const fieldNamed = (name) => [...document.querySelectorAll('.ai-settings .ai-field')].find((f) => f.querySelector('.ai-field-name')?.textContent === name)
+    const relayOwned = () => [
+      document.querySelector('.ai-key-input'),
+      fieldNamed('Keep').querySelector('select'),
+      fieldNamed('Passphrase').querySelector('input'),
+      document.querySelector('.ai-save-key'),
+      fieldNamed('Keep').closest('.ai-settings').querySelector('.ai-actions button:not(.ai-save-key)'),
+      document.querySelector('.ai-model-select'),
+      document.querySelector('.ai-model-input'),
+      document.querySelector('.ai-base-input'),
+    ]
+    for (const control of relayOwned()) expect(control.disabled).toBe(true)
+    // The wrappers stay visible; only the controls are inert.
+    expect(document.querySelector('.ai-key-input').closest('.ai-field').style.display).toBe('')
+    expect(document.querySelector('.ai-model-select').closest('.ai-field').style.display).toBe('')
+    expect(document.querySelector('.ai-model-input').closest('.ai-field').style.display).toBe('')
+    expect(document.querySelector('.ai-advanced').style.display).toBe('')
     const info = document.querySelector('.ai-free-info')
     expect(info.style.display).toBe('')
     expect(info.textContent).toMatch(/jscad-web · DeepSeek v4 flash/)
+  })
+
+  it('re-enables the relay-owned controls on switching back to an own-key provider', async () => {
+    await openGear(inferenceFetch(INFERENCE))
+    await selectFree('deepseek')
+    const fieldNamed = (name) => [...document.querySelectorAll('.ai-settings .ai-field')].find((f) => f.querySelector('.ai-field-name')?.textContent === name)
+    const relayOwned = () => [
+      document.querySelector('.ai-key-input'),
+      fieldNamed('Keep').querySelector('select'),
+      fieldNamed('Passphrase').querySelector('input'),
+      document.querySelector('.ai-save-key'),
+      fieldNamed('Keep').closest('.ai-settings').querySelector('.ai-actions button:not(.ai-save-key)'),
+      document.querySelector('.ai-model-select'),
+      document.querySelector('.ai-model-input'),
+      document.querySelector('.ai-base-input'),
+    ]
+    expect(relayOwned().every((control) => control.disabled)).toBe(true)
+    const provider = document.querySelector('.ai-provider-select')
+    provider.value = 'openai'
+    provider.dispatchEvent(new Event('change'))
+    expect(relayOwned().every((control) => control.disabled)).toBe(false)
   })
 
   it('does not request the model list for a free selection', async () => {

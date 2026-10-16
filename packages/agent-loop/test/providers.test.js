@@ -895,3 +895,38 @@ describe('openai request settings', () => {
     expect(body).not.toHaveProperty('max_tokens')
   })
 })
+
+describe('jscad-web kind routing', () => {
+  const chatBody = `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n` + `data: [DONE]\n\n`
+  const base = 'https://relay.test/api/relay/jscad-web/deepseek'
+
+  it('chat models: posts chat-completions with the bearer key, session header and usage stream option', async () => {
+    fetchMock.mockResolvedValue(new Response(sseBody(chatBody)))
+    const provider = createProvider({ kind: 'jscad-web', apiKey: 'k', model: 'deepseek-v4.1-flash', baseUrl: base })
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) void e
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe(`${base}/v1/chat/completions`)
+    expect(init.headers.authorization).toBe('Bearer k')
+    expect(typeof init.headers['x-opencode-session']).toBe('string')
+    expect(JSON.parse(init.body).stream_options).toEqual({ include_usage: true })
+  })
+
+  it('spark models use the responses adapter', async () => {
+    const body = `data: {"type":"response.output_text.delta","delta":"Hi"}\n\n` + `data: {"type":"response.completed"}\n\n`
+    fetchMock.mockResolvedValue(new Response(sseBody(body)))
+    const provider = createProvider({ kind: 'jscad-web', apiKey: 'k', model: 'muse-spark-1.3-contributor', baseUrl: base })
+    const events = []
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) events.push(e)
+    expect(fetchMock.mock.calls[0][0]).toBe(`${base}/v1/responses`)
+    expect(events).toContainEqual({ type: 'text', text: 'Hi' })
+  })
+
+  it('messages models use the anthropic adapter with the session header', async () => {
+    fetchMock.mockResolvedValue(new Response(sseBody('')))
+    const provider = createProvider({ kind: 'jscad-web', apiKey: 'k', model: 'minimax-m3', baseUrl: base })
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) void e
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe(`${base}/v1/messages`)
+    expect(typeof init.headers['x-opencode-session']).toBe('string')
+  })
+})
