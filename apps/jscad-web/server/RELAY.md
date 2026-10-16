@@ -79,10 +79,21 @@ and drops the caller's key (see Free jscad-web models).
 
 The jscad-web hook serves operator-owned keys to visitors with no account. Its
 config is JSON `{monthlyUsd, perIpDailyUsd, providers}`, default
-`/etc/jscad-relay/jscad-inference.json`, override with `RELAY_INFERENCE`); keep it mode `0600`, owned by
+`/etc/jscad-relay/jscad-inference.json`, override with `RELAY_INFERENCE`; keep it mode `0600`, owned by
 the service user, beside `providers.json`. Stage the real keys locally in
-`server/jscad-inference.local.json` (same schema, gitignored, never commit) and
-copy that file to the host path. Re-read on the same 5s cache, so an edit
+`server/jscad-inference.local.json` (same schema, gitignored, never commit).
+Validate it with `node --input-type=module -e "import('./server/src/relay/inference.js').then(m => console.log(m.loadInferenceFile('./server/jscad-inference.local.json').options.map(o => o.id)))"`
+from `apps/jscad-web`, then copy it to the host path (no restart; the 5s cache
+picks it up):
+
+```sh
+ssh john@jscad.rkroll.com 'sudo install -d -m 755 -o root -g root /etc/jscad-relay'
+scp apps/jscad-web/server/jscad-inference.local.json john@jscad.rkroll.com:/tmp/jscad-inference.json
+ssh john@jscad.rkroll.com 'sudo install -m 600 -o jscad-studio -g jscad-studio /tmp/jscad-inference.json /etc/jscad-relay/jscad-inference.json && rm /tmp/jscad-inference.json'
+curl -s -H 'Origin: https://jscad.rkroll.com' https://jscad.rkroll.com/api/relay/jscad-web/v1/models
+```
+
+Re-read on the same 5s cache, so an edit
 applies without a restart. A missing file means no free options; any other read
 or parse failure hides free (the catalog answers `[]`, a turn is a `500`), so a
 bad file never silently forwards.

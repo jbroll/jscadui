@@ -99,10 +99,11 @@ under `apps/jscad-web` unless given in full.
   self, rowboat and the provider hosts. A deploy decision — `deploy.sh` is not
   in this repo.
 
-## Demo provider + TOS follow-ups
+## Free jscad-web models follow-ups
 
-Deferred from the demo-provider/TOS branch reviews (`feat/demo-tos-wt5`,
-2026-10-15). Paths under `apps/jscad-web` unless given in full.
+Deferred from the jscad-web inference reframe reviews (`feat/jscad-inference-relay`,
+2026-10-16). Paths under `apps/jscad-web` unless given in full. Live since
+2026-10-16 with `deepseek-flash` + `muse` in `/etc/jscad-relay/jscad-inference.json`.
 
 - **e2e parity test is `fixme`d.** `e2e/ai-chat.spec.js` `answers each tool
   call as the eval backend does` fails on `main` too: `PARITY_ROUNDS` (36)
@@ -117,33 +118,33 @@ Deferred from the demo-provider/TOS branch reviews (`feat/demo-tos-wt5`,
 - **Clamp `CHAT_LOG_RETAIN_DAYS`.** A negative value prunes everything
   including today; a huge value throws `RangeError` at boot
   (`server/src/relay/routes.ts`).
-- **Client abort during connect logs a misleading 502.** A demo close
+- **Client abort during connect logs a misleading 502.** A free close
   before the fetch settles is recorded as `upstream unreachable` with no
   `error` field; distinguish `client closed` for the `chat-review` loop.
 - **Drain-wait hang (pre-existing).** If the client closes exactly when
   `res.write` returned false, `forward` never returns and the turn escapes
   logging (`server/src/relay/routes.ts`).
-- **Demo drawer summary shows the raw option id** until the gear dialog is
-  opened (the shared list is fetched only on open). Fetch at init or persist
+- **Free drawer summary shows the raw option id** until the gear dialog is
+  opened (the inference catalog is fetched only on open). Fetch at init or persist
   the label (`src/aiAccount.js`).
-- **Weak shared-option validation.** Filter on more than `id` so a
-  label-less/model-less option cannot render `Demo: undefined`
+- **Weak inference-option validation.** Filter on more than `id` so a
+  label-less/model-less option cannot render `jscad-web · undefined`
   (`src/aiAccount.js`).
 - **Meter hardening.** Reject non-numeric `ipSpend` values on state load
   (a string bucket never trips); pin the non-2xx estimate-charge path with
   a test; handle hex-form IPv4-mapped addresses in `ipGroup`
   (`server/src/relay/meter.ts`).
 - **Corrupt spend file stops the whole server**, including auth/sync.
-  Consider failing closed on the shared routes only
+  Consider failing closed on the free hook only
   (`server/src/relay/routes.ts`).
-- **No global in-flight cap on the shared route**; a client holding several
+- **No global in-flight cap on the free hook**; a client holding several
   IPv6 /64s multiplies the overshoot bound. Operator-visible ceiling only.
 - **`available` reflects the month budget only**; daily-capped users learn
   on POST. UX polish.
 - **Unknown model ids fall through to `v1/chat/completions`**; a typo'd
   responses model 4xxs and burns estimate. Note in `server/RELAY.md`.
 - **Pre-upstream failures (allowlist/dns) write no log record** on the
-  shared route; add `tee.finish` with `costUsd: 0` if the loop should see
+  free hook; add `tee.finish` with `costUsd: 0` if the loop should see
   them.
 
 ## Render sweep
