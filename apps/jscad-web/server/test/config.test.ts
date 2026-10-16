@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { configFromEnv } from '../src/config.js'
 
 const REQUIRED = { ROWBOAT_DATABASE_ID: 'db_test', ROWBOAT_URL: 'https://rowboat.test' }
-const KEYS = ['NODE_ENV', 'BETTER_AUTH_SECRET', 'FRONTEND_URL', 'ROWBOAT_DATABASE_ID', 'ROWBOAT_URL', 'RELAY_INFERENCE', 'RELAY_SHARED']
+const KEYS = ['NODE_ENV', 'BETTER_AUTH_SECRET', 'FRONTEND_URL', 'ROWBOAT_DATABASE_ID', 'ROWBOAT_URL', 'RELAY_INFERENCE']
 let saved: Record<string, string | undefined>
 
 beforeEach(() => {
@@ -40,14 +40,11 @@ describe('configFromEnv', () => {
   })
 
   it('defaults the inference file to jscad-inference.json', () => {
-    expect(configFromEnv().relaySharedPath).toBe('/etc/jscad-relay/jscad-inference.json')
+    expect(configFromEnv().relayInferencePath).toBe('/etc/jscad-relay/jscad-inference.json')
   })
 
-  it('prefers RELAY_INFERENCE and accepts the deprecated RELAY_SHARED as a fallback', () => {
-    process.env.RELAY_SHARED = '/x/shared.json'
-    expect(configFromEnv().relaySharedPath).toBe('/x/shared.json')
-
+  it('reads the inference file from RELAY_INFERENCE', () => {
     process.env.RELAY_INFERENCE = '/x/jscad-inference.json'
-    expect(configFromEnv().relaySharedPath).toBe('/x/jscad-inference.json')
+    expect(configFromEnv().relayInferencePath).toBe('/x/jscad-inference.json')
   })
 })

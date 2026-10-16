@@ -19,7 +19,7 @@ export interface RelayRouteOptions {
   chatLogDir?: string
   /** Days of chat log to keep: `CHAT_LOG_RETAIN_DAYS`, then 90. */
   chatLogRetainDays?: number
-  /** Free inference options file: `RELAY_INFERENCE`, then the deprecated `RELAY_SHARED`, then `/etc/jscad-relay/jscad-inference.json`. */
+  /** Free inference options file: `RELAY_INFERENCE`, then `/etc/jscad-relay/jscad-inference.json`. */
   inferencePath?: string
   /** Meter state file: `RELAY_SPEND_PATH`, then `./data/relay-spend.json`. */
   inferenceSpendPath?: string
@@ -109,7 +109,7 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
   // Free inference provider: operator-owned models on server-held keys. Read
   // through the same 5-second cache as the allowlist so an edit applies without
   // a restart.
-  const inferencePath = options.inferencePath ?? process.env.RELAY_INFERENCE ?? process.env.RELAY_SHARED ?? DEFAULT_INFERENCE_PATH
+  const inferencePath = options.inferencePath ?? process.env.RELAY_INFERENCE ?? DEFAULT_INFERENCE_PATH
   const spendPath = options.inferenceSpendPath ?? process.env.RELAY_SPEND_PATH ?? DEFAULT_SPEND_PATH
   const meter = createMeter({ statePath: spendPath, now: options.now })
   let inferenceCache: { at: number; path: string; config: ReturnType<typeof loadInferenceFile> } | null = null

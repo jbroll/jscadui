@@ -17,7 +17,7 @@ function testConfig(): ServerConfig {
     rowboatDatabaseId: 'db_test_tenant',
     rowboatUrl: 'http://rowboat.test',
     relayAllowlistPath: '/nonexistent-providers.json',
-    relaySharedPath: '/nonexistent-inference.json',
+    relayInferencePath: '/nonexistent-inference.json',
   }
 }
 

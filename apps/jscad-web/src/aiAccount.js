@@ -95,7 +95,7 @@ export const getProviderConfig = () => {
   const { kind = 'anthropic', model = '', baseUrl = '', effort = '' } = selection
   if (!model) return null
   if (isFreeSelection(selection)) {
-    const inference = selection.inference ?? selection.shared ?? ''
+    const inference = selection.inference ?? ''
     if (!inference) return null
     return { kind, model, ...(effort ? { effort } : {}), apiKey: FREE_API_KEY, inference, free: true }
   }
@@ -156,7 +156,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     baseUrl: selection.baseUrl ?? '',
     effort: selection.effort ?? '',
     free: isFreeSelection(selection),
-    inference: typeof selection.inference === 'string' ? selection.inference : typeof selection.shared === 'string' ? selection.shared : '',
+    inference: typeof selection.inference === 'string' ? selection.inference : '',
     api: APIS.includes(selection.api) ? selection.api : DEFAULT_API,
     capabilities: new Map(),
     websearchAllow: websearch.allow,

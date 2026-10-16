@@ -79,8 +79,7 @@ and drops the caller's key (see Free jscad-web models).
 
 The jscad-web hook serves operator-owned keys to visitors with no account. Its
 config is JSON `{monthlyUsd, perIpDailyUsd, providers}`, default
-`/etc/jscad-relay/jscad-inference.json`, override with `RELAY_INFERENCE` (the
-old `RELAY_SHARED` still works but is deprecated); keep it mode `0600`, owned by
+`/etc/jscad-relay/jscad-inference.json`, override with `RELAY_INFERENCE`); keep it mode `0600`, owned by
 the service user, beside `providers.json`. Stage the real keys locally in
 `server/jscad-inference.local.json` (same schema, gitignored, never commit) and
 copy that file to the host path. Re-read on the same 5s cache, so an edit

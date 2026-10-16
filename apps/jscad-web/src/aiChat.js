@@ -18,7 +18,7 @@ const relayRoot = () => (globalThis.localStorage?.getItem(RELAY_OVERRIDE_KEY) ||
 // key; own keys ride their kind's route.
 export const relayBaseUrl = (selection) => {
   const sel = selection ?? {}
-  if (isFreeSelection(sel)) return `${relayRoot()}/api/relay/jscad-web/${sel.inference ?? sel.shared}`
+  if (isFreeSelection(sel)) return `${relayRoot()}/api/relay/jscad-web/${sel.inference}`
   return `${relayRoot()}/api/relay/${sel.kind}`
 }
 

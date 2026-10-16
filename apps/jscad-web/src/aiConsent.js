@@ -112,16 +112,16 @@ export const acceptTos = (recordOwnChats) => {
   return getTos()
 }
 
-// Phase 2 shipped `shared` selections; the earlier free provider is the same
-// thing behind a `demo` flag, so a leftover `shared`/`demo` selection is still
-// the free jscad-web provider.
-export const isFreeSelection = (selection) => selection?.free === true || selection?.demo === true || typeof selection?.shared === 'string'
+// A free selection carries `{free: true}`; anything else is an own-key
+// selection, even if it names an inference option. No migration: a stale
+// record fails closed in `getProviderConfig` instead of running free.
+export const isFreeSelection = (selection) => selection?.free === true
 
 /**
  * Whether a turn may run for this selection, and if not why the gate must be
  * answered first: `'tos'` (the version is unaccepted) or `'free-notice'` (the
  * user opted out of recording, and free-model turns always record).
- * @param {{free?:boolean, demo?:boolean, shared?:string, baseUrl?:string}|null} [selection]
+ * @param {{free?:boolean, inference?:string, baseUrl?:string}|null} [selection]
  * @returns {{ok:true}|{ok:false, reason:'tos'|'free-notice'}}
  */
 export const checkTurn = (selection) => {
@@ -135,7 +135,7 @@ export const checkTurn = (selection) => {
  * trains-generic → free-always-recorded (free only) → our-recording opt-in. A
  * custom base URL calls the provider directly, so its turn is never recorded
  * and the recording question is skipped.
- * @param {{free?:boolean, demo?:boolean, shared?:string, baseUrl?:string}|null} [selection]
+ * @param {{free?:boolean, inference?:string, baseUrl?:string}|null} [selection]
  * @returns {Array<{key:string, kind:'ack'|'recording', text:string, required:boolean, checked:boolean, locked:boolean}>}
  */
 export const consentRows = (selection) => {
@@ -176,7 +176,7 @@ let openGate = null
 /**
  * Opens the gate for a selection and resolves true once the user accepts (which
  * writes the consent record) or false when they decline or click the backdrop.
- * @param {{free?:boolean, demo?:boolean, shared?:string, baseUrl?:string}|null} [selection]
+ * @param {{free?:boolean, inference?:string, baseUrl?:string}|null} [selection]
  * @returns {Promise<boolean>}
  */
 export const openConsentGate = (selection) => {

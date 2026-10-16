@@ -206,37 +206,6 @@ describe('GET /api/relay/jscad-web/v1/models', () => {
     expect(res.body).toEqual([])
   })
 
-  it('accepts the deprecated RELAY_SHARED env var as a file fallback', async () => {
-    const dir = tmp()
-    const allowlistPath = join(dir, 'providers.json')
-    writeFileSync(allowlistPath, JSON.stringify({ 'opencode-go': 'https://upstream.test' }))
-    const file = join(dir, 'jscad-inference.json')
-    writeFileSync(file, inferenceJson({ providers: [provider()] }))
-    const hadInference = process.env.RELAY_INFERENCE
-    const hadShared = process.env.RELAY_SHARED
-    delete process.env.RELAY_INFERENCE
-    process.env.RELAY_SHARED = file
-    try {
-      const app = express()
-      app.use(express.json())
-      mountRelayRoutes(app, {
-        allowlistPath,
-        trustedOrigins: ['https://app.test'],
-        logger: () => {},
-        fetchFn: fetchMock,
-        dnsLookup: async () => [{ address: '93.184.216.34' }],
-        chatLogDir: join(dir, 'chat-logs'),
-      })
-      const res = await request(app).get('/api/relay/jscad-web/v1/models').set('Origin', 'https://app.test')
-      expect(res.body.map((o: { id: string }) => o.id)).toEqual(['deepseek'])
-    } finally {
-      if (hadInference === undefined) delete process.env.RELAY_INFERENCE
-      else process.env.RELAY_INFERENCE = hadInference
-      if (hadShared === undefined) delete process.env.RELAY_SHARED
-      else process.env.RELAY_SHARED = hadShared
-    }
-  })
-
   it('lists options without keys or prices', async () => {
     const { app } = buildApp({ config: inferenceJson() })
     const res = await request(app).get('/api/relay/jscad-web/v1/models').set('Origin', 'https://app.test')

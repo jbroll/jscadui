@@ -16,7 +16,7 @@ export interface ServerConfig {
   /** Path to the relay provider allowlist file; unrelated to rowboat. */
   relayAllowlistPath: string;
   /** Path to the jscad-web inference options file; missing means no free options. */
-  relaySharedPath: string;
+  relayInferencePath: string;
 }
 
 export function configFromEnv(): ServerConfig {
@@ -85,6 +85,6 @@ export function configFromEnv(): ServerConfig {
     rowboatDatabaseId,
     rowboatUrl,
     relayAllowlistPath: process.env.RELAY_ALLOWLIST || '/etc/jscad-relay/providers.json',
-    relaySharedPath: process.env.RELAY_INFERENCE || process.env.RELAY_SHARED || '/etc/jscad-relay/jscad-inference.json',
+    relayInferencePath: process.env.RELAY_INFERENCE || '/etc/jscad-relay/jscad-inference.json',
   };
 }

@@ -944,10 +944,6 @@ describe('relay base url', () => {
     window.localStorage.removeItem('jscad-ai.relay')
   })
 
-  it('maps a legacy shared selection to the jscad-web route', async () => {
-    window.localStorage.removeItem('jscad-ai.relay')
-    expect(relayBaseUrl({ kind: 'opencode-go', shared: 'deepseek', demo: true })).toBe('https://jscad.rkroll.com/api/relay/jscad-web/deepseek')
-  })
 })
 describe('conversation context', () => {
   const submit = async (container, text, calls, runTurnFn) => {

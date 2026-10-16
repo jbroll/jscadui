@@ -103,7 +103,7 @@ export async function createServer(config: ServerConfig): Promise<AppServer> {
 
   // CORS passthrough to provider APIs for the browser-local loop. No session,
   // no storage; the caller's provider key rides the request through.
-  mountRelayRoutes(app, { allowlistPath: config.relayAllowlistPath, inferencePath: config.relaySharedPath, trustedOrigins: config.trustedOrigins });
+  mountRelayRoutes(app, { allowlistPath: config.relayAllowlistPath, inferencePath: config.relayInferencePath, trustedOrigins: config.trustedOrigins });
 
   // Tavily answers no CORS preflight, so browsers reach it only through here.
   // The operator key is optional: without it the route answers 503 and the

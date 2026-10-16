@@ -116,11 +116,6 @@ describe('free notice', () => {
     expect(checkTurn({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })).toEqual({ ok: false, reason: 'free-notice' })
   })
 
-  it('treats a legacy shared selection as free', () => {
-    acceptTos(false)
-    expect(checkTurn({ kind: 'meta', model: 'm', shared: 's2' })).toEqual({ ok: false, reason: 'free-notice' })
-  })
-
   it('checks the terms before the free notice', () => {
     expect(checkTurn({ kind: 'opencode-go', model: 'm', inference: 's1', free: true })).toEqual({ ok: false, reason: 'tos' })
   })
