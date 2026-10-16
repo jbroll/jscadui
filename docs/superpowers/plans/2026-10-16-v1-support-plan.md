@@ -9,7 +9,12 @@ unmodified — and the same mechanism deletes the SCAD include-rewriting patches
 
 ---
 
-## Phase 1 — Per-lib-root resolution (1a DONE)
+## Phase 1 — Per-lib-root resolution (1a DONE, 1b SUPERSEDED)
+
+- 1b (`setLibraryPrefixes` in the frame worker, mirroring `backend.js:128`)
+  SUPERSEDED 2026-10-16: no consumer — backend already has it, and V1
+  `include()` is textual (Phase 3), not `require()`-based. Revisit only if a
+  JS `require('<lib>/...')` case appears.
 
 - **1a. SCAD `fileResolver` prefix map** — DONE 2026-10-16:
   `packages/openscad/bin/libraryPrefixes.js` (pure, longest-prefix-first,
@@ -73,6 +78,18 @@ already detects `.jscad` + applies `addV1Shim` (`fileSystem.js:137`).
 
 ## Phase 4 — Corpus enablement (IN PROGRESS 2026-10-16: 42 V1 files green)
 
+- gilboonet: 25/35 pass (both engines), unskipped. (triaged list in suite skip.txt)
+- tspspi: 17 models + 2 lib demos pass, unskipped. (triaged list in suite skip.txt)
+- hardware: stays skipped — multi-file projects sharing globals
+  (`util`, `Hardware`, `MetricBolts`); needs app project semantics, not
+  single-file harness. No harness change can cover it.
+- z3dev leftovers: 8 no-main lib parts (correctly skipped); 3 fail on both
+  engines around `extrudeFromSlices`/slice handling (necomimi-ears,
+  desktop-waste-basket, sanding-block) — model-vs-API edge, same family as
+  Phase 5; 4 fail manifold-only (Phase 5).
+- `examples.test.js`: 216 → 388 passing.
+- `src/examples.js` demo-browser curation: explicitly out of scope.
+
 - gilboonet: 25/35 pass (both engines), unskipped. Skipped: 3 include-libs
   (covered transitively), 1 CSG points-format gap, 3 const-redeclare, 2 bare
   globals, 1 runtime failure.
@@ -80,23 +97,27 @@ already detects `.jscad` + applies `addV1Shim` (`fileSystem.js:137`).
   4 bare-`window`, 2 `alert()` on defaults, 1 Node-crasher (TestTubeHolder),
   1 over-budget (bedxy, 42s).
 - `examples.test.js`: 216 → 390 passing.
-- Remaining: hardware (needs cross-file globals = app-side include), z3dev
-  leftovers (V1-def schema + manifold extrude gap), app-side include wiring
-  (fileSystem), demo-browser curation (out of scope).
+- Remaining when CI validates: hardware (multi-file project semantics),
+  app-side include already wired (fileSystem + worker load paths).
+- `src/examples.js` demo-browser curation: explicitly out of scope.
 
-- tspspi (52 files, clean include-graph `models/`+`library/`): first full win.
-- gilboonet polyhedra + furniture (global-`main` files exercise the exports capture).
-- hardware V1 examples + z3dev V1-def leftovers.
-- Each file: passes `examples.test.js` on both engines (or gains a documented
-  engine-specific reason) → remove from `skip.txt` → grids pick it up automatically.
-- `src/examples.js` demo-browser curation: explicit follow-up, leave curated list alone.
+## Phase 5 — Manifold extrusion gap (RECORDED 2026-10-16, independent)
 
-## Phase 5 — Manifold extrusion gap (independent bug)
+7 z3dev models touch the `extrudeFromSlices`/slice-handling family:
+4 fail manifold-only (`beer-can-holder`, `bs-8-dan-cheif-ring`, `iphone-6s`,
+`minion-goggles`; pass on `@jscad/modeling`), 3 fail on both engines
+(`necomimi-ears`, `desktop-waste-basket`, `sanding-block`). Separate issue
+against `packages/manifold` (and possibly the models); unskip when fixed.
+Not on the V1 critical path.
 
-- 4 z3dev models pass on `@jscad/modeling`, fail on manifold in
-  `extrudeFromSlices`/`extrudeFromPath` (`beer-can-holder`, `bs-8-dan-cheif-ring`,
-  `iphone-6s`, `minion-goggles`). Separate issue against `packages/manifold`;
-  unskip when fixed. Not on the V1 critical path.
+## CI
+
+- New job `ci/jscad-examples` (V1+V2 sweep: prefix tests, inline tests,
+  `examples.test.js`). First run failed for an infra reason, not models:
+  jscad `skip.txt` control files did not transfer (rsync first-match beats
+  gitignore negations) — fixed in `ci/simple-ci.conf`, which must stay
+  flags-only (`#` comments inside the quotes become rsync args and break
+  the push; noted in-file). Re-pushed as job `953bddfb097a96c7`.
 
 ## Order & checkpoints
 
