@@ -218,8 +218,15 @@ function listFiles(cacheDir, srcDir) {
 // Copy one mapping from a cloned repo into the dest tree
 // ---------------------------------------------------------------------------
 // Returns the written paths, relative to ROOT.
+// Map a fetched model to the runnable-example convention:
+// foo.js / foo.jscad → foo.example.js. Anything else passes through unchanged.
+function toExampleName(name) {
+  if (name.endsWith('.example.js')) return name
+  return name.replace(/\.(jscad|js)$/, '.example.js')
+}
+
 function applyMapping(cacheDir, mapping) {
-  const { srcDir, destDir, include, exclude, skipFiles } = mapping
+  const { srcDir, destDir, include, exclude, skipFiles, asExample } = mapping
   const destAbs = join(ROOT, destDir)
   const written = []
 
@@ -235,14 +242,15 @@ function applyMapping(cacheDir, mapping) {
     if (!fileWanted(name, fileName, include ?? ['*'], exclude ?? [], skipFiles ?? [])) continue
 
     const src  = join(srcAbs, name)
-    const dest = join(destAbs, name)
+    const destName = asExample ? toExampleName(name) : name
+    const dest = join(destAbs, destName)
 
-    console.log(`  copy  ${srcDir || '.'}/${name}  →  ${destDir}/${name}`)
+    console.log(`  copy  ${srcDir || '.'}/${name}  →  ${destDir}/${destName}`)
     if (!DRY_RUN) {
       mkdirSync(dirname(dest), { recursive: true })
       copyFileSync(src, dest)
     }
-    written.push(join(destDir, name))
+    written.push(join(destDir, destName))
     count++
   }
 

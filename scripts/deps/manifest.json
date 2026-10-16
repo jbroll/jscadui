@@ -643,7 +643,8 @@
           "destDir": "apps/jscad-web/examples/jscad/z3dev-designs",
           "include": ["*.js", "**/*.js", "*.jscad", "**/*.jscad", "LICENSE"],
           "exclude": ["node_modules/**"],
-          "skipFiles": []
+          "skipFiles": [],
+          "asExample": true
         }
       ],
       "patches": []
@@ -686,7 +687,8 @@
           "destDir": "apps/jscad-web/examples/jscad/gilboonet",
           "include": ["*.jscad", "*.js", "2020/**/*.jscad", "2021/**/*.jscad", "2022/**/*.jscad", "2023/**/*.jscad", "2024/**/*.jscad", "2025/**/*.jscad", "testInclude/**/*"],
           "exclude": ["*.pdf", "*.svg", "*.zip"],
-          "skipFiles": []
+          "skipFiles": [],
+          "asExample": true
         }
       ],
       "patches": []

@@ -7,6 +7,7 @@ import { readFileSync, readdirSync } from 'fs'
 import { join, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { createRequire } from 'module'
+import { discoverPatternFiles, matchesScopes } from '../../packages/openscad/bin/pattern-files.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const nodeRequire = createRequire(import.meta.url)
@@ -85,11 +86,14 @@ const loadExample = (filePath, engineModule, engineName) => {
   return module.exports
 }
 
-// Get all example files
+// Get all example files, minus anything an ancestor skip.txt names
+// (same pattern-file semantics as generate-all-files.js grids).
 const examplesDir = join(__dirname, 'examples')
+const skipScopes = discoverPatternFiles(examplesDir, 'skip.txt')
 const exampleFiles = readdirSync(examplesDir, { recursive: true })
   .filter(f => f.endsWith('.example.js') || f === 'jscad.example.js')
   .map(f => join(examplesDir, f))
+  .filter(f => !matchesScopes(f, skipScopes))
 
 describe('Example files', () => {
   // Initialize engines that require async setup (e.g. Manifold WASM)

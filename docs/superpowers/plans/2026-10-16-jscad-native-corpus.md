@@ -71,13 +71,40 @@ Dropped during Task 2: `danmarshall/jscad-gallery` — investigated, designs are
 ### Task 3: Grids + test suite wiring
 
 **Files:**
-- Modify: `apps/jscad-web/examples/jscad/ALL.js` (regenerated, untracked — verify only)
-- Modify: `apps/jscad-web/examples.test.js` (only if suite discovery needs updating)
-- Test: `npm run test:examples` (from `apps/jscad-web`) + `npm test -w apps/jscad-web`
+- Modify: `scripts/fetch-deps.js` (mapping `asExample` rename)
+- Modify: `apps/jscad-web/examples.test.js` (honor `skip.txt`)
+- Modify: `scripts/deps/manifest.json` (enable rename on runnable suites)
+- Modify: `apps/jscad-web/examples/jscad/*/skip.txt` (final renamed basenames)
+- Test: `npx vitest run examples.test.js` in `apps/jscad-web`
 
-**Model:** haiku — mechanical regeneration + test runs.
+**Model:** sonnet — harness semantics (skip matching, rename edge cases).
 
-- [ ] **Step 1: Regenerate grids** — `npm run generate-all` (or `generate-all-files.js --no-rename`). Expected: per-suite `ALL.js` includes new models minus skipped
-- [ ] **Step 2: Run JSCAD example tests** — `npm run test:examples` from root. Expected: PASS (skipped suites excluded)
-- [ ] **Step 3: Run execution sweep on new suites** — `node apps/jscad-web/test-models-execution.js apps/jscad-web/examples/jscad --all-last`. Expected: 0 errors outside `skip.txt`
-- [ ] **Step 4: Commit** — only tracked control/config changes; verify `git status` shows no generated `ALL*.js`
+Findings 2026-10-16 driving this shape: `examples.test.js:90-92` discovers only
+`*.example.js`, so fetched plain `.js` models are invisible until renamed;
+`generate-all-files.js:97-109` already honors `skip.txt`/`exclude.txt` for grids,
+but `examples.test.js` does NOT read `skip.txt` — renaming without that fix turns
+every skip-listed file red.
+
+- [x] **Step 1: `asExample` rename in `applyMapping`** — mapping `"asExample": true`
+  renames `foo.js`/`foo.jscad` → `foo.example.js`, passes other files (LICENSE)
+  through unchanged. `written`/`removeStale`/`writeRecord` already key on dest
+  names, so no other changes. Verify: dry-run shows renamed dest paths.
+- [x] **Step 2: `examples.test.js` honors `skip.txt`** — reuse
+  `packages/openscad/bin/pattern-files.js` (`readPatternFile`/`matchesAny`,
+  same semantics as grids); filter `exampleFiles` against ancestor `skip.txt`
+  scopes. Verify: existing suite still 140 tests (no skip.txt in hand-written dirs).
+- [x] **Step 3: Enable rename on runnable suites only** — z3dev + gilboonet
+  (suites with passing models). NOT hardware/tspspi (100% V1-unrunnable; renaming
+  would only create noise). Update those suites' `skip.txt` entries to final
+  `.example.js` basenames. Re-fetch (removeStale swaps names).
+- [x] **Step 4: Regenerate grids** — `npm run generate-all` (or
+  `generate-all-files.js --no-rename`). Expected: per-suite `ALL.js` includes new
+  models minus skipped. Verify `git status` shows no generated `ALL*.js`.
+- [x] **Step 5: Run tests** — `npx vitest run examples.test.js` in
+  `apps/jscad-web` (both engines). Triage new failures into `skip.txt`
+  (V1-definition/model bugs) — do NOT weaken the harness. Then full
+  `npm run test:examples` from root.
+- [x] **Step 6: Commit** — only tracked control/config changes.
+
+Out of scope: `src/examples.js` demo-browser curation (hand-maintained list;
+leave unchanged).
