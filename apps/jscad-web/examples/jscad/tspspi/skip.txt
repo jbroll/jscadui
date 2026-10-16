@@ -41,3 +41,6 @@ models/physics/hackedscrewcrosstable.jscad
 models/chemistry/TestTubeHolder.jscad
 # Correct but ~42s per run, over the 30s test budget:
 models/miniecm/bedxy.jscad
+# Correct but ~27s locally; over budget on a loaded host (time out on CI):
+models/physics/electronguntestclamps.jscad
+models/toys/characters/basicWitch.jscad

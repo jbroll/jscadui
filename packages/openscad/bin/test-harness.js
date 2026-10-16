@@ -34,6 +34,7 @@ const __dirname = dirname(__filename)
 import { StlCache } from './stl-cache.js'
 import { parseEchoExport, compareEcho, describeEchoMismatch } from './echo-compare.js'
 import { discoverPatternFiles, matchesAny, matchesScopes, readPatternFile } from './pattern-files.js'
+import { openscadPathEnv } from './openscadLibPath.js'
 
 // OpenSCAD's message when the STL export has nothing to write
 const EMPTY_TOP_LEVEL = 'Current top level object is empty.'
@@ -180,7 +181,9 @@ async function runOpenscad(scadPath, stlPath, echoPath, openscadPath, fn = 0, or
   args.push(JSON.stringify(scadPath))
 
   const libDir = detectLibraryDir(pathForLibDetection)
-  const env = libDir ? { ...process.env, OPENSCADPATH: resolve(libDir) } : process.env
+  // Pristine upstream includes (<BOSL2/...>) resolve for reference OpenSCAD
+  // through a shim dir of prefix symlinks, plus the previous suite lib dir.
+  const env = openscadPathEnv(libDir)
 
   try {
     // OpenSCAD writes every echo to stderr too; a model that echoes a lot

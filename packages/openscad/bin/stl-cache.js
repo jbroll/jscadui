@@ -79,11 +79,12 @@ function srcHash(originalScadPath, fn, preview) {
  * Tag appended to the source hash of a failure sentinel. Bump it when the
  * harness changes in a way that can turn a recorded failure into a success
  * (e.g. 2: paths with spaces used to reach openscad unquoted; 3: a model
- * with an empty top level that only echoes is a reference, not a failure),
- * so old failures are re-rendered once instead of replayed. Cached successes
- * keep.
+ * with an empty top level that only echoes is a reference, not a failure;
+ * 4: reference OpenSCAD resolves pristine <PREFIX/...> includes through the
+ * openscad-libs shim dir), so old failures are re-rendered once instead of
+ * replayed. Cached successes keep.
  */
-const FAILURE_EPOCH = '|failed-v3'
+const FAILURE_EPOCH = '|failed-v4'
 
 /** Sidecar file recording which source content a cached entry was rendered from. */
 function srcHashPath(stlPath) {
