@@ -1,2 +1,26 @@
 # tspspi skip list
-# One relative path per line, with reason. Empty until Task 2 triage.
+# One relative path per line, with reason. Triaged 2026-10-16: 0/52 pass.
+# V1 include()-style part libraries (no main export; meant for include(), not standalone runs):
+library/
+# V1 models failing on `include is not defined` (need include() resolution for library/ above):
+models/chemistry/PeristalticPump.jscad
+models/mechanics/mounting/simplescrewedplates/plate01.jscad
+models/miniecm/bedxy.jscad
+models/miniecm/frame.jscad
+models/miniecm/headtower.jscad
+models/miniecm/motormounts.jscad
+models/miniecm/xycarriage.jscad
+models/miniecm/xycarriagewithtoweradapter.jscad
+models/miniecm/xysled.jscad
+models/physics/customelectronguncasingandmount.jscad
+models/physics/electronguntestclamps.jscad
+models/physics/hackedscrewcrosstable.jscad
+models/physics/optics/post01.jscad
+models/physics/simpletubeclamps.jscad
+# V1 models with no main export (part definitions for include()):
+models/chemistry/SimpleGasBubbler.jscad
+models/chemistry/TestTubeHolder.jscad
+models/education/language/grammarPersonCube.jscad
+models/printer3d/filament/filamentSpoolHolder.jscad
+models/toys/carsRaceTrackFloorAdapter/carsRaceTrackFloorAdapter.jscad
+models/toys/characters/basicWitch.jscad

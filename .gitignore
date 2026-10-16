@@ -180,7 +180,6 @@ apps/jscad-web/examples/jscad/z3dev-designs/*
 apps/jscad-web/examples/jscad/tspspi/*
 apps/jscad-web/examples/jscad/gilboonet/*
 apps/jscad-web/examples/jscad/jscad-hardware/*
-apps/jscad-web/examples/jscad/gallery/*
 !apps/jscad-web/examples/jscad/*/skip.txt
 !apps/jscad-web/examples/jscad/*/exclude.txt
 !apps/jscad-web/examples/jscad/*/config.json

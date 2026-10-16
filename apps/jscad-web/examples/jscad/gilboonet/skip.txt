@@ -1,2 +1,44 @@
 # gilboonet skip list
-# One relative path per line, with reason. Empty until Task 2 triage.
+# One relative path per line, with reason. Triaged 2026-10-16: 2/41 pass (botai.js, butai.js).
+# V1 scripts declaring global main() without module.exports — unloadable by the CJS harness:
+4couls.jscad
+biseau1.jscad
+bureau_colonnes.jscad
+cc.jscad
+cerceau.js
+charniere1.jscad
+circonvolutions.jscad
+circonvolutions_v3.jscad
+col12.jscad
+colonne.jscad
+colonne12.jscad
+demo_creeMeuble2.jscad
+laby_rond.jscad
+mp_chat_H24.jscad
+mp_lion.jscad
+plaque_incurv1.jscad
+plaque_incurv1p.jscad
+polyhedronUsage2.jscad
+polyhedron_usage3.jscad
+polyhedron_usage4.jscad
+polyhedron_usage6.jscad
+polyhedron_usage7.jscad
+polyhedrons.jscad
+polyhedrons_archimede.jscad
+polyhedrons_catalan.jscad
+polyhedrons_platon.jscad
+regularPolygons.jscad
+table_4pieds.jscad
+table_tete_eleph.jscad
+test_archimede_standalone.jscad
+test_catalan_standalone.jscad
+test_polyhedron.jscad
+trancheCylindre.jscad
+traverses.js
+# V1 include() of the polyhedra libs above (need include() resolution):
+test_archimede.jscad
+test_catalan.jscad
+# Runtime failures under params-proxy harness (needs investigation):
+index_v1_33.js
+make_pattern.jscad
+sq_gorille.js

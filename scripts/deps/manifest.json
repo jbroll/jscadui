@@ -653,7 +653,8 @@
       "description": "Functional prints + mechanics libs (tspspi/jscadModels)",
       "url": "https://github.com/tspspi/jscadModels.git",
       "ref": "master",
-      "license": "none stated upstream (verify)",
+      "commit": "2b6aec5746fd550664f527c2ea8a9d8c11a1a08f",
+      "license": "MIT (per README badge; no LICENSE file in repo)",
       "mappings": [
         {
           "srcDir": "models",
@@ -677,6 +678,7 @@
       "description": "Lasercut + polyhedra libs (gilboonet/designs)",
       "url": "https://github.com/gilboonet/designs.git",
       "ref": "master",
+      "commit": "95eb378323a199bb5c86dd73ab4aa51c3a483169",
       "license": "MIT",
       "mappings": [
         {
@@ -715,24 +717,6 @@
           "srcDir": "v1",
           "destDir": "apps/jscad-web/examples/jscad/jscad-hardware/v1",
           "include": ["*.jscad"],
-          "exclude": [],
-          "skipFiles": []
-        }
-      ],
-      "patches": []
-    },
-    {
-      "name": "jscad-gallery",
-      "description": "Archived gallery, Jekyll + src/ (danmarshall/jscad-gallery)",
-      "url": "https://github.com/danmarshall/jscad-gallery.git",
-      "ref": "master",
-      "license": "MIT",
-      "sparse": ["src"],
-      "mappings": [
-        {
-          "srcDir": "src",
-          "destDir": "apps/jscad-web/examples/jscad/gallery",
-          "include": ["**/*.js", "**/*.jscad"],
           "exclude": [],
           "skipFiles": []
         }
