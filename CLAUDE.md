@@ -61,20 +61,28 @@ Develop on a branch. Every commit auto-pushes the tree to simple-ci
 Merge only on green:
 
 ```bash
-scripts/ship.sh   # waits for the branch HEAD's CI job, then ff-merges to main and pushes
+scripts/ship.sh [branch]   # land onto main; defaults to the current branch
 ```
+
+`ship.sh` wraps `land` and adopts its conventions: run it from any worktree,
+and the merge itself always happens in the main checkout, which stays on
+`main` (never park it on a holding branch — `land` refuses unless the main
+repo is on `main`). Concurrent ships serialize on a lock; a branch behind
+`main` is rebased first. The exact tree being landed must be CI-green, and
+when a rebase replaces it, the landed tree is gated too — a red landed tree
+must be investigated or reverted, never left silently. `scripts/pre-land`
+and `scripts/post-land` run when present.
 
 Direct commits to `main` are blocked by the pre-commit hook
 (bypass with `JSCADUI_ALLOW_MAIN=1`, emergencies only).
 
-`--ff-only` is the point: `main` stays linear. If the merge is refused, rebase
-the branch on `main` and try again. Everything the branch needs verified must be
-green before the merge, not after.
+`main` stays linear: the landing is `--ff-only` under the lock. Everything
+the branch needs verified must be green before the merge, not after.
 
 Pull requests are used only as the CI channel for sessions that can't reach
 simple-ci: opening one makes the GPU host run the OpenSCAD suite on its head
 commit (`ci/gpu-poll.mjs`, see `ci/README.md`) and report back on the PR. Never
-merge through GitHub; fast-forward as above, and GitHub marks the PR merged.
+merge through GitHub; land as above, and GitHub marks the PR merged.
 
 ## Refactoring / Future Work
 
