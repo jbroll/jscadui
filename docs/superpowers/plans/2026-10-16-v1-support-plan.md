@@ -26,20 +26,21 @@ Why first: SCAD patches, V1 `include()`, and JS lib requires all reduce to
 - **1c. Collapse dual mappings** where a single copy + alias suffices
   (e.g. `lego`: `examples/` + `libs/`). Optional cleanup once 1a/1b hold.
 
-## Phase 2 — `jbroll/jscad-v1shim` package (needs repo creation)
+## Phase 2 — vendored V1 shim on fluent (DONE: `packages/worker/src/v1shim.cjs`)
 
-- Fork the single-file MIT shim out of `jscad-community/jscad-migrate`
-  (`v1shim.js`: functional V1 names → V2 modeling) into `jbroll/jscad-v1shim`
-  as a minimal npm package (`package.json`, LICENSE with attribution).
-  (gh CLI is authed as jbroll; confirm before creating the public repo.)
-- Consume pinned: `fetch-deps` manifest entry
-  (`url: jbroll/jscad-v1shim.git` + commit pin → `apps/jscad-web/libs/jscad-v1shim/`,
-  matching the gitignored-libs precedent) — decision needed only if npm-git-dep
-  proves simpler for the worker's bundling.
-- Extend the shim for our corpus reality (upstream covers functional names only):
-  method-chaining via geometry wrapper/Proxy (`.translate/.rotate/.union` —
-  gilboonet + tspspi templates), `CSG`/`CAG` globals surface, `getColorRGB`,
-  `polygon()` positional form. Each addition driven by one failing corpus file.
+- Vendored the 96-line MIT `v1shim.js` out of `jscad-community/jscad-migrate`
+  (@ 76664d2, attribution header retained) as `packages/worker/src/v1shim.cjs`
+  (`.cjs`: package is ESM + esbuild-bundled). No fork, no new repo.
+- Substrate rebased to `@jbroll/jscad-fluent`
+  (`file:../../.deps-cache/jscad-fluent`, established pattern): every
+  constructor returns chainable geometry, so V1 method style works natively.
+  V1 aliases installed once on fluent prototypes (same technique as
+  `wrapFluentMethods`): `mirroredX/Y/Z`, `getBounds` (adapts
+  `measureBoundingBox` to V1 `[{x,y,z},{x,y,z}]`), `setColor`, 2D
+  `extrude({offset})` (z-only). Upstream `sphere` undefined-`size` crash fixed.
+- Locked by `packages/worker/src/v1shim.test.js` (5 tests: surface, README
+  example, positional polygon, table_4pieds-style chaining, rotate/translate).
+- Open: `square`/`circle`/other V1 names added lazily per failing corpus file.
 
 ## Phase 3 — Worker V1 auto-detect + injection
 

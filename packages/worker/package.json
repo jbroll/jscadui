@@ -21,6 +21,7 @@
     "prepublishOnly": "npm run build && npm run build-cjs"
   },
   "dependencies": {
+    "@jbroll/jscad-fluent": "file:../../.deps-cache/jscad-fluent",
     "@jscadui/format-common": "*",
     "@jscadui/fs-provider": "*",
     "@jscadui/model-tree": "*",
