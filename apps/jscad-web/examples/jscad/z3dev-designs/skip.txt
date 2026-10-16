@@ -1,2 +1,15 @@
 # z3dev-designs skip list
-# One relative path per line, with reason. Empty until Task 2 triage.
+# One relative path per line, with reason. Triaged 2026-10-16 with params-proxy harness.
+# Library/part modules (no main export — meant for require(), not standalone runs):
+bs-japan-100-years-cheif-ring.js
+bs-japan-cheif-ring.js
+bs-japan-emblem.js
+iphone-4-case.js
+iphone-5s-case.js
+iphone-6s-case.js
+spline_drive_adapter_v4.js
+z3d-iphone-4-case.js
+# V1-style getParameterDefinitions (float/checkbox/group schema) unsupported by wrapLegacyModule:
+desktop-waste-basket.js
+necomimi-ears.js
+sanding-block.js

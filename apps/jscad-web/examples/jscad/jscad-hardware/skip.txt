@@ -1,2 +1,8 @@
 # jscad-hardware skip list
-# One relative path per line, with reason. Empty until Task 2 triage.
+# One relative path per line, with reason. Triaged 2026-10-16.
+# All examples use the V1 CSG-global API (bare `CSG`, `Hardware.*` globals,
+# `util.init`), predating @jscad/modeling require(). Revisit with a V1 compat harness.
+examples/bolt.jscad
+examples/example.jscad
+examples/nut.jscad
+examples/washer.jscad

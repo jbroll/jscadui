@@ -635,12 +635,13 @@
       "description": "JSCAD Designs from maintainer (z3dev/designs)",
       "url": "https://github.com/z3dev/designs.git",
       "ref": "main",
-      "license": "MIT (verify upstream)",
+      "commit": "298ceecd8e31bc25b1721ec290b8f97d0a53d9bb",
+      "license": "MIT",
       "mappings": [
         {
           "srcDir": ".",
           "destDir": "apps/jscad-web/examples/jscad/z3dev-designs",
-          "include": ["**/*.js", "**/*.jscad"],
+          "include": ["*.js", "**/*.js", "*.jscad", "**/*.jscad", "LICENSE"],
           "exclude": ["node_modules/**"],
           "skipFiles": []
         }
@@ -693,13 +694,28 @@
       "description": "Nuts and bolts (johnwebbcole/jscad-hardware)",
       "url": "https://github.com/johnwebbcole/jscad-hardware.git",
       "ref": "master",
-      "license": "verify upstream, record as-found",
+      "commit": "0f421d741b8eaf9aedf12a0f7ccfc33e1bc46e6d",
+      "license": "MIT (per package.json/README badge; no LICENSE file upstream)",
       "mappings": [
         {
-          "srcDir": ".",
-          "destDir": "apps/jscad-web/examples/jscad/jscad-hardware",
-          "include": ["**/*.js", "**/*.jscad"],
-          "exclude": ["node_modules/**"],
+          "srcDir": "examples",
+          "destDir": "apps/jscad-web/examples/jscad/jscad-hardware/examples",
+          "include": ["*.jscad", "*.js"],
+          "exclude": [],
+          "skipFiles": []
+        },
+        {
+          "srcDir": "src",
+          "destDir": "apps/jscad-web/examples/jscad/jscad-hardware/src",
+          "include": ["*.js"],
+          "exclude": [],
+          "skipFiles": []
+        },
+        {
+          "srcDir": "v1",
+          "destDir": "apps/jscad-web/examples/jscad/jscad-hardware/v1",
+          "include": ["*.jscad"],
+          "exclude": [],
           "skipFiles": []
         }
       ],
