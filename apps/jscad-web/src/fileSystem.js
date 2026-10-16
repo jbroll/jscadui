@@ -15,6 +15,7 @@ import {
   registerServiceWorker,
 } from '@jscadui/fs-provider'
 import { pickEntry } from '@jscadui/agent-loop'
+import { inlineIncludes } from '@jscadui/worker/src/inlineIncludes.js'
 import { collectProjectFiles } from './projectFiles.js'
 import { shouldAllowReload } from './reloadDetection.js'
 
@@ -108,6 +109,18 @@ export async function initFs(deps) {
 }
 
 /**
+ * Inline V1 include()s for a project file from the project's file map
+ * (keys with or without a leading slash, as memoryFiles and the service
+ * worker cache each store them). Unresolvable includes throw; callers fall
+ * back to the raw script so the run fails at include(), as before.
+ */
+export async function inlineProjectIncludes(script, fileToRun, files) {
+  const readFile = (p) => files[p] ?? files[p.replace(/^\//, '')]
+  const fromFile = '/' + fileToRun.replace(/^\//, '')
+  return inlineIncludes(script, fromFile, { readFile })
+}
+
+/**
  * Reload the current project
  * @param {FileSystemDeps} deps
  */
@@ -135,6 +148,14 @@ export async function reloadProject(deps) {
   // Inject jscad v1 shim, and also inject changed script to cache
   // so worker and editor have the same code
   if (sw.fileToRun?.endsWith('.jscad')) {
+    // V1 include() merges project files into global scope; inline first so
+    // the shim below sees one translation unit. Unresolvable includes fall
+    // back to the raw script (the run then fails at include(), as before).
+    try {
+      script = await inlineProjectIncludes(script, sw.fileToRun, await projectFiles())
+    } catch (e) {
+      console.warn('v1 include inlining skipped:', e.message)
+    }
     script = addV1Shim(script)
     // onScriptReady sends the cache to the frame, so the shimmed source has to
     // be in it by then or the frame compiles the source without the shim.

@@ -69,7 +69,7 @@ const createMockRequire = (basePath, engineModule, engineName) => {
       if (moduleCache.has(cacheKey)) {
         return moduleCache.get(cacheKey)
       }
-      const mod = loadExample(fullPath, engineModule, engineName)
+      const mod = loadExampleSync(fullPath, engineModule, engineName)
       moduleCache.set(cacheKey, mod)
       return mod
     }
@@ -78,18 +78,9 @@ const createMockRequire = (basePath, engineModule, engineName) => {
 }
 
 /**
- * Execute a CommonJS example script and return the exports.
- * V1 .jscad files go through the same addV1Shim transform the app applies
- * (fileSystem.js) so the harness matches runtime behavior.
+ * Evaluate source as a CommonJS module with the engine-aware mock require.
  */
-const loadExample = (filePath, engineModule, engineName) => {
-  let source = readFileSync(filePath, 'utf-8')
-  if (filePath.endsWith('.jscad')) {
-    // V1 include() merges sibling files into global scope; inline first so
-    // the shim below sees one translation unit, like the app will.
-    source = inlineIncludes(source, filePath, { readFile: tryRead })
-    source = addV1Shim(source)
-  }
+const evalSource = (source, filePath, engineModule, engineName) => {
   const mockRequire = createMockRequire(filePath, engineModule, engineName)
   const exports = {}
   const module = { exports }
@@ -99,6 +90,32 @@ const loadExample = (filePath, engineModule, engineName) => {
   fn(mockRequire, exports, module)
 
   return module.exports
+}
+
+/**
+ * Sync loader for require()d relatives (V2 only: V1 has no require()).
+ */
+const loadExampleSync = (filePath, engineModule, engineName) => {
+  if (filePath.endsWith('.jscad')) {
+    throw new Error(`V1 .jscad cannot be require()d (${filePath}); use include()`)
+  }
+  return evalSource(readFileSync(filePath, 'utf-8'), filePath, engineModule, engineName)
+}
+
+/**
+ * Full loader. V1 .jscad files are include-inlined (async reads) then go
+ * through the same addV1Shim transform the app applies (fileSystem.js) so
+ * the harness matches runtime behavior.
+ */
+const loadExample = async (filePath, engineModule, engineName) => {
+  let source = readFileSync(filePath, 'utf-8')
+  if (filePath.endsWith('.jscad')) {
+    // V1 include() merges sibling files into global scope; inline first so
+    // the shim below sees one translation unit, like the app will.
+    source = await inlineIncludes(source, filePath, { readFile: tryRead })
+    source = addV1Shim(source)
+  }
+  return evalSource(source, filePath, engineModule, engineName)
 }
 
 // Get all example files, minus anything an ancestor skip.txt names
@@ -131,18 +148,18 @@ describe('Example files', () => {
       describe.each(exampleFiles.map(f => [f.replace(examplesDir + '/', ''), f]))(
         '%s',
         (_name, filePath) => {
-          it('should load without errors', () => {
+          it('should load without errors', async () => {
             // Clear cache for fresh load
             moduleCache.clear()
-            const mod = loadExample(filePath, engineModule, engineName)
+            const mod = await loadExample(filePath, engineModule, engineName)
             expect(mod).toBeDefined()
             expect(typeof mod.main).toBe('function')
           })
 
-          it('should execute main() with params proxy', () => {
+          it('should execute main() with params proxy', async () => {
             // Clear cache for fresh load
             moduleCache.clear()
-            const mod = loadExample(filePath, engineModule, engineName)
+            const mod = await loadExample(filePath, engineModule, engineName)
 
             // Check if this is a legacy script (has getParameterDefinitions)
             const isLegacy = typeof mod.getParameterDefinitions === 'function'

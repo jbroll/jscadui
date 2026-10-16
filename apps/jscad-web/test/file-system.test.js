@@ -28,6 +28,27 @@ describe('project files without a service worker', () => {
   })
 })
 
+describe('v1 include inlining for project files', () => {
+  it('inlines sibling includes from the file map', async () => {
+    const out = await fileSystem.inlineProjectIncludes(
+      'include("./lib.jscad");\nfunction main() { return helper(); }',
+      'main.jscad',
+      { 'main.jscad': '', 'lib.jscad': 'function helper() { return 42; }' }
+    )
+    expect(out).toContain('function helper()')
+    expect(out).not.toMatch(/^\s*include\(/m)
+  })
+
+  it('resolves absolute includes against library roots', async () => {
+    const out = await fileSystem.inlineProjectIncludes(
+      'include("/mechanics/part.jscad");',
+      'models/m.jscad',
+      { 'models/m.jscad': '', 'library/mechanics/part.jscad': 'var PART = 7;' }
+    )
+    expect(out).toContain('var PART = 7;')
+  })
+})
+
 describe('drop routing', () => {
   let cleanup
   beforeEach(() => {

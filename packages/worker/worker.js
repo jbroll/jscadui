@@ -10,6 +10,7 @@ import { extractPathInfo, readAsArrayBuffer, readAsText } from '../fs-provider/f
 import { workerState } from './src/state/workerState.js'
 import { toRefs } from './src/meshRefs.js'
 import { createStreamHook, withCopies, withStreamHook } from './src/stream.js'
+import { inlineIncludes } from './src/inlineIncludes.js'
 import { createClaims } from './src/claims.js'
 import { shouldTransform } from './src/shouldTransform.js'
 import { bindEvaluator, createBuildContext, memoFromSpecials, splitParts, withBuildContext } from '@jscadui/model-tree'
@@ -622,6 +623,21 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     if (scratch) cachedProjectModules = { ...requireCache.local }
 
     if(!script) script = readFileWeb(resolveUrl(url, base, root).url)
+
+    // V1 .jscad served over HTTP (demo browser, grids): inline include()s so
+    // the module below sees one translation unit. Project files already come
+    // inlined from fileSystem; this is idempotent. Falls back to raw script.
+    if (url.endsWith('.jscad')) {
+      try {
+        const u = new URL(resolveUrl(url, base, root).url, self.location.href)
+        const readFile = (p) => {
+          try { return readFileWeb(u.origin + p) } catch { return undefined }
+        }
+        script = await inlineIncludes(script, u.pathname, { readFile })
+      } catch (e) {
+        console.warn('v1 include inlining skipped:', e.message)
+      }
+    }
 
     const transform = shouldTransform(url, script)
     let def = []
