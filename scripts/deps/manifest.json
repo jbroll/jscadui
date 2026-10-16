@@ -62,12 +62,7 @@
           "skipFiles": []
         }
       ],
-      "patches": [
-        {
-          "patchFile": "scripts/deps/patches/bosl2-lib-fix-includes.patch",
-          "description": "Rewrite BOSL2/ include paths to local lib/"
-        }
-      ]
+      "patches": []
     },
     {
       "name": "bosl-corpus",

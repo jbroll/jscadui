@@ -19,6 +19,7 @@ import { registerCachedFonts } from '../../jscad-text/src/fonts/fontCache.js'
 import { loadSystemFonts } from '../../jscad-text/src/fonts/FontMap.js'
 import { createJ$Instance } from '../../openscad-runtime/src/index.js'
 import { setGlobalFn } from '../../openscad-runtime/src/segments.js'
+import { resolveLibraryPrefix } from './libraryPrefixes.js'
 
 // Register any Liberation fonts already in the local cache (~/.cache/jscadui/fonts/).
 // This is synchronous and fast — no download happens here.
@@ -405,11 +406,13 @@ function getLibraryPaths(customPaths = []) {
  * File resolver for use statements in OpenSCAD
  * Simple resolution order:
  * 1. Try relative to current file (or base directory)
- * 2. Try in library paths (OPENSCADPATH-like behavior)
+ * 2. Try library prefixes (upstream `PREFIX/...` roots mapped into the
+ *    fetched tree, so fetched files keep their upstream include paths)
+ * 3. Try in library paths (OPENSCADPATH-like behavior)
  *
  * No special casing - filesystem checks are cheap in Node.js
  */
-export function createFileResolver(fileDir, customLibPaths = []) {
+export function createFileResolver(fileDir, customLibPaths = [], libraryPrefixes) {
   const libraryPaths = getLibraryPaths(customLibPaths)
 
   return function fileResolver(filename, fromFile) {
@@ -421,6 +424,15 @@ export function createFileResolver(fileDir, customLibPaths = []) {
       return {
         path: relativePath,  // Use full filesystem path
         content: decodeScadSource(readFileSync(relativePath))
+      }
+    }
+
+    // Try library prefixes (upstream roots → fetched tree)
+    const prefixed = resolveLibraryPrefix(filename, libraryPrefixes)
+    if (prefixed) {
+      return {
+        path: prefixed,
+        content: decodeScadSource(readFileSync(prefixed))
       }
     }
 

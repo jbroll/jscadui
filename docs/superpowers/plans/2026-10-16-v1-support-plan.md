@@ -9,7 +9,18 @@ unmodified — and the same mechanism deletes the SCAD include-rewriting patches
 
 ---
 
-## Phase 1 — Per-lib-root resolution (enables everything else)
+## Phase 1 — Per-lib-root resolution (1a DONE)
+
+- **1a. SCAD `fileResolver` prefix map** — DONE 2026-10-16:
+  `packages/openscad/bin/libraryPrefixes.js` (pure, longest-prefix-first,
+  `BOSL2/`+`BOSL/`+`MCAD/`+`list-comprehension-demos/`) + hook in
+  `createFileResolver` (relative-first preserved, prefix before lib-paths).
+  Proof: deleted `bosl2-lib-fix-includes.patch`, re-fetched pristine upstream
+  (`include <BOSL2/std.scad>` back), single-model comparisons pass
+  (BOSL2logo, fractal_tree, bottlecaps), unit 851 green. Remaining patches
+  (`bosl-lib-`, `mcad-`, `list-comprehension-demos-`) fall to the same pattern.
+  NOTE: generated `NNN-*.scad` corpus files still emit `<lib/...>` from
+  extract-bosl2-examples.js — resolves relatively, intentionally untouched.
 
 Why first: SCAD patches, V1 `include()`, and JS lib requires all reduce to
 "resolve a rooted path against registered library roots". Land the primitive once.
