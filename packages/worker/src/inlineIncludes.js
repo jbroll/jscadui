@@ -7,8 +7,12 @@
  * A line counts as an include directive only when the whole (trimmed) line
  * is `include('...')` / `include("...")` — the form V1 models use.
  *
- * No Node builtins: paths are posix-style (URLs and repo paths alike), so
- * this runs in the frame worker and the app bundle as well as Node.
+ * Synchronous with sync reads on purpose: the `require()` extension-handler
+ * path (packages/require) that serves grid items and demo loads is sync
+ * (sync XHR in the worker, fs reads in Node). Async callers (fileSystem
+ * project cache) use the same reads. No Node builtins: paths are
+ * posix-style (URLs and repo paths alike), so this runs in the frame
+ * worker and the app bundle as well as Node.
  */
 const INCLUDE_LINE = /^\s*include\s*\(\s*['"]([^'"]+)['"]\s*\)\s*;?\s*$/
 
@@ -38,7 +42,7 @@ const dirnamePosix = (p) => {
 
 /**
  * Candidate roots for resolving an include path: the including file's own
- * directory, plus the nearest ancestor holding a `library/` dir (the tspspi
+ * directory, plus every ancestor holding a `library/` dir (the tspspi
  * layout: models reference `/mechanics/...` living under `<suite>/library/`).
  * Pure: takes an optional `hasDir` probe; without one every ancestor
  * `library/` is offered and resolution tries each in order.
@@ -65,11 +69,11 @@ const joinRoot = (root, includePath) =>
 /**
  * @param {string} source - including file's source
  * @param {string} fromFile - path of the including file (for relatives)
- * @param {{readFile: (absPath: string) => string | undefined | Promise<string | undefined>, roots?: string[], seen?: Set<string>}} io
+ * @param {{readFile: (absPath: string) => string | undefined, roots?: string[], seen?: Set<string>}} io
  * @returns inlined source; throws when a target cannot be resolved.
- * `readFile` may be sync or async (service-worker cache reads are async).
+ * `readFile` returns undefined for missing files (never throws).
  */
-export async function inlineIncludes(source, fromFile, { readFile, roots, seen = new Set() }) {
+export function inlineIncludes(source, fromFile, { readFile, roots, seen = new Set() }) {
   const searchRoots = roots ?? defaultRoots(fromFile)
   const lines = source.split('\n')
   let depth = 0
@@ -95,7 +99,7 @@ export async function inlineIncludes(source, fromFile, { readFile, roots, seen =
     let target
     for (const r of searchRoots) {
       const p = joinRoot(r, includePath)
-      const content = await readFile(p)
+      const content = readFile(p)
       if (content !== undefined) {
         target = { path: p, content }
         break
@@ -110,7 +114,7 @@ export async function inlineIncludes(source, fromFile, { readFile, roots, seen =
     }
     seen.add(target.path)
     out.push(`// inlined from ${includePath}`)
-    out.push(await inlineIncludes(target.content, target.path, { readFile, roots: searchRoots, seen }))
+    out.push(inlineIncludes(target.content, target.path, { readFile, roots: searchRoots, seen }))
   }
   return out.join('\n')
 }

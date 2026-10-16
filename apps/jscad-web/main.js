@@ -27,7 +27,7 @@ import { boundingBox } from '@jscadui/format-common'
 // Local modules
 import defaultCode from './examples/jscad/01-two-cars.example.js'
 import hierarchicalCarCode from './examples/jscad/02-hierarchical-car.example.js'
-import { addV1Shim } from './src/addV1Shim.js'
+import { addV1Shim } from '@jscadui/worker/src/addV1Shim.js'
 import * as editor from './src/editor.js'
 import { confirm } from './src/ui/dialog.js'
 import * as engine from './src/engine.js'

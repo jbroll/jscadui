@@ -183,6 +183,7 @@ apps/jscad-web/examples/jscad/jscad-hardware/*
 !apps/jscad-web/examples/jscad/*/skip.txt
 !apps/jscad-web/examples/jscad/*/exclude.txt
 !apps/jscad-web/examples/jscad/*/config.json
+!apps/jscad-web/examples/jscad/*/categories.json
 
 # Turbo
 .turbo

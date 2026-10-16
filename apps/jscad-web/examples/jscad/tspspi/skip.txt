@@ -44,3 +44,4 @@ models/miniecm/bedxy.jscad
 # Correct but ~27s locally; over budget on a loaded host (time out on CI):
 models/physics/electronguntestclamps.jscad
 models/toys/characters/basicWitch.jscad
+models/physics/customelectronguncasingandmount.jscad

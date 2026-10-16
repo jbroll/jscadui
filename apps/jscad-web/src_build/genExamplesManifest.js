@@ -5,13 +5,13 @@ import { exampleExclusions } from './exampleExclusions.js'
 /** ALL.js, or a per-category grid such as ALL.printed.js. */
 export const isGridFile = (name) => /^ALL(\.[^/]+)?\.js$/.test(name)
 
-const modelName = (file) => file.replace(/\.(scad|js)$/, '')
+const modelName = (file) => file.replace(/\.(scad|example\.js|js|jscad)$/, '')
 
 /**
  * Generate a static manifest of the examples tree so the demo browser works on
  * any static host (prod Apache has directory autoindex off → 403). Maps each
  * directory's URL pathname to its { dirs, files }, mirroring directoryParser:
- * only .js/.scad files, 'lib' directories omitted.
+ * only .js/.scad/.jscad files, 'lib' directories omitted.
  *
  * A directory with a categories.json ({ category: [model base names] }) also
  * gets one virtual subdirectory per category. Its files live in the real
@@ -46,7 +46,7 @@ export function buildExamplesManifest(srcDir, urlBase = '/examples') {
       // Hide non-model files/dirs (exclude.txt) and problematic models (skip.txt).
       if (!isGridFile(e.name) && isExcluded(e.isDirectory() ? `${abs}/` : abs)) continue
       if (e.isDirectory()) { if (walk(abs)) dirs.push(e.name) }
-      else if (e.name.endsWith('.js') || e.name.endsWith('.scad')) files.push(e.name)
+      else if (e.name.endsWith('.js') || e.name.endsWith('.scad') || e.name.endsWith('.jscad')) files.push(e.name)
     }
     dirs.sort(); files.sort()
     const categoriesFile = join(absDir, 'categories.json')

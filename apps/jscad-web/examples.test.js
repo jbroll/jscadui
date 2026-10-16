@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url'
 import { createRequire } from 'module'
 import { discoverPatternFiles, matchesScopes } from '../../packages/openscad/bin/pattern-files.js'
 import { inlineIncludes } from '../../packages/worker/src/inlineIncludes.js'
-import { addV1Shim } from './src/addV1Shim.js'
+import { addV1Shim } from '../../packages/worker/src/addV1Shim.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const nodeRequire = createRequire(import.meta.url)
@@ -69,7 +69,7 @@ const createMockRequire = (basePath, engineModule, engineName) => {
       if (moduleCache.has(cacheKey)) {
         return moduleCache.get(cacheKey)
       }
-      const mod = loadExampleSync(fullPath, engineModule, engineName)
+      const mod = loadExample(fullPath, engineModule, engineName)
       moduleCache.set(cacheKey, mod)
       return mod
     }
@@ -93,27 +93,13 @@ const evalSource = (source, filePath, engineModule, engineName) => {
 }
 
 /**
- * Sync loader for require()d relatives (V2 only: V1 has no require()).
+ * Full loader: V1 .jscad files are include-inlined then go through the same
+ * addV1Shim transform the app applies, so the harness matches runtime.
  */
-const loadExampleSync = (filePath, engineModule, engineName) => {
-  if (filePath.endsWith('.jscad')) {
-    throw new Error(`V1 .jscad cannot be require()d (${filePath}); use include()`)
-  }
-  return evalSource(readFileSync(filePath, 'utf-8'), filePath, engineModule, engineName)
-}
-
-/**
- * Full loader. V1 .jscad files are include-inlined (async reads) then go
- * through the same addV1Shim transform the app applies (fileSystem.js) so
- * the harness matches runtime behavior.
- */
-const loadExample = async (filePath, engineModule, engineName) => {
+const loadExample = (filePath, engineModule, engineName) => {
   let source = readFileSync(filePath, 'utf-8')
   if (filePath.endsWith('.jscad')) {
-    // V1 include() merges sibling files into global scope; inline first so
-    // the shim below sees one translation unit, like the app will.
-    source = await inlineIncludes(source, filePath, { readFile: tryRead })
-    source = addV1Shim(source)
+    source = addV1Shim(inlineIncludes(source, filePath, { readFile: tryRead }))
   }
   return evalSource(source, filePath, engineModule, engineName)
 }
@@ -148,18 +134,18 @@ describe('Example files', () => {
       describe.each(exampleFiles.map(f => [f.replace(examplesDir + '/', ''), f]))(
         '%s',
         (_name, filePath) => {
-          it('should load without errors', async () => {
+          it('should load without errors', () => {
             // Clear cache for fresh load
             moduleCache.clear()
-            const mod = await loadExample(filePath, engineModule, engineName)
+            const mod = loadExample(filePath, engineModule, engineName)
             expect(mod).toBeDefined()
             expect(typeof mod.main).toBe('function')
           })
 
-          it('should execute main() with params proxy', async () => {
+          it('should execute main() with params proxy', () => {
             // Clear cache for fresh load
             moduleCache.clear()
-            const mod = await loadExample(filePath, engineModule, engineName)
+            const mod = loadExample(filePath, engineModule, engineName)
 
             // Check if this is a legacy script (has getParameterDefinitions)
             const isLegacy = typeof mod.getParameterDefinitions === 'function'

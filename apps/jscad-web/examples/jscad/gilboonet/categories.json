@@ -1,0 +1,35 @@
+{
+  "polyhedra": [
+    "polyhedrons",
+    "polyhedronUsage2",
+    "polyhedron_usage3",
+    "polyhedron_usage4",
+    "polyhedron_usage6",
+    "polyhedron_usage7",
+    "regularPolygons",
+    "test_polyhedron",
+    "test_archimede",
+    "test_archimede_standalone",
+    "test_catalan",
+    "test_catalan_standalone"
+  ],
+  "furniture": [
+    "bureau_colonnes",
+    "charniere1",
+    "plaque_incurv1",
+    "plaque_incurv1p",
+    "table_4pieds",
+    "table_tete_eleph"
+  ],
+  "decorative": [
+    "4couls",
+    "biseau1",
+    "botai",
+    "butai",
+    "cc",
+    "circonvolutions_v3",
+    "mp_chat_H24",
+    "mp_lion",
+    "trancheCylindre"
+  ]
+}

@@ -1,0 +1,5 @@
+# Non-model helper/part files (no runnable main): hidden from grids and demo browser.
+cerceau.js
+index_v1_33.js
+sq_gorille.js
+traverses.js

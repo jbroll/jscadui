@@ -111,7 +111,7 @@ function isExcluded(path, scopes) {
 
 /**
  * Find all model files in a directory (non-recursive)
- * Includes .scad, .js (but not ALL.js, index.js in certain cases)
+ * Includes .scad, .js and V1 .jscad (but not ALL.js, index.js in certain cases)
  */
 function findModelFiles(dir) {
   if (!existsSync(dir)) return []
@@ -120,7 +120,7 @@ function findModelFiles(dir) {
       .filter(f => {
         if (f.startsWith('.')) return false
         if (isGridFile(f) || f === 'ALL.scad' || f === '__all__.scad') return false
-        return f.endsWith('.scad') || f.endsWith('.js')
+        return f.endsWith('.scad') || f.endsWith('.js') || f.endsWith('.jscad')
       })
       .sort()
   } catch (err) {
@@ -262,7 +262,7 @@ function categoryGridItems(dir, categories, items, examplesRoot, stats) {
   const claimed = new Set()
   const grids = []
   for (const [category, models] of Object.entries(categories)) {
-    const members = items.filter(item => isOwnFile(item) && models.includes(basename(item).replace(/\.(scad|js)$/, '')))
+    const members = items.filter(item => isOwnFile(item) && models.includes(basename(item).replace(/\.(scad|example\.js|js|jscad)$/, '')))
     if (!members.length) continue
     members.forEach(m => claimed.add(m))
     const fileName = `ALL.${category}.js`

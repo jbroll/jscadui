@@ -1,0 +1,27 @@
+{
+  "cases": [
+    "iphone-4",
+    "iphone-5s",
+    "raspberry-pi-2-case"
+  ],
+  "mounts": [
+    "corner-cabinet-anchor",
+    "curtain-rod-holder",
+    "curtain-rod-mount",
+    "leapfrog-fan-mount",
+    "leapfrog-fan-plate",
+    "leapfrog-top-bracket",
+    "lens_cap_buckle",
+    "sliding-door-bolt"
+  ],
+  "household": [
+    "box-with-top",
+    "clock-works"
+  ],
+  "fun": [
+    "jscad-logo-v2",
+    "minion-goggles-bs",
+    "yokai_medal",
+    "z3d-logo"
+  ]
+}

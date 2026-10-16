@@ -80,8 +80,10 @@ test harness. Key fix found by corpus: directives inside block comments
 (header usage examples) must be ignored, or an injected `*/` closes the
 outer comment early. Resolves relatives + absolute roots (nearest ancestor
 `library/` dir — the tspspi layout). Locked by 7 unit tests.
-App wiring (fileSystem addV1Shim-time inlining against project files +
-lib roots) is the remaining step for real runs; harness already uses it.
+App wiring DONE 2026-10-16: fileSystem inlines project files at
+addV1Shim time (`inlineProjectIncludes`, tested); worker `jscadScript`
+covers served examples via the registered `'jscad'` require handler
+(same inline+shim, sync reads). No separate injection step needed.
 
 V1 `include(path)` merges the target into global scope — closest faithful
 implementation is textual inlining (recursive, cycle-guarded), not a runtime
@@ -91,7 +93,25 @@ already detects `.jscad` + applies `addV1Shim` (`fileSystem.js:137`).
 
 - [x] Stale fluent-vendoring notes removed (see Phase 2 pivot).
 
-## Phase 4 — Corpus enablement (IN PROGRESS 2026-10-16: 42 V1 files green)
+## Phase 6 — Demo browser groups (IN PROGRESS 2026-10-16)
+
+Discovery: the browser is driven by the generated manifest
+(`genExamplesManifest`), NOT the dead `src/examples.js` (nothing imports it).
+`skip.txt`/`exclude.txt` already hide unrunnable files; directories are groups;
+`categories.json` + `ALL.<cat>.js` grids add virtual sub-groups (NopSCADlib
+precedent). Work:
+- `categories.json` for z3dev-designs (cases/mounts/household/fun, 17 models)
+  and gilboonet (polyhedra/furniture/decorative, 27); tspspi groups via its
+  natural subdirs; jscad-hardware fully skipped → auto-hidden.
+- `.jscad` taught to `findModelFiles` (generate-all), `genExamplesManifest`
+  walk + `modelName` (both had their own copy), and the `require()` isJs gate
+  via a registered `'jscad'` extension handler (inline + addV1Shim).
+- `addV1Shim` moved app→`packages/worker/src` (worker owns execution);
+  `inlineIncludes` reverted to sync (all load paths are sync-capable).
+- `gilboonet/exclude.txt` hides 4 non-model `.js` helpers from grids/browser.
+- `.gitignore` + CI rsync rules extended with `categories.json`.
+
+## Phase 4 — Corpus enablement (DONE 2026-10-16: 42 V1 files green)
 
 - gilboonet: 25/35 pass (both engines), unskipped. (triaged list in suite skip.txt)
 - tspspi: 17 models + 2 lib demos pass, unskipped. (triaged list in suite skip.txt)
@@ -103,7 +123,8 @@ already detects `.jscad` + applies `addV1Shim` (`fileSystem.js:137`).
   desktop-waste-basket, sanding-block) — model-vs-API edge, same family as
   Phase 5; 4 fail manifold-only (Phase 5).
 - `examples.test.js`: 216 → 388 passing.
-- `src/examples.js` demo-browser curation: explicitly out of scope.
+- NOTE (future): 5 tspspi models skipped for speed (23–42s each) suggest a
+  "slow" lane with a higher per-test timeout rather than more skip entries.
 
 - gilboonet: 25/35 pass (both engines), unskipped. Skipped: 3 include-libs
   (covered transitively), 1 CSG points-format gap, 3 const-redeclare, 2 bare
