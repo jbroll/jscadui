@@ -6,3 +6,7 @@ examples/bolt.jscad
 examples/example.jscad
 examples/nut.jscad
 examples/washer.jscad
+# V1 CSG-global API (same as examples/ above):
+v1/imperial.jscad
+v1/jscad-hardware.jscad
+v1/metric.jscad

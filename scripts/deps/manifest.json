@@ -682,6 +682,13 @@
           "destDir": "apps/jscad-web/examples/jscad/gilboonet",
           "include": ["*.jscad", "*.js", "2020/**/*.jscad", "2021/**/*.jscad", "2022/**/*.jscad", "2023/**/*.jscad", "2024/**/*.jscad", "2025/**/*.jscad", "testInclude/**/*"],
           "exclude": ["*.pdf", "*.svg", "*.zip"],
+          "skipFiles": ["botai.js", "butai.js"]
+        },
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/jscad/gilboonet",
+          "include": ["botai.js", "butai.js"],
+          "exclude": [],
           "skipFiles": [],
           "asExample": true
         }

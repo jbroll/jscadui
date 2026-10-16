@@ -8,6 +8,7 @@ import { join, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { createRequire } from 'module'
 import { discoverPatternFiles, matchesScopes } from '../../packages/openscad/bin/pattern-files.js'
+import { addV1Shim } from './src/addV1Shim.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const nodeRequire = createRequire(import.meta.url)
@@ -51,6 +52,11 @@ const createMockRequire = (basePath, engineModule, engineName) => {
     if (moduleName === '@jscad/modeling') {
       return engineModule
     }
+    if (moduleName === '@jscad/csg') {
+      // V1 .jscad files: the app resolves this to bundle.V1_api.js
+      // (src_bundle/bundle.V1_api.js = @jscad/csg/api.js)
+      return nodeRequire('@jscad/csg/api.js')
+    }
     if (moduleName === '@jscadui/jscad-text') {
       jscadText.init(engineModule)
       return jscadText
@@ -71,10 +77,15 @@ const createMockRequire = (basePath, engineModule, engineName) => {
 }
 
 /**
- * Execute a CommonJS example script and return the exports
+ * Execute a CommonJS example script and return the exports.
+ * V1 .jscad files go through the same addV1Shim transform the app applies
+ * (fileSystem.js) so the harness matches runtime behavior.
  */
 const loadExample = (filePath, engineModule, engineName) => {
-  const source = readFileSync(filePath, 'utf-8')
+  let source = readFileSync(filePath, 'utf-8')
+  if (filePath.endsWith('.jscad')) {
+    source = addV1Shim(source)
+  }
   const mockRequire = createMockRequire(filePath, engineModule, engineName)
   const exports = {}
   const module = { exports }
@@ -90,8 +101,9 @@ const loadExample = (filePath, engineModule, engineName) => {
 // (same pattern-file semantics as generate-all-files.js grids).
 const examplesDir = join(__dirname, 'examples')
 const skipScopes = discoverPatternFiles(examplesDir, 'skip.txt')
+// V2 runnable examples plus V1 .jscad (shimmed at load, like the app)
 const exampleFiles = readdirSync(examplesDir, { recursive: true })
-  .filter(f => f.endsWith('.example.js') || f === 'jscad.example.js')
+  .filter(f => f.endsWith('.example.js') || f === 'jscad.example.js' || f.endsWith('.jscad'))
   .map(f => join(examplesDir, f))
   .filter(f => !matchesScopes(f, skipScopes))
 
