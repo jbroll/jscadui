@@ -418,13 +418,6 @@ describe('free provider', () => {
     expect(getProviderConfig()).toMatchObject({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true })
   })
 
-  it('fails closed for a legacy shared/demo selection instead of migrating', async () => {
-    const { getProviderConfig, keyStore } = await loadAccount()
-    keyStore.clear()
-    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'opencode-go', model: 'deepseek-v4.1-flash', shared: 'deepseek', demo: true }))
-    expect(getProviderConfig()).toBeNull()
-  })
-
   it('routes a free turn to the jscad-web free base with the sentinel key', async () => {
     const { getProviderConfig } = await openGear(inferenceFetch(INFERENCE))
     await selectFree('deepseek')

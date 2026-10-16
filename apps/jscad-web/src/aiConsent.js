@@ -113,8 +113,7 @@ export const acceptTos = (recordOwnChats) => {
 }
 
 // A free selection carries `{free: true}`; anything else is an own-key
-// selection, even if it names an inference option. No migration: a stale
-// record fails closed in `getProviderConfig` instead of running free.
+// selection and fails closed in `getProviderConfig` without a stored key.
 export const isFreeSelection = (selection) => selection?.free === true
 
 /**
