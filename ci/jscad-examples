@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# JSCAD V1 + V2 example sweep, run on the CI host.
+#
+#   sci push jscadui/jscad-examples
+#
+# Covers what `ci/test` (OpenSCAD comparison) does not: the native JSCAD
+# corpus. V2: examples.test.js executes every *.example.js (hand-written plus
+# fetch-deps suites, minus skip.txt) on both the @jscad/modeling and manifold
+# engines. V1: the vendored v1shim suite plus the lib-root prefix resolver
+# that V1 include() will build on. Fast on purpose: no STL comparison, no
+# browser, no render baselines — those live in ci/test and ci/render*.
+set -euo pipefail
+
+WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
+
+# shellcheck source=ci/lib/bootstrap.sh
+. "$WORKTREE/ci/lib/bootstrap.sh"
+bootstrap sources install deps
+
+# The jscad suites regenerate on the host from the manifest (fetched trees
+# are gitignored); skip.txt control files transfer as tracked files.
+# Pre-download Liberation fonts so text() examples work headless.
+cd "$WORKTREE/packages/openscad"
+node bin/download-fonts.js
+
+export JSCADUI_CI=1
+npx vitest run test/library-prefixes.test.ts
+cd "$WORKTREE/packages/worker"
+npx vitest run src/v1shim.test.js
+cd "$WORKTREE/apps/jscad-web"
+npx vitest run examples.test.js
