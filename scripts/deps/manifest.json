@@ -25,12 +25,7 @@
           "skipFiles": []
         }
       ],
-      "patches": [
-        {
-          "patchFile": "scripts/deps/patches/bosl-lib-fix-includes.patch",
-          "description": "Rewrite BOSL/ include paths to local lib/"
-        }
-      ]
+      "patches": []
     },
     {
       "name": "bosl2-lib",
@@ -227,12 +222,7 @@
           "skipFiles": []
         }
       ],
-      "patches": [
-        {
-          "patchFile": "scripts/deps/patches/mcad-fix-includes.patch",
-          "description": "Fix linear_bearing.scad MCAD/ prefixed include paths to relative paths"
-        }
-      ]
+      "patches": []
     },
     {
       "name": "snippet",
@@ -384,12 +374,7 @@
           "skipFiles": []
         }
       ],
-      "patches": [
-        {
-          "patchFile": "scripts/deps/patches/list-comprehension-demos-spiral-include.patch",
-          "description": "Include sweep.scad as a sibling; upstream's <list-comprehension-demos/sweep.scad> assumes a library-path install"
-        }
-      ]
+      "patches": []
     },
     {
       "name": "threads-scad",
