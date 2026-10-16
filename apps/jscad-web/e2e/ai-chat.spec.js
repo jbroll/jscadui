@@ -483,8 +483,9 @@ test.describe('AI chat', () => {
     await setTos(true)
     await openChat()
     await page.locator('.ai-gear').click()
-    await expect(page.locator('.ai-provider-select option[value="jscad-web:deepseek"]')).toHaveCount(1)
-    await page.locator('.ai-provider-select').selectOption('jscad-web:deepseek')
+    await expect(page.locator('.ai-provider-select option[value="jscad-web"]')).toHaveCount(1)
+    await page.locator('.ai-provider-select').selectOption('jscad-web')
+    await expect(page.locator('.ai-model-select option[value="deepseek-v4-flash"]')).toHaveCount(1)
     await expect(notice).toBeVisible()
     await expect(notice).toHaveText('Free jscad-web models share conversations to improve the assistant.')
     await expect(notice.locator('.chat-notice-settings')).toBeHidden()
@@ -505,11 +506,10 @@ test.describe('AI chat', () => {
     await page.locator('#ai-chat-btn').click()
 
     await page.locator('.ai-gear').click()
-    await expect(page.locator('.ai-provider-select option[value="jscad-web:deepseek"]')).toHaveCount(1)
-    await page.locator('.ai-provider-select').selectOption('jscad-web:deepseek')
-    // The option pins the model and disables (not hides) the key controls; the relay owns the key.
-    await expect(page.locator('.ai-free-info')).toContainText('jscad-web · DeepSeek v4 flash')
-    await expect(page.locator('.ai-free-info')).toContainText('deepseek-v4-flash')
+    await expect(page.locator('.ai-provider-select option[value="jscad-web"]')).toHaveCount(1)
+    await page.locator('.ai-provider-select').selectOption('jscad-web')
+    // The model menu lists the live catalog like any provider; the key controls stay visible but disabled.
+    await expect(page.locator('.ai-model-select')).toContainText('DeepSeek v4 flash')
     await expect(page.locator('.ai-key-input')).toBeVisible()
     await expect(page.locator('.ai-key-input')).toBeDisabled()
     await page.locator('.ai-dialog-footer button').click()

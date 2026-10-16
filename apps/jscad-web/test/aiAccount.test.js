@@ -367,29 +367,30 @@ describe('free provider', () => {
     return new Response('{}', { status: 404 })
   })
 
-  // Opens the gear dialog and waits for the catalog to land in the select.
-  const openGear = async (fetchImpl, { free = true } = {}) => {
+  // Opens the gear dialog and waits for the single jscad-web provider row.
+  const openGear = async (fetchImpl) => {
     globalThis.fetch = fetchImpl
     document.body.innerHTML = '<div id="a"></div>'
     const account = await loadAccount()
     account.initAccount(document.getElementById('a'))
     document.querySelector('.ai-gear').click()
-    if (free) {
-      await vi.waitFor(() => {
-        expect([...document.querySelectorAll('.ai-provider-select option')].some((o) => o.value.startsWith('jscad-web:'))).toBe(true)
-      })
-    } else {
-      await new Promise((r) => setTimeout(r, 20))
-    }
+    await vi.waitFor(() => {
+      expect(document.querySelector('.ai-provider-select option[value="jscad-web"]')).not.toBeNull()
+    })
     return account
   }
 
-  const selectFree = async (id) => {
-    await vi.waitFor(() => expect([...document.querySelectorAll('.ai-provider-select option')].some((o) => o.value === `jscad-web:${id}`)).toBe(true))
+  // Selects a provider, then waits for the model menu to offer `modelValue`.
+  const selectProvider = async (kind, modelValue) => {
     const select = document.querySelector('.ai-provider-select')
-    select.value = `jscad-web:${id}`
+    select.value = kind
     select.dispatchEvent(new Event('change'))
+    await vi.waitFor(() => {
+      expect([...document.querySelectorAll('.ai-model-select option')].some((o) => o.value === modelValue)).toBe(true)
+    })
   }
+
+  const selectFree = (modelValue = 'deepseek-v4.1-flash') => selectProvider('jscad-web', modelValue)
 
   beforeEach(() => {
     localStorage.clear()
@@ -397,30 +398,44 @@ describe('free provider', () => {
     globalThis.fetch = vi.fn(async () => new Response(JSON.stringify([]), { headers: { 'content-type': 'application/json' } }))
   })
 
-  it('lists the jscad-web catalog options as free entries', async () => {
+  it('offers jscad-web as one provider row', async () => {
     await openGear(inferenceFetch(INFERENCE))
-    const labels = [...document.querySelectorAll('.ai-provider-select option')].map((o) => o.textContent)
-    expect(labels).toContain('jscad-web · DeepSeek v4 flash')
-    expect(labels.some((label) => label.startsWith('jscad-web · Muse Spark 1.3'))).toBe(true)
+    const values = [...document.querySelectorAll('.ai-provider-select option')].map((o) => o.value)
+    expect(values.filter((v) => v === 'jscad-web')).toHaveLength(1)
+    expect(values.some((v) => v.startsWith('jscad-web:'))).toBe(false)
   })
 
-  it('disables an exhausted free option and names the reason', async () => {
+  it('lists the catalog models in the shared model menu', async () => {
     await openGear(inferenceFetch(INFERENCE))
-    const option = [...document.querySelectorAll('.ai-provider-select option')].find((o) => o.value === 'jscad-web:muse')
-    expect(option.disabled).toBe(true)
-    expect(option.textContent).toBe('jscad-web · Muse Spark 1.3 (monthly limit reached)')
+    await selectFree()
+    const rows = [...document.querySelectorAll('.ai-model-select option')]
+    expect(rows.map((o) => o.textContent)).toContain('DeepSeek v4 flash')
+    const muse = rows.find((o) => o.value === 'muse-spark-1.3')
+    expect(muse.disabled).toBe(true)
+    expect(muse.textContent).toBe('Muse Spark 1.3 (monthly limit reached)')
   })
 
   it('persists a free selection and returns the sentinel-key config', async () => {
     const { getProviderConfig } = await openGear(inferenceFetch(INFERENCE))
-    await selectFree('deepseek')
+    await selectFree()
     expect(JSON.parse(localStorage.getItem('jscad-ai.selection'))).toMatchObject({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', inference: 'deepseek', free: true })
     expect(getProviderConfig()).toMatchObject({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', apiKey: 'jscad-web-free', inference: 'deepseek', free: true })
   })
 
+  it('switches free models in the model menu and re-pins the route', async () => {
+    const both = INFERENCE.map((o) => ({ ...o, available: true }))
+    const { getProviderConfig } = await openGear(inferenceFetch(both))
+    await selectFree()
+    const menu = document.querySelector('.ai-model-select')
+    menu.value = 'muse-spark-1.3'
+    menu.dispatchEvent(new Event('change'))
+    expect(JSON.parse(localStorage.getItem('jscad-ai.selection'))).toMatchObject({ kind: 'jscad-web', model: 'muse-spark-1.3', inference: 'muse', free: true })
+    expect(getProviderConfig()).toMatchObject({ inference: 'muse' })
+  })
+
   it('routes a free turn to the jscad-web free base with the sentinel key', async () => {
     const { getProviderConfig } = await openGear(inferenceFetch(INFERENCE))
-    await selectFree('deepseek')
+    await selectFree()
     const fetchMock = vi.fn(async () => new Response('data: [DONE]\n\n'))
     vi.stubGlobal('fetch', fetchMock)
     try {
@@ -441,9 +456,9 @@ describe('free provider', () => {
     expect(getProviderConfig()).toBeNull()
   })
 
-  it('disables the key, custody, base URL and model controls for free, keeping them visible', async () => {
+  it('disables the relay-owned controls for free, keeping them visible', async () => {
     await openGear(inferenceFetch(INFERENCE))
-    await selectFree('deepseek')
+    await selectFree()
     const fieldNamed = (name) => [...document.querySelectorAll('.ai-settings .ai-field')].find((f) => f.querySelector('.ai-field-name')?.textContent === name)
     const relayOwned = () => [
       document.querySelector('.ai-key-input'),
@@ -451,24 +466,22 @@ describe('free provider', () => {
       fieldNamed('Passphrase').querySelector('input'),
       document.querySelector('.ai-save-key'),
       fieldNamed('Keep').closest('.ai-settings').querySelector('.ai-actions button:not(.ai-save-key)'),
-      document.querySelector('.ai-model-select'),
       document.querySelector('.ai-model-input'),
       document.querySelector('.ai-base-input'),
     ]
     for (const control of relayOwned()) expect(control.disabled).toBe(true)
-    // The wrappers stay visible; only the controls are inert.
+    // The model menu stays enabled: it lists the live catalog like any kind.
+    expect(document.querySelector('.ai-model-select').disabled).toBe(false)
     expect(document.querySelector('.ai-key-input').closest('.ai-field').style.display).toBe('')
     expect(document.querySelector('.ai-model-select').closest('.ai-field').style.display).toBe('')
     expect(document.querySelector('.ai-model-input').closest('.ai-field').style.display).toBe('')
     expect(document.querySelector('.ai-advanced').style.display).toBe('')
-    const info = document.querySelector('.ai-free-info')
-    expect(info.style.display).toBe('')
-    expect(info.textContent).toMatch(/jscad-web · DeepSeek v4 flash/)
+    expect(document.querySelector('.ai-free-info')).toBeNull()
   })
 
   it('re-enables the relay-owned controls on switching back to an own-key provider', async () => {
     await openGear(inferenceFetch(INFERENCE))
-    await selectFree('deepseek')
+    await selectFree()
     const fieldNamed = (name) => [...document.querySelectorAll('.ai-settings .ai-field')].find((f) => f.querySelector('.ai-field-name')?.textContent === name)
     const relayOwned = () => [
       document.querySelector('.ai-key-input'),
@@ -480,22 +493,29 @@ describe('free provider', () => {
       document.querySelector('.ai-model-input'),
       document.querySelector('.ai-base-input'),
     ]
-    expect(relayOwned().every((control) => control.disabled)).toBe(true)
+    expect(relayOwned().every((control) => control.disabled)).toBe(false)
     const provider = document.querySelector('.ai-provider-select')
+    provider.value = 'jscad-web'
+    provider.dispatchEvent(new Event('change'))
+    await vi.waitFor(() => {
+      expect([...document.querySelectorAll('.ai-model-select option')].some((o) => o.value === 'deepseek-v4.1-flash')).toBe(true)
+    })
+    expect(document.querySelector('.ai-model-input').disabled).toBe(true)
+    expect(document.querySelector('.ai-model-select').disabled).toBe(false)
     provider.value = 'openai'
     provider.dispatchEvent(new Event('change'))
     expect(relayOwned().every((control) => control.disabled)).toBe(false)
   })
 
-  it('does not request the model list for a free selection', async () => {
+  it('reads the provider model list for free from the relay catalog, not a key', async () => {
     const account = await loadAccount()
     await account.keyStore.set('sk-x', 'session')
     await openGear(inferenceFetch(INFERENCE, ['gpt-x']))
     await vi.waitFor(() => expect(globalThis.fetch.mock.calls.some(([u]) => String(u).includes('/v1/models'))).toBe(true))
-    const before = globalThis.fetch.mock.calls.filter(([u]) => String(u).includes('/v1/models')).length
-    await selectFree('deepseek')
-    await new Promise((r) => setTimeout(r, 20))
-    expect(globalThis.fetch.mock.calls.filter(([u]) => String(u).includes('/v1/models'))).toHaveLength(before)
+    await selectFree()
+    await vi.waitFor(() => expect(globalThis.fetch.mock.calls.some(([u]) => String(u).includes(CATALOG_URL))).toBe(true))
+    const ownList = ([url]) => String(url).includes('/v1/models') && !String(url).includes(CATALOG_URL)
+    expect(globalThis.fetch.mock.calls.filter(ownList)).toHaveLength(1)
   })
 
   it('mirrors the recording choice into both storage keys', async () => {
@@ -529,21 +549,28 @@ describe('free provider', () => {
 
   it('locks the recording checkbox on and checked for free', async () => {
     await openGear(inferenceFetch(INFERENCE))
-    await selectFree('deepseek')
+    await selectFree()
     const toggle = document.querySelector('.ai-record-toggle')
     expect(toggle.checked).toBe(true)
     expect(toggle.disabled).toBe(true)
   })
 
-  it('hides the free entries when the catalog cannot be read', async () => {
+  it('keeps the jscad-web row but fails closed when the catalog cannot be read', async () => {
     const failing = vi.fn(async (url) => {
       if (String(url).includes('/api/auth/')) return new Response(JSON.stringify({}), { status: 401 })
       if (String(url).includes(CATALOG_URL)) throw new Error('offline')
       return new Response('{}', { status: 404 })
     })
-    await openGear(failing, { free: false })
-    await new Promise((r) => setTimeout(r, 20))
-    expect([...document.querySelectorAll('.ai-provider-select option')].some((o) => o.value.startsWith('jscad-web:'))).toBe(false)
+    const { getProviderConfig } = await openGear(failing)
+    expect(document.querySelector('.ai-provider-select option[value="jscad-web"]')).not.toBeNull()
+    const provider = document.querySelector('.ai-provider-select')
+    provider.value = 'jscad-web'
+    provider.dispatchEvent(new Event('change'))
+    await vi.waitFor(() => {
+      expect(document.querySelector('.ai-model-status').textContent).toMatch(/Models failed/)
+    })
+    expect(document.querySelectorAll('.ai-model-select option')).toHaveLength(0)
+    expect(getProviderConfig()).toBeNull()
   })
 })
 

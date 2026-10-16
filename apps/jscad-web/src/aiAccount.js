@@ -15,8 +15,7 @@ const SELECTION_KEY = 'jscad-ai.selection'
 // The one credential the free provider carries; the relay ignores its value and
 // injects the operator's server-held key per free option.
 export const FREE_API_KEY = 'jscad-web-free'
-const FREE_PREFIX = 'jscad-web:'
-// The relay's `available` flag is month-only; an exhausted option stays listed
+// The relay's `available` flag is month-only; an exhausted model stays listed
 // so its reason is visible, but cannot be chosen.
 const FREE_LIMIT_REASON = 'monthly limit reached'
 
@@ -104,19 +103,6 @@ export const getProviderConfig = () => {
   return { kind, model, ...(baseUrl ? { baseUrl } : {}), ...(effort ? { effort } : {}), apiKey }
 }
 
-// The free options the relay offers, or [] when the catalog cannot be read. An
-// unreadable catalog hides free rather than offering a selection that cannot run.
-export const loadInferenceOptions = async () => {
-  try {
-    const res = await fetch(inferenceListUrl(), { headers: { accept: 'application/json' } })
-    if (!res.ok) return []
-    const body = await res.json()
-    return Array.isArray(body) ? body.filter((opt) => opt && typeof opt.id === 'string') : []
-  } catch {
-    return []
-  }
-}
-
 const getSession = async () => {
   try {
     const res = await fetch('/api/auth/get-session', { credentials: 'include' })
@@ -130,8 +116,10 @@ const getSession = async () => {
 
 export { getSession }
 
-const modelPlaceholders = { anthropic: 'claude-sonnet-4-5', openai: 'gpt-4o', 'opencode-go': 'deepseek-v4.1-flash', meta: 'muse-spark-1.3' }
-const KINDS = ['anthropic', 'openai', 'opencode-go', 'meta']
+const modelPlaceholders = { anthropic: 'claude-sonnet-4-5', openai: 'gpt-4o', 'opencode-go': 'deepseek-v4.1-flash', meta: 'muse-spark-1.3', 'jscad-web': 'deepseek-v4.1-flash' }
+// `jscad-web` rides the same provider list as every other kind: one row, with
+// its models in the shared model menu. The relay owns its key and model list.
+const KINDS = ['jscad-web', 'anthropic', 'openai', 'opencode-go', 'meta']
 
 const authHeaders = (kind, apiKey) =>
   kind === 'anthropic'
@@ -235,16 +223,16 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
 
   const summary = el('div', 'ai-session ai-summary')
 
-  // A free option pins one model on the relay; the dialog shows it as
-  // `jscad-web · <label>` and disables (never hides) the key, custody, base URL
-  // and model controls the relay owns.
+  // A free selection stores `{inference, free:true}` under the first-class
+  // `jscad-web` kind; the model menu lists the catalog. The summary reads the
+  // option label like every other `kind · model` line.
   let inferenceOptions = []
-  const freeActive = () => state.free === true && state.inference !== ''
+  const freeActive = () => state.free === true && state.kind === 'jscad-web'
   const freeOption = () => inferenceOptions.find((opt) => opt.id === state.inference) ?? null
 
   const refreshSummary = () => {
     if (freeActive()) {
-      summary.textContent = `jscad-web · ${freeOption()?.label ?? state.inference}`
+      summary.textContent = `jscad-web · ${freeOption()?.label ?? state.model ?? state.inference}`
       return
     }
     summary.textContent = state.model ? `${state.kind} · ${state.model}` : `${state.kind} · no model set`
@@ -255,8 +243,6 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   dialog.className = 'ai-settings'
 
   const kind = el('select', 'ai-input ai-provider-select')
-  const freeInfo = el('div', 'ai-session ai-free-info', '')
-  freeInfo.style.display = 'none'
   const renderProviderOptions = () => {
     kind.innerHTML = ''
     for (const value of KINDS) {
@@ -264,14 +250,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
       option.value = value
       kind.append(option)
     }
-    for (const opt of inferenceOptions) {
-      const option = el('option')
-      option.value = `${FREE_PREFIX}${opt.id}`
-      option.disabled = opt.available === false
-      option.textContent = opt.available === false ? `jscad-web · ${opt.label} (${FREE_LIMIT_REASON})` : `jscad-web · ${opt.label}`
-      kind.append(option)
-    }
-    kind.value = freeActive() ? `${FREE_PREFIX}${state.inference}` : state.kind
+    kind.value = state.kind
     if (!kind.value) kind.value = state.kind
   }
 
@@ -283,8 +262,13 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   const syncModelControls = (models) => {
     modelSelect.innerHTML = ''
     for (const m of models) {
-      const option = el('option', '', m.id ?? m)
+      const option = el('option', '', m.label ?? m.id ?? m)
       option.value = m.id ?? m
+      // Only the free catalog marks availability; own-key lists have no flag.
+      if (m.available === false) {
+        option.disabled = true
+        option.textContent += ` (${FREE_LIMIT_REASON})`
+      }
       modelSelect.append(option)
     }
     if (!state.model && modelSelect.options.length) {
@@ -380,20 +364,39 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   const modelField = field('Model', modelSelect)
   const modelInputField = field('Custom model id', modelInput)
 
-  // Free disables everything the relay owns for it: the key, its custody, the
-  // custom base URL and the model controls (the option pins one model). The
-  // wrappers stay visible, so the disabled state reads as "the relay owns this"
-  // rather than vanishing; effort stays enabled. The recording box is checked
-  // and locked, since free turns always record.
-  const relayOwnedControls = [key, mode, passphrase, saveKey, clearKey, modelSelect, modelInput, baseUrl]
+  // Free disables everything the relay owns for it — the key, its custody,
+  // the custom base URL and the custom model id — while the provider, model
+  // menu and effort work exactly like every other kind. The wrappers stay
+  // visible, so the disabled state reads as "the relay owns this" rather than
+  // vanishing. The recording box is checked and locked, since free turns
+  // always record.
+  const relayOwnedControls = [key, mode, passphrase, saveKey, clearKey, modelInput, baseUrl]
+  // The model menu holds upstream model ids; the turn route needs the catalog
+  // option id behind the chosen model. Prefer an available option so a stale
+  // pick fails with the quota line instead of silently switching models.
+  const syncInferenceFromModel = () => {
+    const match =
+      inferenceOptions.find((o) => o.model === state.model && o.available !== false) ??
+      inferenceOptions.find((o) => o.model === state.model) ??
+      null
+    state.inference = match?.id ?? ''
+    persistSelection()
+  }
+  // The menu may not contain the stored model (or only as exhausted): fall
+  // back to the first choosable row so the dialog never offers a dead pick.
+  const syncFreeModelSelection = () => {
+    const enabled = [...modelSelect.options].filter((o) => !o.disabled)
+    if (!enabled.some((o) => o.value === state.model)) {
+      state.model = enabled.length ? enabled[0].value : ''
+      modelInput.value = state.model
+      if (enabled.length) modelSelect.value = state.model
+    }
+    syncInferenceFromModel()
+  }
   const applyFreeState = () => {
     const free = freeActive()
     for (const control of relayOwnedControls) control.disabled = free
-    freeInfo.style.display = free ? '' : 'none'
-    if (free) {
-      freeInfo.textContent = `jscad-web · ${freeOption()?.label ?? state.inference} · ${state.model}`
-      modelStatus.textContent = ''
-    }
+    keyLine.textContent = free ? `Fixed key (${FREE_API_KEY}).` : keyStore.get() ? 'Key set.' : 'No key set.'
     recordToggle.checked = free ? true : getRecordOwnChats()
     recordToggle.disabled = free
     refreshEffort()
@@ -471,7 +474,6 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   dialog.append(
     el('h2', 'ai-dialog-title', 'Chat settings'),
     field('Provider', kind),
-    freeInfo,
     keyField,
     keepField,
     passphraseField,
@@ -496,10 +498,36 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   let modelsRequest = 0
   const loadModels = async () => {
     const request = ++modelsRequest
-    // Free has no model dropdown: each free option pins one model, and the
-    // "catalog" is the option list itself, so there is nothing to GET.
+    // Free reads the same model menu as every other kind, from the relay's
+    // free catalog instead of the provider's list endpoint. No key is needed:
+    // the catalog carries no secrets and the turn rides the fixed sentinel.
     if (freeActive()) {
-      modelStatus.textContent = ''
+      modelStatus.textContent = 'Loading models…'
+      try {
+        const res = await fetch(inferenceListUrl(), { headers: { accept: 'application/json' } })
+        if (request !== modelsRequest) return
+        if (!res.ok) {
+          modelStatus.textContent = `Models failed: ${res.status}`
+          return
+        }
+        const body = await res.json()
+        if (request !== modelsRequest) return
+        const catalog = Array.isArray(body)
+          ? body.filter((opt) => opt && typeof opt.id === 'string' && typeof opt.model === 'string')
+          : []
+        if (catalog.length === 0) {
+          modelStatus.textContent = 'No free models listed. Add your own key to keep chatting.'
+          return
+        }
+        inferenceOptions = catalog
+        state.capabilities = new Map()
+        syncModelControls(catalog.map((o) => ({ id: o.model, label: o.label, available: o.available })))
+        syncFreeModelSelection()
+        modelStatus.textContent = `${catalog.length} models`
+        refreshEffort()
+      } catch (err) {
+        if (request === modelsRequest) modelStatus.textContent = `Models failed: ${err.message}`
+      }
       return
     }
     const apiKey = keyStore.get()
@@ -536,14 +564,11 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     if (typeof dialog.close === 'function') dialog.close()
     else dialog.removeAttribute('open')
   }
-  // The free catalog is read on dialog open, like the model list; an unreadable
-  // catalog hides free (no option to pick something that cannot run).
+  // The free catalog backs the shared model menu; an unreadable catalog
+  // leaves the menu to `loadModels`, which reports the failure there. A free
+  // selection whose option vanished keeps its state and fails loudly at turn
+  // time (404 from the hook) instead of silently switching providers.
   const refreshFreeOptions = async () => {
-    inferenceOptions = await loadInferenceOptions()
-    if (freeActive() && !freeOption()) {
-      state.free = false
-      state.inference = ''
-    }
     renderProviderOptions()
     applyFreeState()
   }
@@ -559,23 +584,26 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   })
 
   kind.addEventListener('change', () => {
-    const option = kind.value.startsWith(FREE_PREFIX) ? inferenceOptions.find((o) => `${FREE_PREFIX}${o.id}` === kind.value) : null
-    if (option && option.available !== false) {
+    // `jscad-web` is one provider like the others: the model menu fills from
+    // its live catalog and the key stays the fixed sentinel. Every other kind
+    // is an own-key provider with a keystore key and an optional base URL.
+    if (kind.value === 'jscad-web') {
       state.free = true
-      state.inference = option.id
-      // The selection kind is first-class `jscad-web`; agent-loop routes it by
-      // model id. The catalog entry's own kind stays the upstream protocol.
       state.kind = 'jscad-web'
-      state.model = option.model
+      state.model = ''
+      modelInput.value = ''
+      modelInput.placeholder = modelPlaceholders[state.kind] ?? ''
+      modelSelect.innerHTML = ''
       state.baseUrl = ''
       baseUrl.value = ''
       state.capabilities = new Map()
       applyFreeState()
+      loadModels()
       return
     }
     state.free = false
     state.inference = ''
-    if (!kind.value.startsWith(FREE_PREFIX)) state.kind = kind.value
+    state.kind = kind.value
     state.model = ''
     modelInput.value = ''
     modelInput.placeholder = modelPlaceholders[state.kind] ?? ''
@@ -587,6 +615,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   modelSelect.addEventListener('change', () => {
     state.model = modelSelect.value
     modelInput.value = modelSelect.value
+    if (freeActive()) syncInferenceFromModel()
     refreshEffort()
   })
   modelInput.addEventListener('change', () => {

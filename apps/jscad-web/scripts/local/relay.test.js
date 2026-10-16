@@ -176,12 +176,14 @@ describe('relay', () => {
 })
 
 describe('relay policy shared with the production relay', () => {
-  it('uses the same default allowlist as the server and agent-loop, and the account dialog offers the same kinds', () => {
+  it('uses the same default allowlist as the server and agent-loop, and the account dialog offers the same kinds plus jscad-web', () => {
     expect(defaultAllowlist()).toEqual(PROVIDER_BASE_URLS)
     expect(defaultAllowlist()).toEqual(AGENT_LOOP_BASE_URLS)
     const account = readFileSync(new URL('../../src/aiAccount.js', import.meta.url), 'utf-8')
     const kinds = JSON.parse(account.match(/const KINDS = (\[[^\]]*\])/)[1].replaceAll("'", '"'))
-    expect(kinds).toEqual(Object.keys(PROVIDER_BASE_URLS))
+    // `jscad-web` is relay-served (provider hook), never proxied upstream, so
+    // it is a dialog kind without an allowlist entry.
+    expect([...kinds].sort()).toEqual([...Object.keys(PROVIDER_BASE_URLS), 'jscad-web'].sort())
   })
 
   it('forwards exactly the server header set', async () => {

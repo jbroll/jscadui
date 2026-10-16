@@ -128,3 +128,9 @@
 - [ ] **Step 4: Update remaining assertions** — any test/e2e expecting a free `kind` of `opencode-go`/`meta` becomes `jscad-web`; RELAY.md one-liner: catalog entry `kind` is the upstream protocol, client selection `kind` is `jscad-web`.
 - [ ] **Step 5: Run suites** — Run: `npx vitest run` in `packages/agent-loop`; `npx vitest run test/aiAccount.test.js test/aiChat.test.js test/aiConsent.test.js` in `apps/jscad-web`; `npx vitest run test/providers.test.ts test/inference.test.ts test/config.test.ts` in `apps/jscad-web/server`. Expected: PASS.
 - [ ] **Step 6: Commit** — `git add packages/agent-loop apps/jscad-web && git commit -m "refactor: jscad-web as first-class provider kind, disable free controls"`
+
+---
+
+### Task 5: Uniform dialog — one `jscad-web` row, model menu from catalog
+
+Single provider row (`KINDS` includes `jscad-web` first); the shared model menu fills from the relay catalog with labels and month-limit disabling; relay-owned controls stay visible but disabled (model menu enabled); fixed sentinel shown via the key line; `freeInfo` removed. No `PROVIDER_BASE_URLS['jscad-web']` (free turns always carry `baseUrl`); relay allowlist invariant updated for the relay-served kind.

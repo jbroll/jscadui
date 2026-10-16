@@ -127,8 +127,8 @@ Deferred from the jscad-web inference reframe reviews (`feat/jscad-inference-rel
 - **Free drawer summary shows the raw option id** until the gear dialog is
   opened (the inference catalog is fetched only on open). Fetch at init or persist
   the label (`src/aiAccount.js`).
-- **Weak inference-option validation.** Filter on more than `id` so a
-  label-less/model-less option cannot render `jscad-web · undefined`
+- **Weak inference-option validation.** Filter on more than `id` + `model` so a
+  label-less option cannot render a bare model id
   (`src/aiAccount.js`).
 - **Meter hardening.** Reject non-numeric `ipSpend` values on state load
   (a string bucket never trips); pin the non-2xx estimate-charge path with
