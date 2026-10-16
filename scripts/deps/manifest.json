@@ -629,6 +629,99 @@
         }
       ],
       "patches": []
+    },
+    {
+      "name": "jscad-z3dev-designs",
+      "description": "JSCAD Designs from maintainer (z3dev/designs)",
+      "url": "https://github.com/z3dev/designs.git",
+      "ref": "main",
+      "license": "MIT (verify upstream)",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/jscad/z3dev-designs",
+          "include": ["**/*.js", "**/*.jscad"],
+          "exclude": ["node_modules/**"],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "jscad-tspspi-models",
+      "description": "Functional prints + mechanics libs (tspspi/jscadModels)",
+      "url": "https://github.com/tspspi/jscadModels.git",
+      "ref": "master",
+      "license": "none stated upstream (verify)",
+      "mappings": [
+        {
+          "srcDir": "models",
+          "destDir": "apps/jscad-web/examples/jscad/tspspi/models",
+          "include": ["**/*.jscad", "**/*.js"],
+          "exclude": [],
+          "skipFiles": []
+        },
+        {
+          "srcDir": "library",
+          "destDir": "apps/jscad-web/examples/jscad/tspspi/library",
+          "include": ["**/*.jscad", "**/*.js"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "jscad-gilboonet-designs",
+      "description": "Lasercut + polyhedra libs (gilboonet/designs)",
+      "url": "https://github.com/gilboonet/designs.git",
+      "ref": "master",
+      "license": "MIT",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/jscad/gilboonet",
+          "include": ["*.jscad", "*.js", "2020/**/*.jscad", "2021/**/*.jscad", "2022/**/*.jscad", "2023/**/*.jscad", "2024/**/*.jscad", "2025/**/*.jscad", "testInclude/**/*"],
+          "exclude": ["*.pdf", "*.svg", "*.zip"],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "jscad-hardware",
+      "description": "Nuts and bolts (johnwebbcole/jscad-hardware)",
+      "url": "https://github.com/johnwebbcole/jscad-hardware.git",
+      "ref": "master",
+      "license": "verify upstream, record as-found",
+      "mappings": [
+        {
+          "srcDir": ".",
+          "destDir": "apps/jscad-web/examples/jscad/jscad-hardware",
+          "include": ["**/*.js", "**/*.jscad"],
+          "exclude": ["node_modules/**"],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
+    },
+    {
+      "name": "jscad-gallery",
+      "description": "Archived gallery, Jekyll + src/ (danmarshall/jscad-gallery)",
+      "url": "https://github.com/danmarshall/jscad-gallery.git",
+      "ref": "master",
+      "license": "MIT",
+      "sparse": ["src"],
+      "mappings": [
+        {
+          "srcDir": "src",
+          "destDir": "apps/jscad-web/examples/jscad/gallery",
+          "include": ["**/*.js", "**/*.jscad"],
+          "exclude": [],
+          "skipFiles": []
+        }
+      ],
+      "patches": []
     }
   ],
   "organize": {

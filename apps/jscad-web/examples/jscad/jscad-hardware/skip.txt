@@ -1,0 +1,2 @@
+# jscad-hardware skip list
+# One relative path per line, with reason. Empty until Task 2 triage.
