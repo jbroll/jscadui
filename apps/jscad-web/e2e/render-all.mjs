@@ -25,6 +25,7 @@
  *                      Default: openscad
  *   --jscad            Also include .js examples (default: .scad only)
  *   --limit <n>        Only the first n files (quick smoke test)
+ *   --only <rel>       Only the file with this example-relative path (e.g. ALL.js)
  *   --concurrency <n>  Parallel pages (default: 4). With --grids, a grid whose
  *                      items are all other grids runs after the rest, alone.
  *   --engine <name>    Modeling engine: jscad | manifold (default: app default)
@@ -72,7 +73,7 @@ const MAX_MODEL_TIMEOUT = RPC_TIMEOUT - 10_000
 // ── args ────────────────────────────────────────────────────────────────────
 function parseArgs(argv) {
   const o = {
-    dirs: [], jscad: false, limit: 0, concurrency: 4, timeout: 300_000, modelTimeout: 0,
+    dirs: [], jscad: false, limit: 0, only: '', concurrency: 4, timeout: 300_000, modelTimeout: 0,
     server: APP_ORIGIN, skip: true, engine: '', grids: false, poolSize: 0,
     out: join(__dirname, 'render-report.json'), headed: false,
   }
@@ -81,6 +82,7 @@ function parseArgs(argv) {
     if (a === '--dir') o.dirs.push(argv[++i])
     else if (a === '--jscad') o.jscad = true
     else if (a === '--limit') o.limit = Number(argv[++i])
+    else if (a === '--only') o.only = argv[++i]
     else if (a === '--concurrency') o.concurrency = Number(argv[++i])
     else if (a === '--timeout') o.timeout = Number(argv[++i])
     else if (a === '--model-timeout') o.modelTimeout = Number(argv[++i])
@@ -140,7 +142,8 @@ function collectFiles(opts) {
     }
   }
   out.sort((a, b) => a.rel.localeCompare(b.rel))
-  return opts.limit ? out.slice(0, opts.limit) : out
+  const only = opts.only ? out.filter((f) => f.rel === opts.only) : out
+  return opts.limit ? only.slice(0, opts.limit) : only
 }
 
 // ── render one file in a page ────────────────────────────────────────────────

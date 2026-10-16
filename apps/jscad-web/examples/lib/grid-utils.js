@@ -221,6 +221,21 @@ const isWasmTrap = (err) =>
 // A generated grid: ALL.js, or a category grid such as ALL.printed.js
 const isGridUrl = (url) => /(^|\/)ALL(\.[^/]+)?\.js$/.test(url)
 
+// A macrotask yield that still fires in a background tab. setTimeout yields
+// stop firing there (timer throttling stretches one yield per cell into one
+// per minute), stalling long grids with idle workers. A posted message is
+// still delivered: same yield semantics, no timer.
+function yieldToEventLoop() {
+  if (typeof MessageChannel === 'function') {
+    const { port1, port2 } = new MessageChannel()
+    return new Promise((resolve) => {
+      port1.onmessage = () => { port1.close(); port2.close(); resolve() }
+      port2.postMessage(null)
+    })
+  }
+  return new Promise((r) => setTimeout(r, 0))
+}
+
 function uniqueName(name, seen) {
   seen[name] = (seen[name] ?? 0) + 1
   return seen[name] === 1 ? name : `${name}_${seen[name]}`
@@ -368,7 +383,7 @@ function gridModule(items, { spacing, cellSize }, req) {
 
       if (!stream) globalThis.__jscadProgress?.()
       // Manifold handles are freed by a FinalizationRegistry, which only runs once main yields
-      await new Promise(r => setTimeout(r, 0))
+      await yieldToEventLoop()
       // Yielding lets a newer script start in this worker; stop rather than run beside it
       if (globalThis.__jscadScriptGeneration !== generation) throw new Error(`grid superseded by a newer script after ${url}`)
     }

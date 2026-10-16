@@ -198,6 +198,16 @@ describe('claims', () => {
 describe('build order', () => {
   const three = (tag) => [`./${tag}a.scad`, `./${tag}b.scad`, `./${tag}c.scad`]
 
+  it('progresses when timers never fire (throttled background tab)', async () => {
+    vi.useFakeTimers()
+    try {
+      const geoms = await grid(['./a.scad', './b.scad'], leaves(['./a.scad', './b.scad'])).main({})
+      expect(geoms).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('claims leaves round-robin across sibling sub-grids', async () => {
     const hook = globalThis.__jscadStream = claimingHook()
     const sub1 = grid(three('1'), leaves(three('1')))

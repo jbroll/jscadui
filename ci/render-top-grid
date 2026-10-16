@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Browser render of the top-level ALL.js grid alone (all ~1467 leaves) with
+# eight frame workers, run on the CI/GPU host.
+#
+#   sci push jscadui/render-top-grid
+#
+# Same setup as ci/render, different scope: render-all.mjs --only trims the
+# collection to the one grid, which splitAggregateGrids runs alone. Fails
+# where the run differs from the grids baseline: a status change or dead
+# cells. See apps/jscad-web/e2e/RENDER-TESTING.md.
+#
+# Eight workers and one page: the point is pool behavior on the whole corpus
+# (claim spread, heap recycling, settle), not page throughput.
+set -uo pipefail
+
+export JSCAD_WEB_PORT=5170
+export RENDER_ARGS="--dir . --grids --only ALL.js --concurrency 1 --timeout 320000 --pool-size 8 --out e2e/render-top-report.json --baseline e2e/render-grids-baseline.json"
+exec "$(dirname "$0")/render"
