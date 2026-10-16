@@ -137,7 +137,7 @@ describe('inference 402 body', () => {
     app.use(express.json())
     mountRelayRoutes(app, {
       allowlistPath,
-      sharedPath: inferencePath,
+      inferencePath,
       inferenceSpendPath: spendPath,
       trustedOrigins: ['https://app.test'],
       logger: () => {},
@@ -147,7 +147,7 @@ describe('inference 402 body', () => {
       // Keep any log record out of the repo's ./data.
       chatLogDir: join(dir, 'chat-logs'),
     })
-    const res = await request(app).post('/api/relay/inference/deepseek/v1/chat/completions').set('Origin', 'https://app.test').send({ messages: [] })
+    const res = await request(app).post('/api/relay/jscad-web/deepseek/v1/chat/completions').set('Origin', 'https://app.test').send({ messages: [] })
     expect(res.status).toBe(402)
     expect(res.body).toEqual({ error: { code: 'inference_quota_exhausted', scope: 'month', message: expect.any(String) } })
     expect(fetchMock).not.toHaveBeenCalled()

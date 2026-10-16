@@ -90,7 +90,7 @@ const buildApp = ({
   if (onClose) app.use((_req, res, next) => { res.on('close', onClose); next() })
   mountRelayRoutes(app, {
     allowlistPath,
-    sharedPath: inferencePath,
+    inferencePath,
     inferenceSpendPath: spendPath,
     trustedOrigins: ['https://app.test'],
     logger: (entry) => logs.push(entry),
@@ -116,7 +116,7 @@ const records = (dir: string): Record<string, unknown>[] =>
     )
 
 const post = (app: express.Express, id: string, path: string) =>
-  request(app).post(`/api/relay/inference/${id}/${path}`).set('Origin', 'https://app.test')
+  request(app).post(`/api/relay/jscad-web/${id}/${path}`).set('Origin', 'https://app.test')
 
 beforeEach(() => {
   fetchMock = vi.fn()
@@ -198,10 +198,10 @@ describe('inference config', () => {
   })
 })
 
-describe('GET /api/relay/inference', () => {
+describe('GET /api/relay/jscad-web/v1/models', () => {
   it('returns an empty list when the config file is missing', async () => {
     const { app } = buildApp({})
-    const res = await request(app).get('/api/relay/inference').set('Origin', 'https://app.test')
+    const res = await request(app).get('/api/relay/jscad-web/v1/models').set('Origin', 'https://app.test')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
@@ -227,7 +227,7 @@ describe('GET /api/relay/inference', () => {
         dnsLookup: async () => [{ address: '93.184.216.34' }],
         chatLogDir: join(dir, 'chat-logs'),
       })
-      const res = await request(app).get('/api/relay/inference').set('Origin', 'https://app.test')
+      const res = await request(app).get('/api/relay/jscad-web/v1/models').set('Origin', 'https://app.test')
       expect(res.body.map((o: { id: string }) => o.id)).toEqual(['deepseek'])
     } finally {
       if (hadInference === undefined) delete process.env.RELAY_INFERENCE
@@ -239,7 +239,7 @@ describe('GET /api/relay/inference', () => {
 
   it('lists options without keys or prices', async () => {
     const { app } = buildApp({ config: inferenceJson() })
-    const res = await request(app).get('/api/relay/inference').set('Origin', 'https://app.test')
+    const res = await request(app).get('/api/relay/jscad-web/v1/models').set('Origin', 'https://app.test')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([
       { id: 'deepseek', label: 'DeepSeek V4.1 Flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true },
@@ -250,14 +250,14 @@ describe('GET /api/relay/inference', () => {
 
   it('marks every option unavailable once the month budget is spent', async () => {
     const { app } = buildApp({ config: inferenceJson(), spend: { month: MONTH, monthSpent: 5, day: DAY, ipSpend: {} } })
-    const res = await request(app).get('/api/relay/inference').set('Origin', 'https://app.test')
+    const res = await request(app).get('/api/relay/jscad-web/v1/models').set('Origin', 'https://app.test')
     expect(res.body.every((o: { available: boolean }) => o.available === false)).toBe(true)
   })
 
   it('hides free options (empty list) when the config cannot be parsed, and logs it', async () => {
     const logs: unknown[] = []
     const { app } = buildApp({ config: '{ not json', logs })
-    const res = await request(app).get('/api/relay/inference').set('Origin', 'https://app.test')
+    const res = await request(app).get('/api/relay/jscad-web/v1/models').set('Origin', 'https://app.test')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
     expect(logs.some((l) => JSON.stringify(l).includes('inference'))).toBe(true)
@@ -265,12 +265,12 @@ describe('GET /api/relay/inference', () => {
 
   it('refuses an untrusted origin', async () => {
     const { app } = buildApp({ config: inferenceJson() })
-    const res = await request(app).get('/api/relay/inference').set('Origin', 'https://evil.test')
+    const res = await request(app).get('/api/relay/jscad-web/v1/models').set('Origin', 'https://evil.test')
     expect(res.status).toBe(403)
   })
 })
 
-describe('POST /api/relay/inference/:id/*splat', () => {
+describe('POST /api/relay/jscad-web/<id>/<path>', () => {
   it('rewrites the body: pins model and stream, caps tokens, sets include_usage, passes tools and effort', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
     const { app } = buildApp({ config: inferenceJson(), logDir: tmp() })
