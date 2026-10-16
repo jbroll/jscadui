@@ -474,6 +474,12 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     persistSelection()
     onWebsearchGrant(websearchAllow.checked)
   })
+  // The Web Search heading carries the blanket-grant toggle flush right,
+  // labeled just "Allow"; the key rows below keep their own custody mode.
+  const websearchHeading = el('h3', 'ai-dialog-subtitle ai-websearch-heading')
+  const websearchAllowWrap = el('label', 'ai-websearch-allow-wrap')
+  websearchAllowWrap.append(el('span', '', 'Allow'), websearchAllow)
+  websearchHeading.append(el('span', '', 'Web search'), websearchAllowWrap)
   const websearchProvider = el('select', 'ai-input ai-websearch-provider')
   for (const value of ['random', ...SEARCH_PROVIDERS, 'off']) {
     websearchProvider.append(Object.assign(el('option'), { value, textContent: value }))
@@ -499,11 +505,10 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     effortWrap,
     recordField,
     advanced,
-    el('h3', 'ai-dialog-subtitle', 'Web search'),
+    websearchHeading,
     searchRows,
     field('Keep search keys', searchMode),
     field('Search passphrase', searchPassphrase),
-    field('Allow web search', websearchAllow),
     field('Search provider', websearchProvider),
     footer,
   )
@@ -537,7 +542,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
         state.capabilities = new Map()
         syncModelControls(catalog.map((o) => ({ id: o.model, label: o.label, available: o.available })))
         syncFreeModelSelection()
-        modelStatus.textContent = `${catalog.length} models`
+        modelStatus.textContent = ''
         refreshEffort()
       } catch (err) {
         if (request === modelsRequest) modelStatus.textContent = `Models failed: ${err.message}`
@@ -567,7 +572,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
       }
       state.capabilities = new Map(models.map((m) => [m.id, m.capabilities ?? null]))
       syncModelControls(models)
-      modelStatus.textContent = `${models.length} models`
+      modelStatus.textContent = ''
       refreshEffort()
     } catch (err) {
       if (request === modelsRequest) modelStatus.textContent = `Models failed: ${err.message}`

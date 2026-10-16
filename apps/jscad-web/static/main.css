@@ -1134,6 +1134,21 @@ p {
   font-size: 12pt;
   margin-bottom: 12px;
 }
+.ai-websearch-heading {
+  display: flex;
+  align-items: center;
+  font-size: 11pt;
+  margin: 14px 0 4px;
+}
+.ai-websearch-allow-wrap {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9pt;
+  font-weight: normal;
+  cursor: pointer;
+}
 .ai-settings .ai-field {
   display: grid;
   grid-template-columns: 8.5rem 1fr;

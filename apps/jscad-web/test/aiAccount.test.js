@@ -149,7 +149,7 @@ describe('account header', () => {
     document.querySelector('.ai-key-input').value = 'sk-meta'
     document.querySelector('.ai-save-key').click()
     await vi.waitFor(() => expect(document.querySelector('.ai-model-select').options.length).toBe(2))
-    expect(document.querySelector('.ai-model-status').textContent).toMatch(/2 models/)
+    expect(document.querySelector('.ai-model-status').textContent).toBe('')
   })
 
   it('reloads the model list when the provider changes', async () => {
@@ -183,7 +183,18 @@ describe('account header', () => {
     document.body.innerHTML = '<div id="a"></div>'
     initAccount(document.getElementById('a'))
     const names = [...document.querySelectorAll('.ai-settings .ai-field-name')].map((n) => n.textContent)
-    expect(names).toEqual(['Provider', 'API key', 'Keep', 'Passphrase', 'Model', 'Custom model id', 'API style', 'Effort', 'Save chats', 'Base URL', 'Keep search keys', 'Search passphrase', 'Allow web search', 'Search provider'])
+    expect(names).toEqual(['Provider', 'API key', 'Keep', 'Passphrase', 'Model', 'Custom model id', 'API style', 'Effort', 'Save chats', 'Base URL', 'Keep search keys', 'Search passphrase', 'Search provider'])
+  })
+
+  it('carries the Allow toggle in the Web Search heading', async () => {
+    const { initAccount } = await loadAccount()
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    const heading = document.querySelector('.ai-websearch-heading')
+    expect(heading.textContent).toMatch(/Web search/)
+    const wrap = heading.querySelector('.ai-websearch-allow-wrap')
+    expect(wrap.textContent).toMatch(/Allow/)
+    expect(wrap.querySelector('.ai-websearch-allow')).not.toBeNull()
   })
 
   it('saves and clears search keys per provider with no search network traffic', async () => {
