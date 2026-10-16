@@ -76,17 +76,27 @@ describe('generated ALL.js grid', () => {
     expect(geoms.length).toBe(11)
   })
 
+  // The grid yields via MessageChannel (grid-utils yieldToEventLoop), not via
+  // timers, so wall-clock tick counting flakes under load: a 0ms interval is
+  // not guaranteed a timer phase between two message callbacks. Count the
+  // yield mechanism itself instead — fully deterministic, no timing.
   it('yields to the event loop after each cell', async () => {
-    const ticks = []
-    let tick = 0
-    const timer = setInterval(() => tick++, 0)
-    const counting = () => { ticks.push(tick); return cube({ size: 10 }) }
+    const RealChannel = globalThis.MessageChannel
+    expect(typeof RealChannel).toBe('function')
+    let yields = 0
+    function CountingChannel(...args) {
+      yields++
+      return new RealChannel(...args)
+    }
+    CountingChannel.prototype = RealChannel.prototype
+    globalThis.MessageChannel = CountingChannel
+    const counting = () => cube({ size: 10 })
     try {
       await runGrid([], { models: { './text-fonts.scad': counting, './text-sizes.scad': counting } })
     } finally {
-      clearInterval(timer)
+      globalThis.MessageChannel = RealChannel
     }
-    expect(ticks[1]).toBeGreaterThan(ticks[0])
+    expect(yields).toBe(11)
   })
 
   it('stops at the next cell once a newer script starts', async () => {
