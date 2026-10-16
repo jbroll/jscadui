@@ -98,4 +98,17 @@ describe('createWebSearch', () => {
     expect(res).toEqual(expect.objectContaining({ ok: false, error: expect.objectContaining({ name: 'ValidationError' }) }))
     expect(fetchFn).not.toHaveBeenCalled()
   })
+
+  it('works in browser globals without process', async () => {
+    const saved = globalThis.process
+    // @ts-expect-error simulate browser where Node process is undefined
+    delete globalThis.process
+    try {
+      const handler = createWebSearch({ fetchFn: successFetch(), context: 'browser', projectId: 'browser-proj' })
+      const res = await handler({ query: 'Ford F-150 14th generation styling cues' })
+      expect(res.ok).toBe(true)
+    } finally {
+      if (saved !== undefined) globalThis.process = saved
+    }
+  })
 })

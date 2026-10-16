@@ -31,8 +31,9 @@ const ENV_KEYS = { exa: 'JSCADUI_EXA_API_KEY', parallel: 'JSCADUI_PARALLEL_API_K
 
 const envKeys = () => {
   const keys = {}
-  for (const [id, env] of Object.entries(ENV_KEYS)) {
-    if (process.env[env]) keys[id] = process.env[env]
+  const env = globalThis.process?.env ?? {}
+  for (const [id, name] of Object.entries(ENV_KEYS)) {
+    if (env[name]) keys[id] = env[name]
   }
   return keys
 }
