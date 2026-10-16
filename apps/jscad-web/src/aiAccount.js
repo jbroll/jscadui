@@ -404,12 +404,13 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
       if (key.value !== FREE_API_KEY) keyDraft = key.value
       key.value = FREE_API_KEY
       key.type = 'text'
-      keyLine.textContent = 'Relay-provided key.'
     } else {
       key.type = 'password'
       if (key.value === FREE_API_KEY) key.value = keyDraft
-      keyLine.textContent = keyStore.get() ? 'Key set.' : 'No key set.'
     }
+    // The key line always describes the keystore, never the free sentinel:
+    // the key box itself shows the fixed key while free is selected.
+    keyLine.textContent = keyStore.get() ? 'Key set.' : 'No key set.'
     recordToggle.checked = free ? true : getRecordOwnChats()
     recordToggle.disabled = free
     refreshEffort()
