@@ -29,3 +29,9 @@ export const {
 } = tree
 
 export const evaluate = createEvaluator(manifold)
+
+// Forwarded for the worker's heap reporting: each claim carries
+// getModule().HEAPU8.length, which the frame uses to recycle a worker whose
+// WASM heap passed its budget. Without this the twin reports 0 and no grid
+// worker is ever recycled.
+export { getModule } from '@jscadui/manifold'
