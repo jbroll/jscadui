@@ -222,3 +222,6 @@ worktrees/
 
 # Marks a checkout the jscad-chat launcher keeps on a remote branch
 /.jscad-track
+
+# Runtime OpenSCAD prefix-symlink dir (created by test-harness runs)
+.openscad-libs/

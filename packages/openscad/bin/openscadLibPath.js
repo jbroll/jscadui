@@ -1,5 +1,4 @@
 import { existsSync, mkdirSync, readlinkSync, rmSync, symlinkSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { delimiter, join, resolve } from 'node:path'
 import { DEFAULT_LIBRARY_PREFIXES, REPO_ROOT } from './libraryPrefixes.js'
 
@@ -9,12 +8,15 @@ import { DEFAULT_LIBRARY_PREFIXES, REPO_ROOT } from './libraryPrefixes.js'
  * so reference OpenSCAD resolves pristine `include <PREFIX/...>` paths via
  * OPENSCADPATH. Fetch-deps output stays byte-identical upstream.
  *
- * Lives under ~/.cache (not tmp): reference OpenSCAD is a Flatpak whose
- * sandbox sees home but not /tmp. Symlink creation can fail on Windows
- * without developer privilege; callers fall back gracefully.
+ * Lives inside the repo worktree (`.openscad-libs/`, gitignored,
+ * runtime-created): reference OpenSCAD is a Flatpak whose sandbox visibility
+ * outside the opened tree cannot be assumed (home- and tmp-based locations
+ * both failed), while the worktree itself is provably visible — OpenSCAD
+ * opens the model files there. Nothing scans the repo root for models, so
+ * the symlinks never leak into corpora or grids.
  */
 export function openscadShimDir(prefixes = DEFAULT_LIBRARY_PREFIXES, root = REPO_ROOT) {
-  const dir = join(homedir(), '.cache', 'jscadui', 'openscad-libs')
+  const dir = join(root, '.openscad-libs')
   mkdirSync(dir, { recursive: true })
   for (const [prefix, dest] of Object.entries(prefixes)) {
     const target = resolve(root, dest)
