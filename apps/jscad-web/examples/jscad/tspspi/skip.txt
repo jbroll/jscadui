@@ -1,26 +1,43 @@
 # tspspi skip list
-# One relative path per line, with reason. Triaged 2026-10-16: 0/52 pass.
-# V1 include()-style part libraries (no main export; meant for include(), not standalone runs):
-library/
-# V1 models failing on `include is not defined` (need include() resolution for library/ above):
+# One relative path per line, with reason. Triaged 2026-10-16 (.jscad via CSG
+# shim + include inlining): 17 models + 2 lib demos pass, unskipped.
+# V1 include-libraries with no main (consumed via include(), covered
+# transitively by the passing models):
+library/chemistry/reactionvessles/eppendorftube.jscad
+library/electronics/embedded/raspberrypibplus.jscad
+library/electronics/forkedlightbarrier/hy86n.jscad
+library/electronics/lasermodule/001_405_20W.jscad
+library/electronics/lasermodule/tocan.jscad
+library/electronics/ultrasonicsensors/hcsr04.jscad
+library/mechanics/airfoilNaca.jscad
+library/mechanics/aluprofile.jscad
+library/mechanics/bearingLM8LUU.jscad
+library/mechanics/bearingLM8UU.jscad
+library/mechanics/bearingblockSMAUU.jscad
+library/mechanics/cfflange.jscad
+library/mechanics/isothread.jscad
+library/mechanics/motedisDelrin.jscad
+library/mechanics/motedisKFL08.jscad
+library/mechanics/motorElectric_Unknown1.jscad
+library/mechanics/screwclamp.jscad
+library/mechanics/servoSG90.jscad
+library/mechanics/stepper28byj_48.jscad
+library/mechanics/stepperNema17.jscad
+library/optics/kinematic01.jscad
+library/optics/post01.jscad
+library/physics/semcathodes/LEOLeicaCambridgeAEI.jscad
+library/physics/thorlabs/CXYZ05M.jscad
+library/physics/thorlabs/SM05RR.jscad
+library/physics/thorlabs/SM05T1.jscad
+# Bare `window` with no guard (no window in worker; fails in app too):
+library/mechanics/basicSplitWall.jscad
+library/mechanics/gears.jscad
+library/toys/lego.jscad
+library/packaging/basicbox1.jscad
+# Browser alert() on default params (no alert in worker):
 models/chemistry/PeristalticPump.jscad
-models/mechanics/mounting/simplescrewedplates/plate01.jscad
-models/miniecm/bedxy.jscad
-models/miniecm/frame.jscad
-models/miniecm/headtower.jscad
-models/miniecm/motormounts.jscad
-models/miniecm/xycarriage.jscad
-models/miniecm/xycarriagewithtoweradapter.jscad
-models/miniecm/xysled.jscad
-models/physics/customelectronguncasingandmount.jscad
-models/physics/electronguntestclamps.jscad
 models/physics/hackedscrewcrosstable.jscad
-models/physics/optics/post01.jscad
-models/physics/simpletubeclamps.jscad
-# V1 models with no main export (part definitions for include()):
-models/chemistry/SimpleGasBubbler.jscad
+# Crashes Node (OOM) — too heavy for the harness:
 models/chemistry/TestTubeHolder.jscad
-models/education/language/grammarPersonCube.jscad
-models/printer3d/filament/filamentSpoolHolder.jscad
-models/toys/carsRaceTrackFloorAdapter/carsRaceTrackFloorAdapter.jscad
-models/toys/characters/basicWitch.jscad
+# Correct but ~42s per run, over the 30s test budget:
+models/miniecm/bedxy.jscad

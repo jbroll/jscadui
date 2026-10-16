@@ -1,44 +1,21 @@
 # gilboonet skip list
-# One relative path per line, with reason. Triaged 2026-10-16: 2/41 pass (botai.js, butai.js).
-# V1 scripts declaring global main() without module.exports — unloadable by the CJS harness:
-4couls.jscad
-biseau1.jscad
-bureau_colonnes.jscad
-cc.jscad
-cerceau.js
-charniere1.jscad
-circonvolutions.jscad
-circonvolutions_v3.jscad
-col12.jscad
-colonne.jscad
-colonne12.jscad
-demo_creeMeuble2.jscad
-laby_rond.jscad
-mp_chat_H24.jscad
-mp_lion.jscad
-plaque_incurv1.jscad
-plaque_incurv1p.jscad
-polyhedronUsage2.jscad
-polyhedron_usage3.jscad
-polyhedron_usage4.jscad
-polyhedron_usage6.jscad
-polyhedron_usage7.jscad
-polyhedrons.jscad
+# One relative path per line, with reason. Triaged 2026-10-16 (.jscad via CSG
+# shim + include inlining): 25 pass, unskipped. Plain .js companions
+# (cerceau.js, traverses.js, index_v1_33.js, sq_gorille.js) are not discovered
+# by the harness (only .example.js/.jscad) and need individual triage.
+# V1 include-libraries with no main (consumed via include(), covered
+# transitively by test_archimede/test_catalan/test_polyhedron which pass):
 polyhedrons_archimede.jscad
 polyhedrons_catalan.jscad
 polyhedrons_platon.jscad
-regularPolygons.jscad
-table_4pieds.jscad
-table_tete_eleph.jscad
-test_archimede_standalone.jscad
-test_catalan_standalone.jscad
-test_polyhedron.jscad
-trancheCylindre.jscad
-traverses.js
-# V1 include() of the polyhedra libs above (need include() resolution):
-test_archimede.jscad
-test_catalan.jscad
-# Runtime failures under params-proxy harness (needs investigation):
-index_v1_33.js
+# CSG API gap (V1 points-list form):
+circonvolutions.jscad
+# Assign to a const binding under the shim header (V1 re-declaration pattern):
+col12.jscad
+colonne.jscad
+colonne12.jscad
+# Reference undefined bare globals (pts / params instead of main params):
+demo_creeMeuble2.jscad
+laby_rond.jscad
+# Runtime failure under harness (needs investigation):
 make_pattern.jscad
-sq_gorille.js

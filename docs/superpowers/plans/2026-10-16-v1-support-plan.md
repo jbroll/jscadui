@@ -37,35 +37,52 @@ Why first: SCAD patches, V1 `include()`, and JS lib requires all reduce to
 - **1c. Collapse dual mappings** where a single copy + alias suffices
   (e.g. `lego`: `examples/` + `libs/`). Optional cleanup once 1a/1b hold.
 
-## Phase 2 — vendored V1 shim on fluent (DONE: `packages/worker/src/v1shim.cjs`)
+## Phase 2 — V1 runtime: USE THE APP'S EXISTING CSG PATH (PIVOT 2026-10-16)
 
-- Vendored the 96-line MIT `v1shim.js` out of `jscad-community/jscad-migrate`
-  (@ 76664d2, attribution header retained) as `packages/worker/src/v1shim.cjs`
-  (`.cjs`: package is ESM + esbuild-bundled). No fork, no new repo.
-- Substrate rebased to `@jbroll/jscad-fluent`
-  (`file:../../.deps-cache/jscad-fluent`, established pattern): every
-  constructor returns chainable geometry, so V1 method style works natively.
-  V1 aliases installed once on fluent prototypes (same technique as
-  `wrapFluentMethods`): `mirroredX/Y/Z`, `getBounds` (adapts
-  `measureBoundingBox` to V1 `[{x,y,z},{x,y,z}]`), `setColor`, 2D
-  `extrude({offset})` (z-only). Upstream `sphere` undefined-`size` crash fixed.
-- Locked by `packages/worker/src/v1shim.test.js` (5 tests: surface, README
-  example, positional polygon, table_4pieds-style chaining, rotate/translate).
-- Open: `square`/`circle`/other V1 names added lazily per failing corpus file.
+Supersedes the fluent-shim approach (vendored files deleted same day):
+the app already runs V1 via `@jscad/csg/api.js`
+(`src_bundle/bundle.V1_api.js`) + `src/addV1Shim.js` header/footer, applied to
+every `.jscad` file (`fileSystem.js:137`). Verified: `table_4pieds` loads and
+runs under the shim in Node. Consequences:
+- V1 corpus files keep `.jscad` (the `.example.js` suffix would bypass the
+  app's V1 detection). `asExample` stays for V2-shaped files only
+  (z3dev, gilboonet botai/butai).
+- `examples.test.js` mirrors the app: discovers `.jscad`, applies `addV1Shim`,
+  maps `@jscad/csg` → `@jscad/csg/api.js`. Param defs need no work.
+- Deleted: `packages/worker/src/v1shim.cjs` + test + worker fluent dep
+  (two V1 stacks would be a maintenance hazard).
 
-## Phase 3 — Worker V1 auto-detect + injection
+## Phase 3 — `include()` via source inlining (DONE: `packages/worker/src/inlineIncludes.js`)
 
-- Detect V1 in the existing transform path (`worker.js:626,632`):
-  no `require()` + global `main` and/or `include(` / V1 API markers.
-- On detect: prepend shim require, append
-  `module.exports = { main, getParameterDefinitions }` capture.
-  Param definitions need NO work (`convertLegacyDefs` already handles the V1
-  schema; worker combines both styles at `worker.js:707-709`).
-- Implement `include(path)` on top of `packages/require` using Phase-1 roots:
-  absolute `/mechanics/...` → registered suite library dir; relative → sibling.
-  Semantics: merge into global scope (V1 `include`, not CJS `require`).
+V1 `include(path)` merges the target into global scope — implemented as
+textual inlining (recursive, each file once, cycle-safe), shared by app +
+test harness. Key fix found by corpus: directives inside block comments
+(header usage examples) must be ignored, or an injected `*/` closes the
+outer comment early. Resolves relatives + absolute roots (nearest ancestor
+`library/` dir — the tspspi layout). Locked by 7 unit tests.
+App wiring (fileSystem addV1Shim-time inlining against project files +
+lib roots) is the remaining step for real runs; harness already uses it.
 
-## Phase 4 — Corpus enablement (unskip progressively)
+V1 `include(path)` merges the target into global scope — closest faithful
+implementation is textual inlining (recursive, cycle-guarded), not a runtime
+function. Shared helper so app + test harness use one implementation.
+Remaining old Phase-3 notes (auto-detect/injection) are obsolete: the app
+already detects `.jscad` + applies `addV1Shim` (`fileSystem.js:137`).
+
+- [x] Stale fluent-vendoring notes removed (see Phase 2 pivot).
+
+## Phase 4 — Corpus enablement (IN PROGRESS 2026-10-16: 42 V1 files green)
+
+- gilboonet: 25/35 pass (both engines), unskipped. Skipped: 3 include-libs
+  (covered transitively), 1 CSG points-format gap, 3 const-redeclare, 2 bare
+  globals, 1 runtime failure.
+- tspspi: 17 models + 2 lib demos pass, unskipped. Skipped: 26 include-libs,
+  4 bare-`window`, 2 `alert()` on defaults, 1 Node-crasher (TestTubeHolder),
+  1 over-budget (bedxy, 42s).
+- `examples.test.js`: 216 → 390 passing.
+- Remaining: hardware (needs cross-file globals = app-side include), z3dev
+  leftovers (V1-def schema + manifold extrude gap), app-side include wiring
+  (fileSystem), demo-browser curation (out of scope).
 
 - tspspi (52 files, clean include-graph `models/`+`library/`): first full win.
 - gilboonet polyhedra + furniture (global-`main` files exercise the exports capture).

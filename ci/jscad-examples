@@ -26,6 +26,6 @@ node bin/download-fonts.js
 export JSCADUI_CI=1
 npx vitest run test/library-prefixes.test.ts
 cd "$WORKTREE/packages/worker"
-npx vitest run src/v1shim.test.js
+npx vitest run src/inlineIncludes.test.js
 cd "$WORKTREE/apps/jscad-web"
 npx vitest run examples.test.js

@@ -8,6 +8,7 @@ import { join, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { createRequire } from 'module'
 import { discoverPatternFiles, matchesScopes } from '../../packages/openscad/bin/pattern-files.js'
+import { inlineIncludes } from '../../packages/worker/src/inlineIncludes.js'
 import { addV1Shim } from './src/addV1Shim.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -84,6 +85,9 @@ const createMockRequire = (basePath, engineModule, engineName) => {
 const loadExample = (filePath, engineModule, engineName) => {
   let source = readFileSync(filePath, 'utf-8')
   if (filePath.endsWith('.jscad')) {
+    // V1 include() merges sibling files into global scope; inline first so
+    // the shim below sees one translation unit, like the app will.
+    source = inlineIncludes(source, filePath, { readFile: tryRead })
     source = addV1Shim(source)
   }
   const mockRequire = createMockRequire(filePath, engineModule, engineName)
@@ -100,6 +104,9 @@ const loadExample = (filePath, engineModule, engineName) => {
 // Get all example files, minus anything an ancestor skip.txt names
 // (same pattern-file semantics as generate-all-files.js grids).
 const examplesDir = join(__dirname, 'examples')
+const tryRead = (p) => {
+  try { return readFileSync(p, 'utf-8') } catch { return undefined }
+}
 const skipScopes = discoverPatternFiles(examplesDir, 'skip.txt')
 // V2 runnable examples plus V1 .jscad (shimmed at load, like the app)
 const exampleFiles = readdirSync(examplesDir, { recursive: true })
