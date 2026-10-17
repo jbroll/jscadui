@@ -140,6 +140,32 @@ const openChatFree = async (page, stub, modelName = 'deepseek-v4-flash') => {
   await expect(page.locator('#ai-chat')).toBeVisible()
 }
 
+// Stub one API call the page makes itself — the relay hops (`**/api/fetch`,
+// `**/api/search`) and the browser-direct MCP endpoints — and log every parsed
+// request body so a test can pin the exact payload the page sent. `respond` is
+// either a literal `{status, body}` or a function of the request body that
+// returns one. Register it before navigation; Playwright keeps routes across
+// reloads. Returns the captured request bodies, in order.
+const routeApi = async (page, pattern, respond = {}) => {
+  const calls = []
+  await page.route(pattern, async (route) => {
+    let payload
+    try {
+      payload = route.request().postDataJSON()
+    } catch {
+      payload = null
+    }
+    calls.push(payload)
+    const answer = typeof respond === 'function' ? respond(payload) : respond
+    await route.fulfill({
+      status: answer.status ?? 200,
+      contentType: 'application/json',
+      body: JSON.stringify(answer.body ?? {}),
+    })
+  })
+  return calls
+}
+
 test.describe('AI chat tools', () => {
   let stub
 
@@ -196,5 +222,85 @@ test.describe('AI chat tools', () => {
     // The 402 quota refusal becomes the friendly budget line, not a raw error.
     await expect(page.locator('.chat-msg.error')).toContainText('out of budget', { timeout: 30_000 })
     await expect(page.locator('.chat-tool')).toHaveCount(0)
+  })
+
+  test('webfetch asks for permission first, then fetches through the relay', async ({ page }) => {
+    test.setTimeout(60_000)
+    const url = 'https://example.com/part'
+    stub = await startStubRelay([
+      // Turn 1: the ungranted call is denied, so the model just closes.
+      { name: 'webfetch', args: { url } },
+      { text: 'Permission needed.' },
+      // Turn 2, after the user grants: the same call now reaches the relay.
+      { name: 'webfetch', args: { url } },
+      { text: 'Fetched.' },
+    ])
+    const fetches = await routeApi(page, '**/api/fetch', (body) => ({
+      body: { ok: true, title: 'Part', finalUrl: body.url, content: '# Part\nsteel', truncated: false },
+    }))
+    // ROUTING: the target is never fetched directly — a browser cannot read a
+    // cross-origin page, so only /api/fetch may carry the URL.
+    const direct = []
+    page.on('request', (req) => { if (req.url().startsWith('https://example.com')) direct.push(req.url()) })
+    await openChatWithKey(page, stub)
+
+    await page.locator('.chat-input').fill(`fetch ${url}`)
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('Permission needed.', { timeout: 30_000 })
+    await expect(page.locator('.chat-send')).toHaveText('Send')
+
+    // The ungranted call fired no network and rendered no tool row; the model
+    // saw the grant request instead (the second request carries that result).
+    expect(fetches).toHaveLength(0)
+    const denied = stub.requests[1].messages.filter((m) => m.role === 'tool').at(-1)
+    expect(denied.content).toContain("webfetch needs the user's permission")
+    await expect(page.locator('.chat-tool')).toHaveCount(0)
+
+    // Grant the blanket permission for this conversation, then retry.
+    await page.locator('.ai-gear').click()
+    await page.locator('.ai-websearch-allow').check()
+    await page.locator('.ai-dialog-footer button').click()
+
+    await page.locator('.chat-input').fill(`fetch ${url}`)
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('Fetched.', { timeout: 30_000 })
+
+    // ROUTING: exactly one relay fetch, carrying the page-side contract body.
+    expect(fetches).toEqual([{ url, format: 'markdown' }])
+    expect(direct).toEqual([])
+    // The model-visible result carried the relay's page text.
+    const granted = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').at(-1)
+    expect(JSON.parse(granted.content)).toMatchObject({ ok: true, content: expect.stringContaining('steel') })
+    // Rendered result: the one granted call is the only tool row, and it succeeded.
+    await expect(page.locator('.chat-tool')).toHaveCount(1)
+    await expect(page.locator('.chat-tool-mark')).toHaveText('ok')
+    await expect(page.locator('.chat-tool-name')).toHaveText('webfetch')
+    // webfetch carries no path/query, so the URL shows in the row's input detail.
+    await expect(page.locator('.chat-tool-input')).toContainText('example.com/part')
+  })
+
+  test('webfetch relay failure renders failed, keeps turn alive', async ({ page }) => {
+    test.setTimeout(60_000)
+    stub = await startStubRelay([
+      { name: 'webfetch', args: { url: 'https://example.com/down' } },
+      { text: 'Could not fetch.' },
+    ])
+    const fetches = await routeApi(page, '**/api/fetch', { status: 502, body: { error: 'boom', name: 'FetchError' } })
+    await openChatWithKey(page, stub)
+
+    // Pre-grant the blanket permission so the call reaches the relay stub.
+    await page.locator('.ai-gear').click()
+    await page.locator('.ai-websearch-allow').check()
+    await page.locator('.ai-dialog-footer button').click()
+
+    await page.locator('.chat-input').fill('fetch https://example.com/down')
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('Could not fetch.', { timeout: 30_000 })
+
+    // The relay's 502 fails the tool line but the turn still closes with text.
+    await expect(page.locator('.chat-tool.failed')).toBeVisible()
+    await expect(page.locator('.chat-tool-mark')).toHaveText('failed')
+    // ROUTING: the failure is the relay's 502, not a skipped call.
+    expect(fetches).toEqual([{ url: 'https://example.com/down', format: 'markdown' }])
   })
 })
