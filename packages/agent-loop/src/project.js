@@ -57,11 +57,15 @@ export const pickEntry = (paths, { folder, packageJson, anyJs = false } = {}) =>
 }
 
 // A project's entry: pickEntry over its text files, without guessing at a .js.
-export const resolveEntry = (files) =>
-  pickEntry(
-    Object.keys(files).filter((path) => typeof files[path] === 'string'),
-    { packageJson: files[PACKAGE_JSON] },
-  )
+export const resolveEntry = (files) => {
+  const sources = Object.keys(files).filter((path) => typeof files[path] === 'string' && !isTestOrNotesPath(path))
+  const entry = pickEntry(sources, { packageJson: files[PACKAGE_JSON] })
+  // package.json main can still name a test/notes file (pickEntry keeps a
+  // main that names a file): fall back to the default entry rules, and null
+  // when no valid entry remains, so test/notes can never build as geometry.
+  if (entry === null || !isTestOrNotesPath(entry)) return entry
+  return pickEntry(sources, {})
+}
 
 const byteSize = (content) => (typeof content === 'string' ? new TextEncoder().encode(content).length : (content?.byteLength ?? 0))
 
@@ -157,6 +161,37 @@ export const applyDelete = (files, { path } = {}) => {
   return { files: rest, path: file, deleted: true }
 }
 
+// Project keys are normalized on write, but tool input may carry `./` or a
+// leading slash: strip those (and whitespace) before any prefix test, so
+// `./test/a.js` cannot bypass an exclusion.
+const cleanPath = (path) => (typeof path === 'string' ? path.trim().replace(/^\.\//, '').replace(/^\/+/, '') : '')
+
+/**
+ * Whether `path` lives under the project's `test/` or `notes/` directories.
+ * The one normalized predicate behind the code-write gate and the
+ * build/entry exclusions, so unnormalized keys cannot bypass them.
+ * @param {string} path the project-relative path
+ * @returns {boolean} true for `test/**` and `notes/**`
+ */
+export const isTestOrNotesPath = (path) => {
+  const clean = cleanPath(path)
+  return clean.startsWith('test/') || clean.startsWith('notes/')
+}
+
+/**
+ * Whether a project path is a test file: `.js` files under the `test/`
+ * directory only. Notes, skills and model sources never match, so they
+ * never load into a run. Shared by the browser test runner and the eval
+ * backend so the selection cannot drift.
+ * @param {string} path the project-relative path
+ * @returns {boolean} true for `test/` javascript files
+ */
+export const isTestFile = (path) => {
+  if (typeof path !== 'string') return false
+  const clean = cleanPath(path)
+  return clean.startsWith('test/') && clean.endsWith('.js')
+}
+
 /**
  * Whether a write to `path` carries code: a `.js` file outside `test/` and
  * `notes/`. Only code writes run the full test suite after the build; docs,
@@ -166,8 +201,7 @@ export const applyDelete = (files, { path } = {}) => {
  */
 export const isCodePath = (path) => {
   if (typeof path !== 'string') return false
-  const clean = path.trim().replace(/^\.\//, '').replace(/^\/+/, '')
-  return clean.endsWith('.js') && !clean.startsWith('test/') && !clean.startsWith('notes/')
+  return cleanPath(path).endsWith('.js') && !isTestOrNotesPath(path)
 }
 
 /**
@@ -181,9 +215,7 @@ export const isCodePath = (path) => {
  * @returns {Record<string, string|ArrayBuffer>} the files the builder may load
  */
 export const buildFiles = (files = {}) =>
-  Object.fromEntries(
-    Object.entries(files).filter(([path]) => !path.startsWith('test/') && !path.startsWith('notes/')),
-  )
+  Object.fromEntries(Object.entries(files).filter(([path]) => !isTestOrNotesPath(path)))
 
 // What a delete answers: its build report, headed by the file deleted, in the
 // app and the eval alike, so a failed build after the removal never reads as a

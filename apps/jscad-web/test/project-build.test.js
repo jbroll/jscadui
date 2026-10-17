@@ -19,6 +19,14 @@ describe('projectEntry', () => {
     expect(projectEntry({ 'main.js': '', 'package.json': '{"main":"src/gear.js"}', 'src/gear.js': '' })).toBe('src/gear.js')
   })
 
+  it('never resolves a test/ or notes/ path as the entry', () => {
+    expect(projectEntry({ 'test/index.js': `test('x',()=>{})` })).toBe(null)
+    expect(projectEntry({ 'test/index.js': 't', 'main.js': 'm' })).toBe('main.js')
+    expect(projectEntry({ 'notes/plan.md': 'n', 'test/a.js': 't' })).toBe(null)
+    expect(projectEntry({ 'package.json': '{"main":"test/index.js"}', 'test/index.js': 't', 'main.js': 'm' })).toBe('main.js')
+    expect(projectEntry({ 'package.json': '{"main":"test/index.js"}', 'test/index.js': 't' })).toBe(null)
+  })
+
   it("falls back to the project's declared entry, which a dropped folder names by its own rule", () => {
     expect(projectEntry({ 'gear.js': '', 'lib.js': '' }, '/gear.js')).toBe('gear.js')
     expect(projectEntry({ 'gear.js': '' }, 'missing.js')).toBe(null)

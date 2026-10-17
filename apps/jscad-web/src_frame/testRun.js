@@ -1,15 +1,7 @@
 import { runTestFile, TEST_API } from '@jscadui/agent-loop/src/testPackage.js'
 import { createConsoleCollector } from '@jscadui/agent-loop/src/consoleCapture.js'
+import { isTestFile } from '@jscadui/agent-loop/src/project.js'
 import { createReadFile } from './fileMap.js'
-
-/**
- * Whether a project path is a test file: `.js` files under the `test/`
- * directory only. Notes, skills and model sources never match, so they
- * never load into a run.
- * @param {string} path the project-relative path
- * @returns {boolean} true for `test/` javascript files
- */
-export const isTestFile = (path) => typeof path === 'string' && path.startsWith('test/') && path.endsWith('.js')
 
 /**
  * The test files of a project, sorted by path. Only string sources run:

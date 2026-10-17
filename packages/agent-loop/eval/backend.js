@@ -21,7 +21,7 @@ import { reportError } from '../src/modelError.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
 import { asGeometry, assembleReport, noEntryReport, noGeometryError, noMainError, summarizeRun, writeReport } from '../src/buildReport.js'
 import { exportConfig, exportedSize } from '../src/exportFormat.js'
-import { applyDelete, applyEdit, applyWrite, buildFiles, deleteReport, isCodePath, listFiles, readFile, resolveEntry } from '../src/project.js'
+import { applyDelete, applyEdit, applyWrite, buildFiles, deleteReport, isCodePath, isTestFile, listFiles, readFile, resolveEntry } from '../src/project.js'
 import { createReadFile, PROJECT_BASE, RUN_FILE } from '../src/projectUrl.js'
 import { runTestFile, summarizeTestRun, TEST_API } from '../src/testPackage.js'
 import { withUnits } from '../src/units.js'
@@ -176,10 +176,6 @@ const getOpenscad = () => {
 requireHandlers.set('scad', createScadHandler({ getOpenscad, getAppOrigin: () => APP_ORIGIN }).handle)
 
 const modelError = (error, api) => reportError(error, { api, index: API_INDEX })
-
-// Whether a project path is a test file: `.js` files under the `test/`
-// directory only, as the browser test runner selects them.
-const isTestFile = (path) => typeof path === 'string' && path.startsWith('test/') && path.endsWith('.js')
 
 // The project's `test/` `.js` files run in-process: Node has no test-worker
 // bundle, so each file goes through Task 4's `runTestFile` the way the

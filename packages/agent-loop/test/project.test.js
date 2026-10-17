@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyDelete, applyEdit, applyWrite, listFiles, NO_ENTRY, pickEntry, projectPath, readFile, resolveEntry, SEARCH_LIMIT, searchFiles } from '../src/project.js'
+import { applyDelete, applyEdit, applyWrite, buildFiles, isTestFile, isTestOrNotesPath, listFiles, NO_ENTRY, pickEntry, projectPath, readFile, resolveEntry, SEARCH_LIMIT, searchFiles } from '../src/project.js'
 
 const thrown = (fn) => {
   try {
@@ -98,6 +98,26 @@ describe('resolveEntry', () => {
     expect(resolveEntry({})).toBeNull()
     expect(resolveEntry({ 'part.js': 'p' })).toBeNull()
     expect(NO_ENTRY).toMatch(/main\.js.*index\.js.*package\.json/)
+  })
+
+  it('never resolves a test/ or notes/ path as the entry', () => {
+    expect(resolveEntry({ 'test/index.js': 't' })).toBeNull()
+    expect(resolveEntry({ 'test/index.js': 't', 'main.js': 'm' })).toBe('main.js')
+    expect(resolveEntry({ 'notes/plan.md': 'n', 'test/a.js': 't' })).toBeNull()
+    expect(resolveEntry({ 'package.json': '{"main":"test/index.js"}', 'test/index.js': 't', 'main.js': 'm' })).toBe('main.js')
+    expect(resolveEntry({ 'package.json': '{"main":"test/index.js"}', 'test/index.js': 't' })).toBeNull()
+    expect(resolveEntry({ 'package.json': '{"main":"notes/plan.md"}', 'notes/plan.md': 'n' })).toBeNull()
+  })
+
+  it('shares one normalized test/notes predicate across the gate and the filters', () => {
+    expect(isTestOrNotesPath('./test/a.js')).toBe(true)
+    expect(isTestOrNotesPath('/notes/plan.md')).toBe(true)
+    expect(isTestOrNotesPath('test.js')).toBe(false)
+    expect(isTestOrNotesPath('main.js')).toBe(false)
+    expect(buildFiles({ './test/a.js': 't', 'notes/plan.md': 'n', 'main.js': 'm' })).toEqual({ 'main.js': 'm' })
+    expect(isTestFile('./test/a.js')).toBe(true)
+    expect(isTestFile('test.js')).toBe(false)
+    expect(isTestFile('notes/a.js')).toBe(false)
   })
 })
 
