@@ -84,6 +84,16 @@ and `scripts/post-land` run when present.
 Direct commits to `main` are blocked by the pre-commit hook
 (bypass with `JSCADUI_ALLOW_MAIN=1`, emergencies only).
 
+Deploy after landing, from the main checkout: the deploy reads hooks from
+`apps/jscad-web/deploy/hooks/` (e.g. `apache.configure.post.sh` installs the
+frame headers per `APP_NAME`). Deploy only a green, landed `main`.
+
+CI discipline: every commit auto-queues exactly one simple-ci job via the
+post-commit hook — never submit duplicate jobs by hand. `ship.sh` waits on
+the branch HEAD's job itself and re-gates after a rebase, so do not
+`sci wait` before shipping; use `sci wait`/`sci log` only to diagnose a
+failure. A green tag on a pre-rebase tree is void after the rebase.
+
 `main` stays linear: the landing is `--ff-only` under the lock. Everything
 the branch needs verified must be green before the merge, not after.
 
