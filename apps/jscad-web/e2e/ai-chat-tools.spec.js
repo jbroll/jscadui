@@ -166,6 +166,40 @@ const routeApi = async (page, pattern, respond = {}) => {
   return calls
 }
 
+// The keyless search tiers the browser reaches directly. Tavily cannot join
+// them: it answers no CORS preflight, so it is relay-only.
+const DIRECT_MCP_ENDPOINTS = ['https://mcp.exa.ai/mcp', 'https://search.parallel.ai/mcp', 'https://mcp.firecrawl.dev/v2/mcp-search']
+
+const MCP_CORS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-headers': '*',
+  'access-control-allow-methods': 'POST, OPTIONS',
+}
+
+// Stub the browser-direct MCP search endpoints and log every JSON-RPC POST as
+// `{ url, status, body }`, so a test can pin the routing and the exact
+// `tools/call` payload. A JSON POST triggers a CORS preflight, which route
+// interception sees too, so answer OPTIONS with the CORS headers. The success
+// body matches `test/aiSearch.test.js`'s `mcpOk` shape.
+const stubMcp = async (page, results, { status = 200, body } = {}) => {
+  const hits = []
+  const payload = body ?? { result: { results } }
+  for (const endpoint of DIRECT_MCP_ENDPOINTS) {
+    await page.route(endpoint, async (route) => {
+      const request = route.request()
+      if (request.method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: MCP_CORS })
+        return
+      }
+      let parsed = null
+      try { parsed = request.postDataJSON() } catch { parsed = null }
+      hits.push({ url: request.url(), status, body: parsed })
+      await route.fulfill({ status, headers: MCP_CORS, contentType: 'application/json', body: JSON.stringify(payload) })
+    })
+  }
+  return hits
+}
+
 test.describe('AI chat tools', () => {
   let stub
 
@@ -305,5 +339,136 @@ test.describe('AI chat tools', () => {
     expect(JSON.parse(failed.content)).toEqual({ ok: false, error: { name: 'FetchError', message: 'boom' } })
     // ROUTING: the failure is the relay's 502, not a skipped call.
     expect(fetches).toEqual([{ url: 'https://example.com/down', format: 'markdown' }])
+  })
+
+  test('websearch runs keyless through the direct pool and logs provider', async ({ page }) => {
+    test.setTimeout(60_000)
+    const query = '608 bearing dimensions'
+    stub = await startStubRelay([
+      { name: 'websearch', args: { query } },
+      { text: 'Found.' },
+    ])
+    // The keyless pool: whichever tier answers, the relay search hop stays cold.
+    const directHits = await stubMcp(page, [{ title: '608', url: 'https://example.com/bearing', snippet: '8x22x7' }])
+    const relayHits = await routeApi(page, '**/api/search', { body: { ok: true, results: [] } })
+    const logs = []
+    page.on('console', (msg) => { if (msg.text().includes('[websearch]')) logs.push(msg.text()) })
+    await openChatWithKey(page, stub)
+
+    // Pre-grant the blanket permission so the call reaches the pool.
+    await page.locator('.ai-gear').click()
+    await page.locator('.ai-websearch-allow').check()
+    await page.locator('.ai-dialog-footer button').click()
+
+    await page.locator('.chat-input').fill('bearing size?')
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('Found.', { timeout: 30_000 })
+
+    // ROUTING (direct): at least one MCP endpoint answered, and every endpoint
+    // hit was a JSON-RPC tools/call; the relay never saw a search.
+    expect(directHits.length).toBeGreaterThanOrEqual(1)
+    for (const hit of directHits) {
+      expect(DIRECT_MCP_ENDPOINTS).toContain(hit.url)
+      expect(hit.body).toMatchObject({
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: { arguments: { query, count: 8 } },
+      })
+    }
+    expect(relayHits).toEqual([])
+
+    // The model-visible result carried the tagged direct hit...
+    const tool = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').at(-1)
+    const parsed = JSON.parse(tool.content)
+    expect(parsed.ok).toBe(true)
+    expect(parsed.results[0]).toMatchObject({
+      title: '608',
+      url: 'https://example.com/bearing',
+      snippet: '8x22x7',
+      provider: expect.stringMatching(/^(exa|parallel|firecrawl)$/),
+    })
+    // ...and the audit log names the provider that answered.
+    expect(logs.join('\n')).toMatch(/provider: (exa|parallel|firecrawl)/)
+
+    // Rendered row: websearch carries a query, so the target detail shows it.
+    await expect(page.locator('.chat-tool')).toHaveCount(1)
+    await expect(page.locator('.chat-tool-mark')).toHaveText('ok')
+    await expect(page.locator('.chat-tool-name')).toHaveText('websearch')
+    await expect(page.locator('.chat-tool-target')).toHaveText(query)
+  })
+
+  test('websearch pinned off fails closed; Tavily fallback tags provider', async ({ page }) => {
+    test.setTimeout(90_000)
+    stub = await startStubRelay([
+      // Part A: the pinned-off call is answered without touching any network.
+      { name: 'websearch', args: { query: 'off query' } },
+      { text: 'Blocked.' },
+      // Part B: the direct pool is exhausted, so the relay answers.
+      { name: 'websearch', args: { query: 'bearing 608' } },
+      { text: 'Fallback found.' },
+    ])
+    // The direct pool answers 429 for every keyless tier; every MCP POST and
+    // every relay hop is logged so each part can pin the routing it proves.
+    const directHits = await stubMcp(page, [], { status: 429, body: {} })
+    const relayHits = await routeApi(page, '**/api/search', {
+      body: { ok: true, results: [{ title: 't', url: 'https://example.com', snippet: 's', provider: 'exa' }] },
+    })
+    await openChatWithKey(page, stub)
+
+    // Part A: pin off. Grant first so the call reaches the handler instead of
+    // the permission gate.
+    await page.locator('.ai-gear').click()
+    await page.locator('.ai-websearch-allow').check()
+    await page.locator('.ai-websearch-provider').selectOption('off')
+    await page.locator('.ai-dialog-footer button').click()
+
+    await page.locator('.chat-input').fill('search with search off?')
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('Blocked.', { timeout: 30_000 })
+
+    const blocked = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').at(-1)
+    expect(JSON.parse(blocked.content)).toMatchObject({ ok: false, error: { name: 'SearchUnavailableError' } })
+    // ROUTING: pinned off fails closed — no MCP endpoint and no relay hop.
+    expect(directHits).toEqual([])
+    expect(relayHits).toEqual([])
+    await expect(page.locator('.chat-tool.failed')).toBeVisible()
+
+    // Part B: clear the pin and store a Tavily key. Device custody so the
+    // dialog's store and the handler's store share the key (session memory is
+    // per instance); then retry, which must fall back to the relay.
+    await page.locator('.ai-gear').click()
+    await page.locator('.ai-websearch-provider').selectOption('random')
+    await page.locator('.ai-search-mode').selectOption('device')
+    const tavily = page.locator('[data-search-provider="tavily"]')
+    await tavily.locator('.ai-search-key-input').fill('sk-tavily')
+    await tavily.locator('.ai-search-save').click()
+    await expect(tavily.locator('.ai-search-status')).toHaveText('key set')
+    await page.locator('.ai-dialog-footer button').click()
+
+    await page.locator('.chat-input').fill('bearing size?')
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('Fallback found.', { timeout: 30_000 })
+
+    // ROUTING (relay): the direct pool was tried and exhausted (429)...
+    expect(directHits.length).toBeGreaterThanOrEqual(3)
+    for (const hit of directHits) {
+      expect(DIRECT_MCP_ENDPOINTS).toContain(hit.url)
+      expect(hit.status).toBe(429)
+      expect(hit.body).toMatchObject({
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: { arguments: { query: 'bearing 608', count: 8 } },
+      })
+    }
+    // ...then POST /api/search carried exactly { query, count: 8 }.
+    expect(relayHits).toEqual([{ query: 'bearing 608', count: 8 }])
+
+    // The relay's hits are retagged provider:'tavily' (the stub claimed 'exa').
+    const relayed = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').at(-1)
+    const parsed = JSON.parse(relayed.content)
+    expect(parsed.ok).toBe(true)
+    expect(parsed.results).toEqual([{ title: 't', url: 'https://example.com', snippet: 's', provider: 'tavily' }])
+    await expect(page.locator('.chat-tool-mark').last()).toHaveText('ok')
+    await expect(page.locator('.chat-tool-result').last()).toContainText('tavily')
   })
 })
