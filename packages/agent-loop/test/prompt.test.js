@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { APIS, DEFAULT_API } from '../src/api.js'
 import { assemblePrompt, buildSystemPrompt } from '../src/prompt.js'
-import { EXAMPLES } from '../prompt/index.js'
+import { EXAMPLES, SKILLS } from '../prompt/index.js'
 import { createEvalBackend } from '../eval/backend.js'
 
 const exampleDir = (api) => new URL(`../prompt/examples/${api}/`, import.meta.url)
@@ -14,6 +14,10 @@ const lines = (text, needle) => text.split('\n').filter((l) => l.includes(needle
 const examples = APIS.flatMap((api) => filesOf(api).map((file) => [api, file]))
 
 describe('system prompt', () => {
+  it('requires tests green before reply', () => {
+    expect(buildSystemPrompt('fluent')).toMatch(/tests.*green|iterate/i)
+  })
+
   it('defaults to the fluent API', () => {
     expect(DEFAULT_API).toBe('fluent')
     expect(buildSystemPrompt()).toBe(buildSystemPrompt('fluent'))
@@ -71,8 +75,29 @@ describe('system prompt', () => {
     for (const line of mentions) expect(line).toMatch(/Do not require/)
   })
 
-  it.each(APIS)('%s: replies once a build meets the request', (api) => {
-    expect(buildSystemPrompt(api)).toMatch(/Once a build meets the request, reply; refine further only when the user\s+asks\./)
+  it.each(APIS)('%s: iterates until the build and its tests pass', (api) => {
+    const prompt = buildSystemPrompt(api)
+    expect(prompt).toMatch(/Iterate until green/)
+    expect(prompt).toMatch(/reply only after the build and its tests pass/)
+    expect(prompt).toMatch(/When the turn cap stops you first, reply with the last error and what you\s+tried\./)
+    expect(prompt).not.toMatch(/Once a build meets the request/)
+  })
+
+  it.each(APIS)('%s: lists each skill id with its description, bodies never inlined', (api) => {
+    const prompt = buildSystemPrompt(api)
+    for (const [id, body] of Object.entries(SKILLS)) {
+      const description = body.split('\n').find((l) => l.startsWith('description:')).slice('description:'.length).trim()
+      expect(prompt).toContain(`\`${id}\`: ${description}`)
+    }
+    for (const body of Object.values(SKILLS)) {
+      const procedure = body.split('---').at(-1).trim()
+      expect(prompt).not.toContain(procedure)
+    }
+    expect(prompt).toContain('Load the full procedure with `skill`')
+  })
+
+  it.each(APIS)('%s: points at the per-turn notes header index', (api) => {
+    expect(buildSystemPrompt(api)).toContain('Project notes arrive each turn as a `Project notes:` index of headers')
   })
 
   it.each(APIS)('%s: says jscad-text needs no init', (api) => {

@@ -83,5 +83,10 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
 - Search the web with `websearch` for a fact outside the packages' docs.
 - A tool failure is a JSON result, not a dead end: read `error.message` and
   try again with corrected input.
-- Once a build meets the request, reply; refine further only when the user
-  asks.
+- Iterate until green: change one thing with `write` or `edit`, read the build
+  report, fix what it names, and repeat. Each write also runs the project's
+  tests; reply only after the build and its tests pass.
+- Example: the report names `error ... main.js line 3 column 12`; fix line 3
+  with `edit` and build again instead of replying while it still fails.
+- When the turn cap stops you first, reply with the last error and what you
+  tried.
