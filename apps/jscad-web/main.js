@@ -987,6 +987,9 @@ const aiDeps = {
     return { ok: true, image, camera: viewState.viewer.getCamera() }
   },
   docs: createDocs(loadApiIndex, getChatApi),
+  // The question tool is served by the chat card; it can only arrive mid-turn,
+  // when the control exists, but guard the not-yet-mounted case anyway.
+  askUser: (input) => chatControls?.ask(input) ?? Promise.reject(new Error('chat not ready')),
   websearch: createWebSearchHandler({
     stores: createSearchStores(globalThis.localStorage),
     getProjectId: () => currentProjectId,

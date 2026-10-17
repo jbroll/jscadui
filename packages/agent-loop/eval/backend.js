@@ -249,7 +249,7 @@ export const variantValue = ({ initial, min = -Infinity, max = Infinity, type })
 
 const differs = (a, b) => Math.abs(a - b) > 1e-6 * Math.max(1, Math.abs(a), Math.abs(b))
 
-export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], cannedFetch = [] } = {}) {
+export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], cannedFetch = [], cannedAsk = [] } = {}) {
   let files = {}
   // The last build: its report, and its geometry and params when it built.
   let current = null
@@ -342,6 +342,18 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
     }
   }
 
+  // Offline `question`: canned answers keyed by question substring, as
+  // websearch is by query. The harness cannot ask a human, so anything
+  // unscripted fails closed rather than hanging the turn.
+  const askCanned = (args) => {
+    const question = args?.question ?? ''
+    const entry = cannedAsk.find(
+      (canned) => typeof canned?.match === 'string' && question.toLowerCase().includes(canned.match.toLowerCase()),
+    )
+    if (!entry) return toolError('AskUnavailableError', 'question: no canned answer matches in the eval harness')
+    return entry.answer
+  }
+
   const tools = {
     list: () => listFiles(files),
     read: (args) => readFile(files, args),
@@ -359,6 +371,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
     docs: (query) => docsTool(API_INDEX, query, { api }),
     websearch: searchCanned,
     webfetch: fetchCanned,
+    askUser: askCanned,
   }
 
   // The executor protocol carries tool results as text.

@@ -1459,6 +1459,69 @@ p {
 .chat-tool-result {
   border-top: 1px dashed var(--chat-rule);
 }
+/* The question card the turn waits on; an answered card keeps the choice. */
+.chat-question {
+  margin: 2px 0;
+  padding: 6px 8px;
+  font-family: var(--chat-mono);
+  font-size: 9pt;
+  background: var(--chat-tool-bg);
+  border-left: 2px solid var(--chat-rule);
+  border-radius: 3px;
+}
+.chat-question-header {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.chat-question-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.chat-question-option,
+.chat-question-submit {
+  font: inherit;
+  padding: 2px 8px;
+  color: inherit;
+  background: var(--chat-tool-hover);
+  border: 1px solid var(--chat-rule);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.chat-question-option:hover,
+.chat-question-submit:hover {
+  background: var(--chat-tool-bg);
+}
+.chat-question-option:focus-visible,
+.chat-question-submit:focus-visible {
+  outline: 2px solid var(--chat-focus);
+  outline-offset: 1px;
+}
+.chat-question-form {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.chat-question-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--chat-rule);
+  border-radius: 3px;
+  padding: 2px 6px;
+}
+.chat-question.answered .chat-question-options,
+.chat-question.answered .chat-question-form {
+  display: none;
+}
+.chat-question-answer {
+  margin-top: 4px;
+  font-weight: 600;
+  color: var(--chat-ok);
+}
 .confirm-overlay {
   position: fixed;
   inset: 0;

@@ -774,3 +774,28 @@ describe('eval backend webfetch stub', () => {
     expect(bad).toMatchObject({ ok: false, error: { name: 'ValidationError' } })
   })
 })
+
+describe('eval backend askUser stub', () => {
+  const CANNED = [{ match: 'size', answer: '20' }]
+
+  it('routes question and answers a canned result keyed by question substring', async () => {
+    const backend = createEvalBackend({ cannedAsk: CANNED })
+    expect(await backend.requestTool('question', { question: 'Which size?' })).toBe('20')
+  })
+
+  it('fails closed with AskUnavailableError when nothing canned matches', async () => {
+    const backend = createEvalBackend({ cannedAsk: CANNED })
+    const res = await call(backend, 'question', { question: 'Which colour?' })
+    expect(res).toMatchObject({ ok: false, error: { name: 'AskUnavailableError' } })
+  })
+
+  it('fails closed with no canned data at all, and validates the schema', async () => {
+    const backend = createEvalBackend()
+    expect(await call(backend, 'question', { question: 'anything' })).toMatchObject({
+      ok: false,
+      error: { name: 'AskUnavailableError' },
+    })
+    const bad = await call(backend, 'question', { bogus: 1 })
+    expect(bad).toMatchObject({ ok: false, error: { name: 'ValidationError' } })
+  })
+})

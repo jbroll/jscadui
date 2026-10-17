@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { CONTEXT_BUDGET } from '../src/context.js'
-import { runTurn, TOOL_RESULT_CHARS, TOOL_RESULTS_PER_TURN_CHARS } from '../src/loop.js'
+import { runTurn, toolDetail, TOOL_RESULT_CHARS, TOOL_RESULTS_PER_TURN_CHARS } from '../src/loop.js'
 import { buildTools } from '../src/tools.js'
 
 const roundsProvider = (rounds) => {
@@ -575,5 +575,22 @@ describe('runTurn', () => {
     for (const m of error.messages.filter((m) => m.role === 'tool')) {
       expect(JSON.parse(m.content)).toMatchObject({ ok: false })
     }
+  })
+})
+
+describe('toolDetail', () => {
+  it('names the argument that identifies a call, including a question and its header', () => {
+    expect(toolDetail({ path: 'main.js' })).toBe('main.js')
+    expect(toolDetail({ query: 'cuboid' })).toBe('cuboid')
+    expect(toolDetail({ format: 'stl' })).toBe('stl')
+    expect(toolDetail({ header: 'Size' })).toBe('Size')
+    expect(toolDetail({ question: 'Which size?' })).toBe('Which size?')
+    expect(toolDetail({})).toBeUndefined()
+  })
+
+  it('prefers the path, then the existing keys, over the question keys, and truncates a long value', () => {
+    expect(toolDetail({ header: 'Size', question: 'Which size?' })).toBe('Size')
+    expect(toolDetail({ path: 'a.js', header: 'Size' })).toBe('a.js')
+    expect(toolDetail({ question: 'q'.repeat(50) })).toBe(`${'q'.repeat(39)}…`)
   })
 })

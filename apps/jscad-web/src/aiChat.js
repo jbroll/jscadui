@@ -44,6 +44,10 @@ const el = (tag, className, text) => {
 
 const STOPPED_NOTE = '[stopped by the user]'
 
+// A question the turn is awaiting is settled with this when Stop aborts the
+// turn, so `handleTool` reports a tool error instead of hanging.
+const abortError = (message = 'turn aborted') => Object.assign(new Error(message), { name: 'AbortError' })
+
 // The selection stores 'off'; callers may also pass false. Both remove the tool.
 const websearchOff = (provider) => provider === false || provider === 'off'
 
@@ -198,6 +202,10 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   // must not queue a second turn.
   let gating = false
   let aborter = null
+  // The one open question, if any: its card in the transcript and the promise
+  // the turn is awaiting. It is settled exactly once (answer, Stop, a project
+  // switch, or the turn ending), so an unanswered question never hangs a turn.
+  let pendingQuestion = null
   let status = null
   let startedAt = 0
   let ticker = null
@@ -334,6 +342,12 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   // project's. An in-flight turn keeps its own messages and persists them
   // under the project it started in.
   const switchTo = async (id) => {
+    // A question belongs to the project that asked it; leaving dismisses it
+    // (a rejection → tool error) so it cannot outlive its project's view.
+    settleQuestion((pending) => {
+      pending.card.remove()
+      pending.reject(new Error('question dismissed by project switch'))
+    })
     transcript = []
     messagesEl.innerHTML = ''
     assistantEl = null
@@ -442,6 +456,26 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     }
   }
 
+  // Settles the one open question, whichever handler fires first. Clearing
+  // `pendingQuestion` first makes every other handler a no-op.
+  const settleQuestion = (settle) => {
+    const pending = pendingQuestion
+    if (!pending) return
+    pendingQuestion = null
+    pending.signal?.removeEventListener('abort', pending.onAbort)
+    settle(pending)
+  }
+
+  // Answers the open question and marks its card: the chosen option or typed
+  // text stays visible where the question was asked.
+  const answerQuestion = (value) => {
+    const pending = pendingQuestion
+    if (!pending) return
+    pending.card.classList.add('answered')
+    pending.card.append(el('div', 'chat-question-answer', value))
+    settleQuestion((open) => open.resolve(value))
+  }
+
   // A running turn's button stops it. As type=button it is no default button,
   // so Enter in the input submits the form, which a running turn ignores.
   const setRunning = (value) => {
@@ -457,6 +491,12 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       setStatus({ phase: 'thinking' })
     } else {
       setStatus(null)
+      // A turn that ends with a question still open (a timeout, a provider
+      // failure) settles it, so the card never outlives its turn.
+      settleQuestion((pending) => {
+        pending.card.remove()
+        pending.reject(abortError('question dismissed'))
+      })
     }
   }
   setRunning(false)
@@ -630,8 +670,16 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     }
   }
 
+  // While a question is open, a submitted draft is its answer, not a new turn.
   form.addEventListener('submit', (event) => {
     event.preventDefault()
+    if (pendingQuestion) {
+      const answer = input.value.trim()
+      if (!answer) return
+      input.value = ''
+      answerQuestion(answer)
+      return
+    }
     const message = input.value.trim()
     if (!message || running) return
     runTurnLocal(message)
@@ -644,8 +692,62 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }))
   })
 
+  // The `question` tool's UI: a card appended to the transcript. With options
+  // it is a row of buttons; with none, a small form. The chat input answers it
+  // too (above). An abort (Stop) or a project switch rejects it, and the
+  // `handleTool` catch turns that into an {ok:false} result — never a hang.
+  const ask = (input) => {
+    if (typeof input?.question !== 'string' || input.question === '') {
+      return Promise.reject(new Error('question: missing question'))
+    }
+    // A question that arrives after its project was left has no view to live in.
+    if (!live()) return Promise.reject(new Error('question dismissed by project switch'))
+    return new Promise((resolve, reject) => {
+      const card = el('div', 'chat-question')
+      if (typeof input.header === 'string' && input.header !== '') card.append(el('div', 'chat-question-header', input.header))
+      card.append(el('div', 'chat-question-text', input.question))
+      const options = Array.isArray(input.options) ? input.options.filter((option) => typeof option === 'string' && option !== '') : []
+      if (options.length > 0) {
+        const list = el('div', 'chat-question-options')
+        for (const option of options) {
+          const button = el('button', 'chat-question-option', option)
+          button.type = 'button'
+          button.addEventListener('click', () => answerQuestion(option))
+          list.append(button)
+        }
+        card.append(list)
+      } else {
+        const questionForm = el('form', 'chat-question-form')
+        const field = el('input', 'chat-question-input')
+        field.type = 'text'
+        field.placeholder = 'Type your answer'
+        const submit = el('button', 'chat-question-submit', 'Answer')
+        submit.type = 'submit'
+        questionForm.append(field, submit)
+        questionForm.addEventListener('submit', (event) => {
+          event.preventDefault()
+          const value = field.value.trim()
+          if (value) answerQuestion(value)
+        })
+        card.append(questionForm)
+      }
+      messagesEl.append(card)
+      follow(atBottom())
+      const signal = aborter?.signal
+      const onAbort = () => {
+        card.remove()
+        settleQuestion((pending) => pending.reject(abortError()))
+      }
+      pendingQuestion = { resolve, reject, card, signal, onAbort }
+      if (signal) {
+        if (signal.aborted) onAbort()
+        else signal.addEventListener('abort', onAbort, { once: true })
+      }
+    })
+  }
+
   if (storage && pid()) switchTo(pid())
   renderNotice()
 
-  return { switchTo, newChat, refreshNotice: renderNotice, setWebsearchGranted: websearchGrant.setGranted, isWebsearchGranted: websearchGrant.isGranted }
+  return { ask, switchTo, newChat, refreshNotice: renderNotice, setWebsearchGranted: websearchGrant.setGranted, isWebsearchGranted: websearchGrant.isGranted }
 }

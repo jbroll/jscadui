@@ -1268,3 +1268,109 @@ describe('free quota error', () => {
     expect(container.querySelector('.chat-msg.error').textContent).toMatch(/Add your own key/)
   })
 })
+
+describe('askUser question card', () => {
+  // The turn's requestTool routes 'question' to the panel's own `ask` control,
+  // as main.js wires aiDeps.askUser to chatControls.ask.
+  const askChat = (options = {}) => {
+    const holder = {}
+    const requestTool = vi.fn((name, input) => (name === 'question' ? holder.controls.ask(input) : Promise.resolve('{}')))
+    const chat = openChat({ ...options, requestTool })
+    holder.controls = chat.controls
+    return { ...chat, requestTool }
+  }
+
+  it('resolves an option click as the answer and marks the tool row ok', async () => {
+    let result
+    const runTurnFn = vi.fn(async ({ requestTool: callTool }) => {
+      result = await callTool('question', { question: 'Which size?', options: ['10', '20'], header: 'Size' })
+      return { messages: [] }
+    })
+    const { q, type } = askChat({ runTurnFn })
+    type('make it 20')
+    await vi.waitFor(() => expect(q('.chat-question')).not.toBeNull())
+    expect(q('.chat-question-header').textContent).toBe('Size')
+    expect(q('.chat-question-text').textContent).toBe('Which size?')
+    const options = [...q('.chat-question-options').querySelectorAll('.chat-question-option')]
+    expect(options.map((button) => button.textContent)).toEqual(['10', '20'])
+    options[1].click()
+    await vi.waitFor(() => expect(result).toBe('20'))
+    expect(q('.chat-question').classList.contains('answered')).toBe(true)
+    expect(q('.chat-question.answered').textContent).toContain('20')
+    await vi.waitFor(() => expect(q('.chat-tool-mark').textContent).toBe('ok'))
+    expect(q('.chat-tool-name').textContent).toBe('question')
+    expect(q('.chat-tool-target').textContent).toBe('Size')
+    // A second click after the answer is a no-op: the question settles once.
+    options[0].click()
+    expect(result).toBe('20')
+  })
+
+  it('takes a custom typed answer when the user submits the chat input', async () => {
+    let result
+    const runTurnFn = vi.fn(async ({ requestTool: callTool }) => {
+      result = await callTool('question', { question: 'Which printer?' })
+      return { messages: [] }
+    })
+    const { q, type } = askChat({ runTurnFn })
+    type('ask me')
+    await vi.waitFor(() => expect(q('.chat-question')).not.toBeNull())
+    expect(q('.chat-question-options')).toBeNull()
+    expect(q('.chat-question-form')).not.toBeNull()
+    q('.chat-input').value = 'mk3'
+    q('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(result).toBe('mk3'))
+    expect(q('.chat-question.answered').textContent).toContain('mk3')
+    expect(q('.chat-input').value).toBe('')
+  })
+
+  it('rejects on Stop so the turn ends with a tool error, not a hang', async () => {
+    let result
+    const runTurnFn = vi.fn((options) =>
+      new Promise((resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(abortError()), { once: true })
+        void options.requestTool('question', { question: 'Which size?', options: ['10', '20'] }).then((value) => { result = value })
+      }))
+    const { q, type } = askChat({ runTurnFn })
+    type('size?')
+    await vi.waitFor(() => expect(q('.chat-question')).not.toBeNull())
+    q('.chat-send').click()
+    await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
+    expect(JSON.parse(result)).toMatchObject({ ok: false, error: { name: 'AbortError' } })
+    expect(q('.chat-msg.stopped').textContent).toBe('Stopped')
+    expect(q('.chat-question')).toBeNull()
+  })
+
+  it('settles a question still open when the turn fails, so it never hangs', async () => {
+    const runTurnFn = vi.fn(({ requestTool: callTool }) => {
+      void callTool('question', { question: 'Which size?', options: ['10'] })
+      return Promise.reject(new Error('provider down'))
+    })
+    const { q, type } = askChat({ runTurnFn })
+    type('size?')
+    await vi.waitFor(() => expect(q('.chat-msg.error')?.textContent).toBe('provider down'))
+    expect(q('.chat-question')).toBeNull()
+    expect(q('.chat-send').textContent).toBe('Send')
+  })
+
+  it('rejects on project switch without leaking the card', async () => {
+    let result
+    let release
+    const runTurnFn = vi.fn((options) =>
+      new Promise((resolve, reject) => {
+        release = () => resolve({ messages: [] })
+        options.signal.addEventListener('abort', () => reject(abortError()), { once: true })
+        void options.requestTool('question', { question: 'Which size?', options: ['10', '20'] }).then((value) => { result = value })
+      }))
+    let openId = 'p1'
+    const { q, type, controls } = askChat({ runTurnFn, projectId: () => openId })
+    type('size?')
+    await vi.waitFor(() => expect(q('.chat-question')).not.toBeNull())
+    openId = 'p2'
+    await controls.switchTo('p2')
+    expect(q('.chat-question')).toBeNull()
+    await vi.waitFor(() => expect(JSON.parse(result)).toMatchObject({ ok: false }))
+    expect(JSON.parse(result).error.message).toMatch(/project switch/)
+    release()
+    await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
+  })
+})

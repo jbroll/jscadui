@@ -158,8 +158,9 @@ const withTimeout = (promise, timeoutMs, signal, makeTimeoutError) =>
 const STATUS_DETAIL_CHARS = 40
 
 // The argument that tells one call of a tool from another, for a status line or a chat tool row.
+// A `question` call has no path/query, so its short header, then the question, names it.
 export const toolDetail = (input) => {
-  const value = [input?.path, input?.query, input?.format].find((v) => typeof v === 'string' && v !== '')
+  const value = [input?.path, input?.query, input?.format, input?.header, input?.question].find((v) => typeof v === 'string' && v !== '')
   if (value === undefined) return undefined
   return value.length > STATUS_DETAIL_CHARS ? `${value.slice(0, STATUS_DETAIL_CHARS - 1)}…` : value
 }
