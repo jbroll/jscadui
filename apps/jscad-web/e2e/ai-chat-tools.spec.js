@@ -471,4 +471,90 @@ test.describe('AI chat tools', () => {
     await expect(page.locator('.chat-tool-mark').last()).toHaveText('ok')
     await expect(page.locator('.chat-tool-result').last()).toContainText('tavily')
   })
+
+  // `view` is deliberately absent from the offered catalog (tools.test.js pins
+  // that), so the model cannot discover it — but the app still serves it through
+  // `aiDeps.view` when a turn asks for it. These two tests pin that the capture
+  // is a real PNG data URL with the viewer's camera, and that a missing canvas
+  // fails the tool line instead of hanging the turn.
+  test('view captures the rendered canvas as an image result', async ({ page }) => {
+    test.setTimeout(60_000)
+    stub = await startStubRelay([
+      { name: 'view', args: {} },
+      { text: 'I see a cube.' },
+    ])
+    await openChatWithKey(page, stub)
+
+    // The default model is already rendered (the helper's waitForRender), so no
+    // route stub is needed: the capture is pure page state.
+    await page.locator('.chat-input').fill('what do you see?')
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('I see a cube.', { timeout: 30_000 })
+
+    // The page renders the whole result before the loop caps the copy it hands
+    // the model, so the full {ok,image,camera} survives on the tool row.
+    const rendered = await page.locator('.chat-tool-result').evaluate((el) => el.textContent)
+    const parsed = JSON.parse(rendered)
+    expect(parsed.ok).toBe(true)
+    expect(parsed.image.slice(0, 22)).toBe('data:image/png;base64,')
+    expect(parsed.camera).toMatchObject({
+      position: expect.any(Array),
+      target: expect.any(Array),
+      fov: expect.any(Number),
+      aspect: expect.any(Number),
+    })
+
+    // The model's copy is that same JSON, cut short by the loop's per-result
+    // budget (`capToolResult`, CONTEXT_BUDGET = 24_000 in agent-loop): the PNG
+    // alone is ~340k characters, so the model sees the head of the capture and
+    // never the camera. Pin that real contract — a full JSON.parse of the
+    // model-visible string is impossible by design, not by accident.
+    const full = JSON.stringify(parsed)
+    const tool = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').at(-1)
+    const truncated = tool.content.match(/^(.*)\n… \[tool result truncated: (\d+) of (\d+) characters shown\]$/s)
+    expect(truncated, tool.content.slice(-120)).not.toBeNull()
+    const [, head, shown, total] = truncated
+    expect(head).toBe(full.slice(0, Number(shown)))
+    expect(Number(total)).toBe(full.length)
+    expect(Number(shown)).toBeLessThan(full.length)
+    expect(head.startsWith('{"ok":true,"image":"data:image/png;base64,')).toBe(true)
+
+    // The offered catalog never listed view, yet the relayed turn is the one
+    // that requested it: the app served an unoffered name rather than rejecting.
+    expect(stub.requests[0].tools.map((t) => t.function.name)).not.toContain('view')
+
+    // Rendered: one successful tool row named view.
+    await expect(page.locator('.chat-tool')).toHaveCount(1)
+    await expect(page.locator('.chat-tool-name')).toHaveText('view')
+    await expect(page.locator('.chat-tool-mark')).toHaveText('ok')
+    // The captured canvas is still the live one on screen.
+    await expect(page.locator('#viewer canvas')).toBeVisible()
+  })
+
+  test('view with no canvas fails the tool line without hanging', async ({ page }) => {
+    test.setTimeout(60_000)
+    stub = await startStubRelay([
+      { name: 'view', args: {} },
+      { text: 'No view.' },
+    ])
+    await openChatWithKey(page, stub)
+
+    // Remove the rendered canvas out from under the handler, as an unloaded or
+    // crashed viewer would leave it.
+    await page.evaluate(() => document.querySelector('#viewer')?.replaceChildren())
+
+    await page.locator('.chat-input').fill('what do you see?')
+    await page.locator('.chat-send').click()
+    // The turn still closes with the model's text: a capture failure is a tool
+    // result, never a hang or a turn failure.
+    await expect(page.locator('.chat-messages')).toContainText('No view.', { timeout: 30_000 })
+
+    // The model saw the failure, not merely a failed-looking row.
+    const tool = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').at(-1)
+    expect(JSON.parse(tool.content)).toMatchObject({ ok: false, error: { message: expect.stringContaining('canvas') } })
+
+    await expect(page.locator('.chat-tool.failed')).toBeVisible()
+    await expect(page.locator('.chat-tool-mark')).toHaveText('failed')
+    await expect(page.locator('.chat-tool-name')).toHaveText('view')
+  })
 })
