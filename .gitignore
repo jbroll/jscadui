@@ -225,3 +225,6 @@ worktrees/
 
 # Runtime OpenSCAD prefix-symlink dir (created by test-harness runs)
 .openscad-libs/
+
+# Agent scratch (session ledgers, review packages, reports)
+/.superpowers/
