@@ -506,6 +506,16 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   send.addEventListener('click', (event) => {
     if (!running) return
     event.preventDefault()
+    // A draft typed while a question is open is its answer; an empty input
+    // means the click is the usual Stop.
+    if (pendingQuestion) {
+      const answer = input.value.trim()
+      if (answer) {
+        input.value = ''
+        answerQuestion(answer)
+        return
+      }
+    }
     aborter?.abort()
   })
 
@@ -697,12 +707,16 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   // too (above). An abort (Stop) or a project switch rejects it, and the
   // `handleTool` catch turns that into an {ok:false} result — never a hang.
   const ask = (input) => {
+    // A turn asks one question at a time; a second call while one is open is a
+    // retryable tool error, never a cross-resolution of the open question.
+    if (pendingQuestion) return Promise.reject(new Error('answer the open question first'))
     if (typeof input?.question !== 'string' || input.question === '') {
       return Promise.reject(new Error('question: missing question'))
     }
     // A question that arrives after its project was left has no view to live in.
     if (!live()) return Promise.reject(new Error('question dismissed by project switch'))
     return new Promise((resolve, reject) => {
+      const stick = atBottom()
       const card = el('div', 'chat-question')
       if (typeof input.header === 'string' && input.header !== '') card.append(el('div', 'chat-question-header', input.header))
       card.append(el('div', 'chat-question-text', input.question))
@@ -732,7 +746,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         card.append(questionForm)
       }
       messagesEl.append(card)
-      follow(atBottom())
+      follow(stick)
       const signal = aborter?.signal
       const onAbort = () => {
         card.remove()

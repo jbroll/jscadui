@@ -1323,6 +1323,53 @@ describe('askUser question card', () => {
     expect(q('.chat-input').value).toBe('')
   })
 
+  it('answers with the typed draft when Send is clicked while a question is pending', async () => {
+    let result
+    let release
+    const runTurnFn = vi.fn((options) =>
+      new Promise((resolve, reject) => {
+        release = () => resolve({ messages: [] })
+        options.signal.addEventListener('abort', () => reject(abortError()), { once: true })
+        void options.requestTool('question', { question: 'Which size?', options: ['10', '20'] }).then((value) => { result = value })
+      }))
+    const { q, type } = askChat({ runTurnFn })
+    type('size?')
+    await vi.waitFor(() => expect(q('.chat-question')).not.toBeNull())
+    q('.chat-input').value = '15'
+    q('.chat-send').click()
+    await vi.waitFor(() => expect(result).toBe('15'))
+    expect(q('.chat-question.answered').textContent).toContain('15')
+    expect(q('.chat-input').value).toBe('')
+    // The draft was the answer, not a Stop: the turn is still running.
+    expect(q('.chat-send').textContent).toBe('Stop')
+    release()
+    await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
+  })
+
+  it('rejects a second question while one is still open, leaving the first untouched', async () => {
+    let first
+    let second
+    let release
+    const runTurnFn = vi.fn((options) =>
+      new Promise((resolve, reject) => {
+        release = () => resolve({ messages: [] })
+        options.signal.addEventListener('abort', () => reject(abortError()), { once: true })
+        void options.requestTool('question', { question: 'First?', options: ['a', 'b'] }).then((value) => { first = value })
+        void options.requestTool('question', { question: 'Second?' }).then((value) => { second = value })
+      }))
+    const { q, type } = askChat({ runTurnFn })
+    type('go')
+    await vi.waitFor(() => expect(q('.chat-question')).not.toBeNull())
+    await vi.waitFor(() => expect(second).toBeDefined())
+    expect(JSON.parse(second)).toMatchObject({ ok: false, error: { message: 'answer the open question first' } })
+    expect(q('.chat-question-text').textContent).toBe('First?')
+    expect(q('.chat-question-options')).not.toBeNull()
+    q('.chat-question-option').click()
+    await vi.waitFor(() => expect(first).toBe('a'))
+    release()
+    await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
+  })
+
   it('rejects on Stop so the turn ends with a tool error, not a hang', async () => {
     let result
     const runTurnFn = vi.fn((options) =>
