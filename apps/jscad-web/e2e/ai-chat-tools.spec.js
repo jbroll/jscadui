@@ -105,7 +105,7 @@ const openChatWithKey = async (page, stub, { provider = 'openai', model = 'stub-
   await keepMode(page).selectOption('device')
   await page.locator('.ai-key-input').fill(key)
   await page.locator('.ai-save-key').click()
-  await expect(page.locator('.ai-settings')).toContainText('Key set.')
+  await expect(page.locator('.ai-settings')).toContainText('Key set (sk-test….')
 
   await page.addInitScript(({ port, tos }) => {
     window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)

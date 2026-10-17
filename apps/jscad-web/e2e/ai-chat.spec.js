@@ -203,7 +203,7 @@ test.describe('AI chat', () => {
     await keepMode(page).selectOption('device')
     await page.locator('.ai-key-input').fill('sk-test')
     await page.locator('.ai-save-key').click()
-    await expect(page.locator('.ai-settings')).toContainText('Key set.')
+    await expect(page.locator('.ai-settings')).toContainText('Key set (sk-test….')
 
     const stub = await startStubRelay()
     await page.addInitScript(({ port, tos }) => {

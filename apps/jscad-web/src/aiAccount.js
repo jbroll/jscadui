@@ -56,6 +56,18 @@ const textInput = (value = '', placeholder = '', type = 'text') => {
 
 export const keyStore = createKeyStore()
 
+// A stored key reads back as its first 8 characters plus an ellipsis: enough
+// to tell which key is on the device without revealing it in the dialog.
+const keyFingerprint = (key) => (typeof key === 'string' && key ? ` (${key.slice(0, 8)}…)` : '')
+const keyLineText = () => {
+  const key = keyStore.get()
+  return key ? `Key set${keyFingerprint(key)}.` : 'No key set.'
+}
+const searchStatusText = (store) => {
+  const key = store.get()
+  return key ? `key set${keyFingerprint(key)}` : 'keyless'
+}
+
 // One search-key store per provider (page memory + origin localStorage, never
 // posted to the compute frame, never logged). The dialog below owns the UI.
 export const searchStores = createSearchStores(globalThis.localStorage)
@@ -146,6 +158,10 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     free: isFreeSelection(selection),
     inference: typeof selection.inference === 'string' ? selection.inference : '',
     api: APIS.includes(selection.api) ? selection.api : DEFAULT_API,
+    // Custody modes are selection state like the rest: the Keep selects
+    // restore them on load instead of always reopening on session.
+    keyMode: ['session', 'device', 'synced'].includes(selection.keyMode) ? selection.keyMode : 'session',
+    searchKeyMode: ['session', 'device', 'synced'].includes(selection.searchKeyMode) ? selection.searchKeyMode : 'session',
     capabilities: new Map(),
     websearchAllow: websearch.allow,
     websearchProvider: websearch.provider,
@@ -158,6 +174,8 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
       model: state.model,
       baseUrl: state.baseUrl,
       api: state.api,
+      keyMode: state.keyMode,
+      searchKeyMode: state.searchKeyMode,
       ...(state.effort ? { effort: state.effort } : {}),
       ...(freeActive() ? { inference: state.inference, free: true } : {}),
       websearch: { allow: state.websearchAllow, provider: state.websearchProvider },
@@ -337,13 +355,17 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   let keyDraft = ''
   const mode = el('select', 'ai-input')
   for (const value of ['session', 'device', 'synced']) mode.append(Object.assign(el('option'), { value, textContent: value }))
-  mode.value = 'session'
+  mode.value = state.keyMode
+  mode.addEventListener('change', () => {
+    state.keyMode = mode.value
+    persistSelection()
+  })
   const passphrase = textInput('', 'synced mode only', 'password')
   const saveKey = el('button', 'ai-button ai-save-key', 'Save key')
   saveKey.type = 'button'
   const clearKey = el('button', 'ai-button', 'Forget key')
   clearKey.type = 'button'
-  const keyLine = el('span', 'ai-session', keyStore.get() ? 'Key set.' : 'No key set.')
+  const keyLine = el('span', 'ai-session', keyLineText())
   const keyActions = el('div', 'ai-actions')
   keyActions.append(saveKey, clearKey, keyLine)
 
@@ -409,7 +431,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     }
     // The key line always describes the keystore, never the free sentinel:
     // the key box itself shows the fixed key while free is selected.
-    keyLine.textContent = keyStore.get() ? 'Key set.' : 'No key set.'
+    keyLine.textContent = keyLineText()
     recordToggle.checked = free ? true : getRecordOwnChats()
     recordToggle.disabled = free
     refreshEffort()
@@ -425,7 +447,11 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   // the provider pin. Revoking the grant never clears the stored keys.
   const searchMode = el('select', 'ai-input ai-search-mode')
   for (const value of ['session', 'device', 'synced']) searchMode.append(Object.assign(el('option'), { value, textContent: value }))
-  searchMode.value = 'session'
+  searchMode.value = state.searchKeyMode
+  searchMode.addEventListener('change', () => {
+    state.searchKeyMode = searchMode.value
+    persistSelection()
+  })
   const searchPassphrase = textInput('', 'synced mode only', 'password')
   searchPassphrase.classList.add('ai-search-passphrase')
   const searchRows = el('div', 'ai-search-rows')
@@ -440,7 +466,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     const input = textInput('', `${id} key`, 'password')
     input.classList.add('ai-search-key-input')
     input.autocomplete = 'off'
-    const status = el('span', 'ai-search-status', store.get() ? 'key set' : 'keyless')
+    const status = el('span', 'ai-search-status', searchStatusText(store))
     const save = el('button', 'ai-button ai-search-save', 'Save')
     save.type = 'button'
     const clear = el('button', 'ai-button ai-search-clear', 'Clear')
@@ -453,7 +479,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
           await store.set(input.value, searchMode.value, searchPassphrase.value || undefined)
           input.value = ''
         }
-        status.textContent = 'key set'
+        status.textContent = searchStatusText(store)
       } catch (err) {
         status.textContent = `key failed: ${err.message}`
       }
@@ -659,7 +685,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
         key.value = ''
       }
       persistSelection()
-      keyLine.textContent = 'Key set.'
+      keyLine.textContent = keyLineText()
       loadModels()
     } catch (err) {
       keyLine.textContent = `Key failed: ${err.message}`

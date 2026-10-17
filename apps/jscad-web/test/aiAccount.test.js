@@ -361,6 +361,50 @@ describe('account header', () => {
     releaseSignOut()
     await vi.waitFor(() => expect(sessionCalls).toBeGreaterThan(before))
   })
+
+  const keepSelect = () =>
+    [...document.querySelectorAll('.ai-field')]
+      .find((f) => f.querySelector('.ai-field-name')?.textContent === 'Keep')
+      .querySelector('select')
+
+  it('shows the saved key fingerprint and restores the Keep mode on reload', async () => {
+    const { initAccount, keyStore } = await loadAccount()
+    keyStore.clear()
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'openai', model: 'gpt-x' }))
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    document.querySelector('.ai-gear').click()
+    keepSelect().value = 'device'
+    keepSelect().dispatchEvent(new Event('change'))
+    document.querySelector('.ai-key-input').value = 'sk-device-key-1'
+    document.querySelector('.ai-save-key').click()
+    await vi.waitFor(() => expect(document.body.textContent).toMatch(/Key set \(sk-devic…\)/))
+    // A reload rebuilds the dialog over the same storage: the device scope
+    // and the key identifier come back with it.
+    document.body.innerHTML = '<div id="b"></div>'
+    initAccount(document.getElementById('b'))
+    expect(keepSelect().value).toBe('device')
+    expect(document.body.textContent).toMatch(/Key set \(sk-devic…\)/)
+  })
+
+  it('restores the search Keep mode and fingerprints saved search keys', async () => {
+    const { initAccount, searchStores } = await loadAccount()
+    for (const store of Object.values(searchStores)) store.clear()
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    document.querySelector('.ai-gear').click()
+    const searchMode = document.querySelector('.ai-search-mode')
+    searchMode.value = 'device'
+    searchMode.dispatchEvent(new Event('change'))
+    const row = document.querySelector('[data-search-provider="exa"]')
+    row.querySelector('.ai-search-key-input').value = 'exa-key-12345'
+    row.querySelector('.ai-search-save').click()
+    await vi.waitFor(() => expect(row.querySelector('.ai-search-status').textContent).toBe('key set (exa-key-…)'))
+    document.body.innerHTML = '<div id="b"></div>'
+    initAccount(document.getElementById('b'))
+    expect(document.querySelector('.ai-search-mode').value).toBe('device')
+    expect(document.querySelector('[data-search-provider="exa"] .ai-search-status').textContent).toBe('key set (exa-key-…)')
+  })
 })
 
 describe('free provider', () => {
