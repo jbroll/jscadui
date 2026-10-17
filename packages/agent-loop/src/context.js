@@ -47,7 +47,9 @@ export const mentionedPaths = (transcript) => {
 }
 
 const filesSection = (files, mentioned = [], budget = PROJECT_BUDGET) => {
-  const entries = Object.entries(files).filter(([, content]) => typeof content === 'string')
+  // Note bodies never inline here. They surface via the notes index and the
+  // model loads the full file with `read` on demand.
+  const entries = Object.entries(files).filter(([path, content]) => typeof content === 'string' && !path.startsWith('notes/'))
   if (entries.length === 0) return null
   const recency = new Map()
   mentioned.forEach((path, i) => recency.set(path, i))
@@ -94,14 +96,15 @@ const buildSection = (build) => {
 // `build` is the project's last build report (src/buildReport.js), or null.
 export const projectMessage = (files = {}, build = null, mentioned = [], budget = PROJECT_BUDGET) => {
   const listed = filesSection(files, mentioned, budget)
-  if (!listed && !build && Object.keys(files).length === 0) return { role: 'user', content: EMPTY_PROJECT }
   const notes = notesIndex(files)
+  if (!listed && !notes && !build && Object.keys(files).length === 0) return { role: 'user', content: EMPTY_PROJECT }
+  const onlyNotes = Object.keys(files).length > 0 && Object.keys(files).every((path) => path.startsWith('notes/'))
   const sections = [
-    listed ?? (Object.keys(files).length > 0 ? 'The project has no text files; glob shows every file.' : 'The project has no files.'),
+    listed ?? (onlyNotes ? null : (Object.keys(files).length > 0 ? 'The project has no text files; glob shows every file.' : 'The project has no files.')),
     ...(notes ? [notes] : []),
     build ? buildSection(build) : 'The project has not been built yet.',
     PROJECT_NOTE,
-  ]
+  ].filter((section) => section !== null)
   return { role: 'user', content: sections.join('\n\n') }
 }
 
