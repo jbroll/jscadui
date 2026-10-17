@@ -383,6 +383,31 @@ npm run test:e2e
    - Instanced rendering
    - Memory usage
 
+**Chat tools spec** (`e2e/ai-chat-tools.spec.js`, 11 tests): each chat tool
+the agent can call, proven through the real page against a stub relay, with
+explicit direct-vs-relay routing proof:
+
+1. **Inference** (3): own-key turn offers `websearch`/`webfetch` (never
+   `view`/`eval`) via `/api/relay/openai/...`; free turn rides
+   `/api/relay/jscad-web/<id>/...`; 402 `inference_quota_exhausted`
+   renders the quota line.
+2. **Webfetch** (2): ungranted call denies with the grant request and zero
+   network; granted call posts exactly `{url, format}` to `/api/fetch`
+   (target never fetched directly); relay 502 marks the row failed but the
+   turn survives.
+3. **Websearch** (2): keyless query hits browser-direct MCP endpoints
+   (JSON-RPC `tools/call`) with zero `/api/search` traffic; direct-pool
+   exhaustion falls back to `POST /api/search {query, count}` retagged
+   `provider: 'tavily'`; pinned `off` fails closed with no network.
+4. **View** (2): `view` captures the canvas as a PNG data URL + camera
+   (served though unoffered); missing canvas fails the row without hanging.
+   Known tripwire: the ~340 KB result always exceeds the loop's 24 k
+   tool-result cap, so the model gets a truncated prefix, no camera —
+   payload redesign tracked in `docs/backlog.md`.
+5. **Question** (2): option click resolves the raw answer string to the
+   model; typed custom answer via fill + Send (hybrid); abort/switch/turn-end
+   settle; second-while-open rejected.
+
 ---
 
 ## Test Organization
