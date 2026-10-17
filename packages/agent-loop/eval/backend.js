@@ -21,8 +21,9 @@ import { reportError } from '../src/modelError.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
 import { asGeometry, assembleReport, noEntryReport, noGeometryError, noMainError, summarizeRun, writeReport } from '../src/buildReport.js'
 import { exportConfig, exportedSize } from '../src/exportFormat.js'
-import { applyDelete, applyEdit, applyWrite, deleteReport, listFiles, readFile, resolveEntry } from '../src/project.js'
+import { applyDelete, applyEdit, applyWrite, buildFiles, deleteReport, isCodePath, listFiles, readFile, resolveEntry } from '../src/project.js'
 import { createReadFile, PROJECT_BASE, RUN_FILE } from '../src/projectUrl.js'
+import { runTestFile, summarizeTestRun, TEST_API } from '../src/testPackage.js'
 import { withUnits } from '../src/units.js'
 import { GRADE_TIMEOUT_MS } from './grade.js'
 import { collectMesh, meshPage, meshPages } from './mesh.js'
@@ -176,6 +177,60 @@ requireHandlers.set('scad', createScadHandler({ getOpenscad, getAppOrigin: () =>
 
 const modelError = (error, api) => reportError(error, { api, index: API_INDEX })
 
+// Whether a project path is a test file: `.js` files under the `test/`
+// directory only, as the browser test runner selects them.
+const isTestFile = (path) => typeof path === 'string' && path.startsWith('test/') && path.endsWith('.js')
+
+// The project's `test/` `.js` files run in-process: Node has no test-worker
+// bundle, so each file goes through Task 4's `runTestFile` the way the
+// browser's testRun.js does, with the identical aggregated shape. Console is
+// captured and dropped — the tool result carries `{build, tests}` only. A
+// throw in one file fails its own run, never the loop.
+const runEvalTests = (testFiles, testApi) => {
+  const names = Object.keys(testFiles).filter((path) => isTestFile(path) && typeof testFiles[path] === 'string').sort()
+  const capture = installConsoleCapture()
+  // Bare `test`/`assert`/`assertPart` resolve as well as `require('test')`,
+  // as the browser runner sets them.
+  const saved = { test: globalThis.test, assert: globalThis.assert, assertPart: globalThis.assertPart }
+  globalThis.test = TEST_API.test
+  globalThis.assert = TEST_API.assert
+  globalThis.assertPart = TEST_API.assertPart
+  try {
+    let passed = 0
+    let failed = 0
+    const failures = []
+    const assertsByPart = {}
+    for (const file of names) {
+      let result
+      try {
+        result = runTestFile(testFiles[file], { filename: file, ...(testApi === undefined ? {} : { api: testApi }) })
+      } catch (error) {
+        failed += 1
+        failures.push({ file, error: { name: error?.name ?? 'Error', message: String(error?.message ?? error), file } })
+        continue
+      }
+      passed += result.passed
+      failed += result.failed
+      for (const [index, count] of Object.entries(result.assertsByPart)) {
+        assertsByPart[index] = (assertsByPart[index] ?? 0) + count
+      }
+      for (const test of result.tests.filter((entry) => !entry.ok)) {
+        failures.push({ file, test: test.name, error: test.error })
+      }
+      for (const error of result.errors) {
+        failures.push({ file, error })
+      }
+    }
+    return { ok: failed === 0, passed, failed, failures, assertsByPart, files: names }
+  } finally {
+    capture.restore()
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete globalThis[name]
+      else globalThis[name] = value
+    }
+  }
+}
+
 // Indirect eval's SyntaxError carries no location; the frame worker hits the
 // same gap, so re-parse with Babel (as worker.js does), entry first, and let
 // reportError read the file and line from the first parse error's message.
@@ -259,14 +314,19 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
   // The last build's mesh pages, made on the first `mesh` request after it.
   let meshed = null
 
-  const build = async (entry = resolveEntry(files)) => {
+  const build = async (entry = resolveEntry(buildFiles(files))) => {
     const started = generation
     meshed = null
     if (!entry) {
       current = { report: noEntryReport() }
       return current.report
     }
-    const loaded = await runModel(files, entry, api)
+    // The geometry builder sees the model files only: `test/` and `notes/`
+    // are stripped before entry resolution and the run, so a test file can
+    // never resolve as the entry or load as geometry. A test-only project
+    // answers the no-entry report, gracefully.
+    const modelFiles = buildFiles(files)
+    const loaded = await runModel(modelFiles, entry, api)
     if (started !== generation) return null
     const error = loaded.error ? modelError(loaded.error, api) : loaded.hasMain ? undefined : noMainError(entry)
     const geometry = [loaded.value].flat(Infinity)
@@ -288,7 +348,13 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
     const report = await build()
     if (!report) return toolError('ResetError', 'the run was reset before the build finished')
     const diagnostics = await lintSource(API_INDEX, next.files[next.path] ?? '', { api })
-    return writeReport(next.path, mergeStatic(report, diagnostics))
+    const merged = writeReport(next.path, mergeStatic(report, diagnostics))
+    // The app's save answers the same shape: docs, notes and the test files
+    // themselves skip tests, every other `.js` write runs the full suite.
+    // A red build stays saved — the run still answers, with ok false.
+    if (!isCodePath(next.path)) return merged
+    const { tests, coverageNote } = summarizeTestRun(runEvalTests(files, api), merged.geometry?.parts)
+    return { ...merged, ok: merged.ok && tests.ok, build: merged, tests, coverageNote }
   }
 
   // A delete of a file that is not there answers ok: nothing changed, nothing

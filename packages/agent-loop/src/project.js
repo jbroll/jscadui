@@ -157,6 +157,34 @@ export const applyDelete = (files, { path } = {}) => {
   return { files: rest, path: file, deleted: true }
 }
 
+/**
+ * Whether a write to `path` carries code: a `.js` file outside `test/` and
+ * `notes/`. Only code writes run the full test suite after the build; docs,
+ * notes and the test files themselves skip tests.
+ * @param {string} path the project-relative path
+ * @returns {boolean} true when a write to the path runs the test suite
+ */
+export const isCodePath = (path) => {
+  if (typeof path !== 'string') return false
+  const clean = path.trim().replace(/^\.\//, '').replace(/^\/+/, '')
+  return clean.endsWith('.js') && !clean.startsWith('test/') && !clean.startsWith('notes/')
+}
+
+/**
+ * The files a geometry build sees: the project without `test/` and `notes/`.
+ * The app's frame runs the entry only, but the file map still carries every
+ * file for lazy requires — and the eval backend hands its map to the model
+ * runner directly, where `test/index.js` would otherwise resolve as the
+ * entry. Stripping both keeps test and note writes from ever executing as
+ * geometry. A test-only project builds to the no-entry report, gracefully.
+ * @param {Record<string, string|ArrayBuffer>} [files] the project files
+ * @returns {Record<string, string|ArrayBuffer>} the files the builder may load
+ */
+export const buildFiles = (files = {}) =>
+  Object.fromEntries(
+    Object.entries(files).filter(([path]) => !path.startsWith('test/') && !path.startsWith('notes/')),
+  )
+
 // What a delete answers: its build report, headed by the file deleted, in the
 // app and the eval alike, so a failed build after the removal never reads as a
 // lost delete.

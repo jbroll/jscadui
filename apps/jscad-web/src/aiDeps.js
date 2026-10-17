@@ -1,6 +1,7 @@
-import { applyDelete, applyEdit, applyWrite, DEFAULT_API, deleteReport, lintSource, listFiles, PROJECT_BASE, readFile, reportError, RUN_FILE, runTimeoutError, withUnits, writeReport } from '@jscadui/agent-loop'
+import { applyDelete, applyEdit, applyWrite, DEFAULT_API, deleteReport, isCodePath, lintSource, listFiles, PROJECT_BASE, readFile, reportError, RUN_FILE, runTimeoutError, summarizeTestRun, withUnits, writeReport } from '@jscadui/agent-loop'
 import { indexFor } from './projectBuild.js'
 import { sendScript } from './scriptRuns.js'
+import { defaultCreateWorker, runProjectTests } from './testWorker.js'
 
 const staticWarnings = (diagnostics) => diagnostics.map(({ from: _from, to: _to, ...rest }) => ({ ...rest, source: 'static' }))
 
@@ -19,7 +20,9 @@ const mergeStatic = (result, diagnostics) => {
  * frame, read at each call so it follows project switches and the user's
  * edits. A write or edit is a save: it lands in the cache, in storage and in
  * the editor, then `build` runs the project the way the editor does and
- * answers its report. `delete` removes a file the same way, out of the cache,
+ * answers its report — plus, for a `.js` file outside `test/` and `notes/`,
+ * the full `test/` suite off the test worker, merged as `{build, tests}`
+ * with a coverage note. Docs, notes and test files skip tests. `delete` removes a file the same way, out of the cache,
  * storage and the editor, so a reload mid-turn keeps it deleted; a delete of a
  * file that is not there answers ok and changes nothing. `storeFile` writes
  * with no version row; `endTurn` snapshots each project the turn wrote to,
@@ -42,6 +45,7 @@ const mergeStatic = (result, diagnostics) => {
  *   snapshot: (projectId:string) => Promise<unknown>,
  *   getApi?: () => string,
  *   loadIndex?: () => Promise<Array<object>|undefined>,
+ *   createTestWorker?: () => Worker,
  * }} deps
  */
 export const createProjectTools = ({
@@ -60,6 +64,7 @@ export const createProjectTools = ({
   snapshot,
   getApi = () => DEFAULT_API,
   loadIndex = async () => undefined,
+  createTestWorker,
 }) => {
   // The projects this turn wrote to.
   const written = new Set()
@@ -86,7 +91,23 @@ export const createProjectTools = ({
     await storeFile(projectId, path, content)
     written.add(projectId)
     showFile(path, content, files)
-    return mergeStatic(writeReport(path, await build()), await lint(content))
+    const report = mergeStatic(writeReport(path, await build()), await lint(content))
+    // Docs, notes and the test files themselves skip tests; every other `.js`
+    // write runs the full `test/` suite after the build. The geometry builder
+    // (main.js buildProject into the frame's jscadScript) executes the entry
+    // script only — test/ and notes/ sit in the frame's file cache for lazy
+    // requires but never run as geometry — so the exclusion this layer owns
+    // is which writes trigger a test run. A red build stays saved: the run
+    // still answers, with ok false.
+    if (!isCodePath(path)) return report
+    // Production runs off-thread on the bundled test worker, so a hanging
+    // test burns the kill timer instead of freezing the viewer; the in-thread
+    // fallback serves only environments without a browser Worker. Tests may
+    // inject a factory.
+    const createWorker = createTestWorker ?? defaultCreateWorker({})
+    const run = await runProjectTests(files, getApi(), createWorker ? { createWorker } : {})
+    const { tests, coverageNote } = summarizeTestRun(run, report.geometry?.parts)
+    return { ...report, ok: report.ok && tests.ok, build: report, tests, coverageNote }
   }
 
   const remove = async (args) => {

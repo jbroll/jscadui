@@ -35,7 +35,16 @@ const runLocal = (files, api) => Promise.resolve(runTestFiles(files, { api }))
 const hasBrowserWorker = () =>
   typeof globalThis.Worker !== 'undefined' && typeof globalThis.location?.href === 'string'
 
-const defaultCreateWorker = (deps) => {
+/**
+ * The worker factory production writes run tests on: the bundled test worker
+ * beside the app, or an injected URL. Null where no browser Worker exists
+ * (Node, vitest, eval) — there the caller runs in-thread instead. Never null
+ * in a real browser, so browser writes never take the in-thread fallback
+ * whose synchronous hang would freeze the viewer.
+ * @param {{workerUrl?: string|URL}} [deps] bundled worker URL override
+ * @returns {(() => Worker) | null} the factory, or null without a browser Worker
+ */
+export const defaultCreateWorker = (deps) => {
   if (deps.workerUrl) return () => new globalThis.Worker(deps.workerUrl, { type: 'module' })
   if (hasBrowserWorker()) return () => new globalThis.Worker(new URL(TEST_WORKER_BUNDLE, globalThis.location.href))
   return null

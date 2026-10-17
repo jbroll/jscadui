@@ -40,6 +40,18 @@ describe('eval backend builds', () => {
   it('builds on write and reports the geometry, then measures it', async () => {
     const backend = createEvalBackend()
     const report = await writeMain(CUBE, backend)
+    const geometry = {
+      parts: 1,
+      boundingBox: [
+        [-10, -10, -10],
+        [10, 10, 10],
+      ],
+      dimensions: [20, 20, 20],
+      volume: 8000,
+      watertight: true,
+      manifold: true,
+      selfIntersecting: false,
+    }
     expect(report).toEqual({
       saved: 'main.js',
       ok: true,
@@ -47,18 +59,10 @@ describe('eval backend builds', () => {
       warnings: [],
       console: [],
       params: [],
-      geometry: {
-        parts: 1,
-        boundingBox: [
-          [-10, -10, -10],
-          [10, 10, 10],
-        ],
-        dimensions: [20, 20, 20],
-        volume: 8000,
-        watertight: true,
-        manifold: true,
-        selfIntersecting: false,
-      },
+      geometry,
+      build: { saved: 'main.js', ok: true, entry: 'main.js', warnings: [], console: [], params: [], geometry },
+      tests: { ok: true, passed: 0, failed: 0, assertsByPart: {}, uncovered: [0] },
+      coverageNote: 'no test files in test/\ntests: 0 passed, 0 failed; 0/1 parts have a passing assert; uncovered parts: [0]',
     })
     const measured = await call(backend, 'measure')
     expect(measured.volume).toBeCloseTo(8000, 0)
@@ -284,13 +288,87 @@ describe('eval backend project', () => {
   it('saves a helper written before any entry, with nothing to build and nothing failed', async () => {
     const backend = createEvalBackend()
     const res = await call(backend, 'write', { path: 'helper.js', content: 'module.exports = {}' })
-    expect(res).toEqual({ saved: 'helper.js', ok: true, entry: null, note: `saved; ${NO_ENTRY_NOTE}`, warnings: [], console: [], params: [] })
+    const noEntry = { saved: 'helper.js', ok: true, entry: null, note: `saved; ${NO_ENTRY_NOTE}`, warnings: [], console: [], params: [] }
+    expect(res).toEqual({
+      ...noEntry,
+      build: noEntry,
+      tests: { ok: true, passed: 0, failed: 0, assertsByPart: {}, uncovered: [] },
+      coverageNote: 'no test files in test/\ntests: 0 passed, 0 failed; build has no geometry so part coverage is unknown',
+    })
     expect((await call(backend, 'measure')).error.message).toBe(`no geometry: ${NO_ENTRY_NOTE}`)
   })
 
   it('says a write whose build failed is saved', async () => {
     const res = await writeMain('throw new Error("broken")')
     expect(res).toMatchObject({ saved: 'main.js', ok: false, entry: 'main.js', note: 'main.js is saved; the build of main.js failed' })
+  })
+
+  describe('write with tests', () => {
+    const PASSING = `const t = require('test')\nt.test('cube part', () => { t.assertPart(0, { volume: 8000 }) })`
+    const FAILING = `const t = require('test')\nt.test('boom', () => { t.assert(false, 'boom') })`
+
+    it('merges the full suite into a code write with the identical shape', async () => {
+      const backend = createEvalBackend()
+      await writeMain(CUBE, backend)
+      await call(backend, 'write', { path: 'test/cube.js', content: PASSING })
+      const res = await writeMain(CUBE, backend)
+      expect(res).toMatchObject({
+        saved: 'main.js',
+        ok: true,
+        build: { ok: true, entry: 'main.js' },
+        tests: { ok: true, passed: 1, failed: 0, assertsByPart: { 0: 1 }, uncovered: [] },
+      })
+      expect(res.coverageNote).toContain('1 passed, 0 failed')
+      expect(res.coverageNote).toContain('every part has a passing assert')
+    })
+
+    it('a failing suite flips ok but stays saved', async () => {
+      const backend = createEvalBackend()
+      await writeMain(CUBE, backend)
+      await call(backend, 'write', { path: 'test/cube.js', content: FAILING })
+      const res = await writeMain(CUBE, backend)
+      expect(res).toMatchObject({
+        saved: 'main.js',
+        ok: false,
+        build: { ok: true },
+        tests: { ok: false, passed: 0, failed: 1, uncovered: [0] },
+      })
+      expect(res.coverageNote).toContain('boom')
+    })
+
+    it('a red build stays saved and still runs the suite', async () => {
+      const backend = createEvalBackend()
+      await call(backend, 'write', { path: 'test/cube.js', content: PASSING })
+      const res = await writeMain('throw new Error("broken")', backend)
+      expect(res).toMatchObject({
+        saved: 'main.js',
+        ok: false,
+        note: 'main.js is saved; the build of main.js failed',
+        tests: { ok: true, passed: 1 },
+      })
+    })
+
+    it('notes and test writes skip the suite', async () => {
+      const backend = createEvalBackend()
+      await writeMain(CUBE, backend)
+      expect(await call(backend, 'write', { path: 'notes/plan.md', content: '# plan' })).not.toHaveProperty('tests')
+      expect(await call(backend, 'write', { path: 'test/cube.js', content: PASSING })).not.toHaveProperty('tests')
+    })
+
+    it('a test-only project reports gracefully', async () => {
+      const backend = createEvalBackend()
+      const res = await call(backend, 'write', { path: 'test/only.js', content: PASSING })
+      expect(res).toMatchObject({ saved: 'test/only.js', ok: true, entry: null })
+      expect(res).not.toHaveProperty('tests')
+    })
+
+    it('strips test files from the geometry build input', async () => {
+      const backend = createEvalBackend()
+      // test/index.js would resolve as the entry without the filter.
+      await call(backend, 'write', { path: 'test/index.js', content: `test('x',()=>{})` })
+      const res = await writeMain(CUBE, backend)
+      expect(res).toMatchObject({ saved: 'main.js', ok: true, entry: 'main.js' })
+    })
   })
 
   it('edits a file and builds', async () => {

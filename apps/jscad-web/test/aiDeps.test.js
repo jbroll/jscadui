@@ -72,7 +72,13 @@ describe('write and edit', () => {
   it('write puts the file in the project, shows it in the editor and answers the build report', async () => {
     const project = fakeProject({ 'main.js': 'old' })
     const { deps, tools: t } = tools({ project })
-    expect(await t.write({ path: './parts/gear.js', content: 'gear' })).toEqual({ saved: 'parts/gear.js', ...REPORT })
+    expect(await t.write({ path: './parts/gear.js', content: 'gear' })).toEqual({
+      saved: 'parts/gear.js',
+      ...REPORT,
+      build: { saved: 'parts/gear.js', ...REPORT },
+      tests: { ok: true, passed: 0, failed: 0, assertsByPart: {}, uncovered: [0] },
+      coverageNote: 'no test files in test/\ntests: 0 passed, 0 failed; 0/1 parts have a passing assert; uncovered parts: [0]',
+    })
     expect(project.files()).toEqual({ 'main.js': 'old', 'parts/gear.js': 'gear' })
     expect(deps.showFile).toHaveBeenCalledWith('parts/gear.js', 'gear', { 'main.js': 'old', 'parts/gear.js': 'gear' })
     expect(deps.build).toHaveBeenCalledTimes(1)
@@ -94,6 +100,95 @@ describe('write and edit', () => {
     await expect(t.write({ path: '../x.js', content: '' })).rejects.toMatchObject({ name: 'PathError' })
     expect(project.files()).toEqual({ 'main.js': 'a a' })
     expect(deps.build).not.toHaveBeenCalled()
+  })
+})
+
+describe('write with tests', () => {
+  // A test worker that answers jscadRunTests over the slot protocol at once.
+  const answeringWorker = (result) => {
+    let worker
+    return () => (worker = {
+      postMessage: (message) => worker.onmessage({
+        data: { method: '__RESPONSE__', id: message.id, params: result },
+      }),
+      terminate: vi.fn(),
+    })
+  }
+
+  it('merges the full suite run into a code write, after the build', async () => {
+    const project = fakeProject({ 'main.js': 'm', 'test/a.js': `test('x',()=>{})` })
+    const createTestWorker = answeringWorker({ ok: true, passed: 1, failed: 0, failures: [], assertsByPart: { 0: 1 } })
+    const { deps, tools: t } = tools({ project, createTestWorker })
+    const res = await t.write({ path: 'main.js', content: 'm2' })
+    expect(res).toMatchObject({
+      saved: 'main.js',
+      ok: true,
+      build: { ok: true, entry: 'main.js' },
+      tests: { ok: true, passed: 1, failed: 0, assertsByPart: { 0: 1 }, uncovered: [] },
+    })
+    expect(res.coverageNote).toContain('1 passed, 0 failed')
+    expect(res.coverageNote).toContain('every part has a passing assert')
+    expect(deps.build).toHaveBeenCalledTimes(1)
+    expect(deps.showFile).toHaveBeenCalledWith('main.js', 'm2', { 'main.js': 'm2', 'test/a.js': `test('x',()=>{})` })
+  })
+
+  it('a failing suite flips ok but stays saved', async () => {
+    const project = fakeProject({ 'main.js': 'm' })
+    const createTestWorker = answeringWorker({
+      ok: false,
+      passed: 0,
+      failed: 1,
+      failures: [{ file: 'test/a.js', test: 'x', error: { name: 'AssertionError', message: 'boom' } }],
+      assertsByPart: {},
+    })
+    const { tools: t } = tools({ project, createTestWorker })
+    const res = await t.write({ path: 'main.js', content: 'm2' })
+    expect(res).toMatchObject({
+      saved: 'main.js',
+      ok: false,
+      build: { ok: true },
+      tests: { ok: false, failed: 1, uncovered: [0] },
+    })
+    expect(res.coverageNote).toContain('boom')
+    expect(project.files()['main.js']).toBe('m2')
+  })
+
+  it('a red build stays saved and still runs the suite', async () => {
+    const project = fakeProject({ 'main.js': 'm' })
+    const build = vi.fn(async () => ({ ok: false, entry: 'main.js', error: { name: 'Error', message: 'boom' }, warnings: [], console: [], params: [] }))
+    const createTestWorker = answeringWorker({ ok: true, passed: 1, failed: 0, failures: [], assertsByPart: {} })
+    const { tools: t } = tools({ project, build, createTestWorker })
+    const res = await t.write({ path: 'main.js', content: 'm2' })
+    expect(res).toMatchObject({
+      saved: 'main.js',
+      ok: false,
+      note: 'main.js is saved; the build of main.js failed',
+      tests: { ok: true, passed: 1 },
+    })
+    expect(res.coverageNote).toContain('part coverage is unknown')
+  })
+
+  it('a notes write skips the suite and never makes a worker', async () => {
+    const project = fakeProject({ 'main.js': 'm' })
+    const createTestWorker = vi.fn(() => {
+      throw new Error('must not create a worker')
+    })
+    const { deps, tools: t } = tools({ project, createTestWorker })
+    expect(await t.write({ path: 'notes/plan.md', content: '# plan' })).toEqual({ saved: 'notes/plan.md', ...REPORT })
+    expect(createTestWorker).not.toHaveBeenCalled()
+    expect(deps.build).toHaveBeenCalledTimes(1)
+  })
+
+  it('a test file write skips the suite', async () => {
+    const project = fakeProject({ 'main.js': 'm' })
+    const createTestWorker = vi.fn(() => {
+      throw new Error('must not create a worker')
+    })
+    const { tools: t } = tools({ project, createTestWorker })
+    const res = await t.write({ path: 'test/a.js', content: `test('x',()=>{})` })
+    expect(res).not.toHaveProperty('tests')
+    expect(res).not.toHaveProperty('coverageNote')
+    expect(createTestWorker).not.toHaveBeenCalled()
   })
 })
 

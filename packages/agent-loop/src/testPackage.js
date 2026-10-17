@@ -1,3 +1,4 @@
+import { BUILD_BUDGET } from './context.js'
 import { errorLocation } from './buildReport.js'
 
 // The `require` specifier serving the shared assertion surface, in test files
@@ -190,3 +191,54 @@ const resultOf = (run) => ({
   tests: run.tests,
   errors: run.errors,
 })
+
+// How many failures the coverage note names before it counts the rest, and
+// how much of one error message it keeps. The note stays a short summary:
+// counts plus uncovered parts plus where to look, never a full dump.
+const MAX_FAILURE_LINES = 8
+const MAX_ERROR_CHARS = 200
+
+const failureLine = ({ file, test: name, error }) => {
+  const where = [file, name ? `'${name}'` : null, error?.line ? `line ${error.line}` : null].filter(Boolean).join(' ')
+  const message = String(error?.message ?? error ?? '').slice(0, MAX_ERROR_CHARS)
+  return `- ${where}: ${error?.name ? `${error.name}: ` : ''}${message}`
+}
+
+/**
+ * Summarize a full-suite test run for a write/edit tool result, in the app
+ * and the eval alike. `uncovered` is the part indexes with zero passing
+ * asserts — the completeness floor is one passing test per part, so with no
+ * tests every known part is uncovered; without geometry (a red or missing
+ * build) the parts are unknown and it is empty. The note carries the counts,
+ * the uncovered parts and the failures, truncated to BUILD_BUDGET.
+ * @param {{ok?:boolean, passed?:number, failed?:number, failures?:Array<{file:string, test?:string, error?:object}>,
+ *   assertsByPart?:Record<string|number,number>, files?:string[]}} [run] the aggregated run
+ * @param {number} [partCount] the build's geometry parts, when it built
+ * @returns {{tests:{ok:boolean, passed:number, failed:number, assertsByPart:Record<string|number,number>, uncovered:number[]},
+ *   coverageNote:string}}
+ */
+export const summarizeTestRun = (run = {}, partCount) => {
+  const passed = run.passed ?? 0
+  const failed = run.failed ?? 0
+  const assertsByPart = { ...(run.assertsByPart ?? {}) }
+  const parts = Number.isInteger(partCount) && partCount >= 0 ? partCount : null
+  const uncovered = parts === null ? [] : Array.from({ length: parts }, (_, i) => i).filter((i) => (assertsByPart[i] ?? 0) <= 0)
+  const tests = { ok: run.ok ?? failed === 0, passed, failed, assertsByPart, uncovered }
+  const lines = []
+  if ((run.files ?? []).length === 0) lines.push('no test files in test/')
+  const coverage =
+    parts === null
+      ? 'build has no geometry so part coverage is unknown'
+      : `${parts - uncovered.length}/${parts} parts have a passing assert${uncovered.length === 0 ? '; every part has a passing assert' : `; uncovered parts: [${uncovered.join(', ')}]`}`
+  lines.push(`tests: ${passed} passed, ${failed} failed; ${coverage}`)
+  const failures = run.failures ?? []
+  if (failures.length > 0) {
+    lines.push('failures:')
+    lines.push(...failures.slice(0, MAX_FAILURE_LINES).map(failureLine))
+    if (failures.length > MAX_FAILURE_LINES) lines.push(`… and ${failures.length - MAX_FAILURE_LINES} more failures`)
+  }
+  const note = lines.join('\n')
+  const coverageNote =
+    note.length > BUILD_BUDGET ? `${note.slice(0, BUILD_BUDGET)}\n… [coverage truncated: ${BUILD_BUDGET} of ${note.length} characters shown]` : note
+  return { tests, coverageNote }
+}
