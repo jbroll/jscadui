@@ -147,6 +147,26 @@ Deferred from the jscad-web inference reframe reviews (`feat/jscad-inference-rel
   free hook; add `tee.finish` with `costUsd: 0` if the loop should see
   them.
 
+## Chat tools follow-ups (2026-10-17 e2e)
+
+Found by `e2e/ai-chat-tools.spec.js` (plan `docs/superpowers/plans/2026-10-17-chat-tools-e2e.md`); tests pin current behavior, fixes owned here.
+
+- **`view` never delivers a usable image to the model.** `main.js:982-988`
+  returns `{ ok, image, camera }` with a ~340 KB `canvas.toDataURL`, but the
+  loop caps every tool result at 24,000 chars (`packages/agent-loop/src/loop.js:370-374`,
+  marker `loop.js:53`), and `camera` serializes after `image`, so the model
+  always gets an invalid-JSON base64 prefix with no camera. Raising the cap
+  cannot fix a 340 KB string channel; the fix is a payload redesign (small
+  thumbnail and/or camera-first, or an image content part). The e2e test pins
+  the truncated contract as a tripwire until then.
+- **Session-custody Tavily key never reaches the search handler.**
+  `main.js:991` builds a second `createSearchStores` instance while
+  `aiAccount.js:61` owns the dialog's; `session` custody lives in per-instance
+  memory (`packages/key-store/src/keys.js`), so a session-mode Tavily key is
+  invisible to `aiSearch.js:91`'s relay fallback and the fallback is silently
+  unreachable. The e2e test uses `device` custody. Decide: share one store
+  instance or document that Tavily needs device/synced custody.
+
 ## Render sweep
 
 Baseline 1226/1420 on manifold (CI job `94f275be0655e54b`), plus 75
