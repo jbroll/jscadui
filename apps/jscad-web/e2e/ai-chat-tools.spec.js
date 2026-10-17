@@ -300,6 +300,9 @@ test.describe('AI chat tools', () => {
     // The relay's 502 fails the tool line but the turn still closes with text.
     await expect(page.locator('.chat-tool.failed')).toBeVisible()
     await expect(page.locator('.chat-tool-mark')).toHaveText('failed')
+    // The model saw the relay's failure, not merely a failed-looking row.
+    const failed = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').at(-1)
+    expect(JSON.parse(failed.content)).toEqual({ ok: false, error: { name: 'FetchError', message: 'boom' } })
     // ROUTING: the failure is the relay's 502, not a skipped call.
     expect(fetches).toEqual([{ url: 'https://example.com/down', format: 'markdown' }])
   })
