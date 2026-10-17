@@ -5,9 +5,9 @@ import { buildTools, READ_ONLY, TOOLS } from '../src/tools.js'
 const docsDescription = (api) => buildTools(api).find((t) => t.name === 'docs').description
 
 describe('agent tools', () => {
-  it('exposes the fourteen browser tools with input schemas', async () => {
+  it('exposes the fifteen browser tools with input schemas', async () => {
     const names = TOOLS.map((t) => t.name)
-    expect(names).toEqual(['glob', 'read', 'grep', 'write', 'edit', 'delete', 'execute', 'measure', 'check', 'export', 'docs', 'question', 'websearch', 'webfetch'])
+    expect(names).toEqual(['glob', 'read', 'grep', 'write', 'edit', 'delete', 'execute', 'measure', 'check', 'export', 'docs', 'skill', 'question', 'websearch', 'webfetch'])
     expect(names).not.toContain('list')
     expect(names).not.toContain('search')
     for (const tool of TOOLS) {

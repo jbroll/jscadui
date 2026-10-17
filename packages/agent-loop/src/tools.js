@@ -159,6 +159,17 @@ export const buildTools = (api = DEFAULT_API) => [
     },
   },
   {
+    name: 'skill',
+    description: 'Load a skill procedure by id; the prompt lists each id with its description, call with an id to read the full body.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'The skill id, such as plan-then-build' },
+      },
+      required: ['name'],
+    },
+  },
+  {
     name: 'question',
     description: 'Ask the user a clarifying question mid-turn instead of guessing; use for ambiguous sizes, printers or intent. The answer comes back as the tool result.',
     inputSchema: {
@@ -204,4 +215,4 @@ export const TOOLS = buildTools()
 
 // Calls safe to run concurrently: they read state without saving.
 // write/edit/delete/export save or expose download state and stay serial.
-export const READ_ONLY = new Set(['glob', 'read', 'grep', 'measure', 'check', 'docs', 'execute', 'view', 'question', 'websearch', 'webfetch'])
+export const READ_ONLY = new Set(['glob', 'read', 'grep', 'measure', 'check', 'docs', 'skill', 'execute', 'view', 'question', 'websearch', 'webfetch'])
