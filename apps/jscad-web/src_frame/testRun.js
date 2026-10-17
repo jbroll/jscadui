@@ -34,13 +34,14 @@ const readSource = (readFile, file) => {
  * throw in one test fails that test only and later files still run. Console
  * output is captured per run and restored after; geometry is never loaded.
  * Bare `test`/`assert`/`assertPart` resolve as well as `require('test')`,
- * without shifting reported line numbers.
+ * without shifting reported line numbers. `api` is reserved: when defined it
+ * is exposed to test files as `require('api')`, for API-specific helpers.
  * @param {Record<string, string|ArrayBuffer>} [files] the project files
  * @param {{api?: string}} [options] the api style the run was requested with
  * @returns {{ok:boolean, passed:number, failed:number, failures:Array<{file:string, test?:string, error:object}>,
  *   assertsByPart:Record<number,number>, console:string[], files:string[]}}
  */
-export const runTestFiles = (files = {}, { api: _api } = {}) => {
+export const runTestFiles = (files = {}, { api } = {}) => {
   const readFile = createReadFile(files, (path) => {
     throw new Error(`file not found ${path}`)
   })
@@ -71,7 +72,7 @@ export const runTestFiles = (files = {}, { api: _api } = {}) => {
         continue
       }
       if (typeof source !== 'string') continue
-      const result = runTestFile(source, { filename: file })
+      const result = runTestFile(source, { filename: file, ...(api === undefined ? {} : { api }) })
       passed += result.passed
       failed += result.failed
       for (const [index, count] of Object.entries(result.assertsByPart)) {

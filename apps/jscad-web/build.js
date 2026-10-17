@@ -205,6 +205,12 @@ const loader = {
 }
 await buildOne('.', outDir, 'main.js', watch, { format: 'esm', loader, plugins: [rawImportPlugin], define: { __FRAME_ORIGIN__: JSON.stringify(runOrigin), __RELAY_ORIGIN__: JSON.stringify(relayOrigin({ dev, appOrigin })), __LOCAL_FS__: JSON.stringify(process.env.JSCAD_LOCAL_FS === '1') } })
 
+// Separate test worker: runs the project's test files off the main thread,
+// so a hang burns the kill timer instead of freezing the viewer. Same origin
+// as the app, so `new Worker` needs no blob. A production leaf like the rest
+// of build/: main.js's literal ref is rewritten to its hashed name.
+await buildOne('src_frame', outDir + '/build', 'bundle.test-worker.js', watch, { format: 'iife' })
+
 /******************************* COMPUTE FRAME (/frame) ***********************/
 // The only place model code runs. Bundle set mirrors the app's src_bundle
 // sources (canonical, shared) plus src_frame's own worker entry

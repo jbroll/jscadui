@@ -9,6 +9,11 @@ export const TEST_WORKER_TIMEOUT_MS = 15000
 
 const RESPONSE = '__RESPONSE__'
 
+// The test worker bundle, same origin as the app (emitted by build.js into
+// build/). Kept as a literal basename: the production hash pass rewrites it
+// to the hashed leaf inside main.js, dev uses it as is.
+const TEST_WORKER_BUNDLE = 'build/bundle.test-worker.js'
+
 const timeoutResult = (timeoutMs) => ({
   ok: false,
   passed: 0,
@@ -19,16 +24,30 @@ const timeoutResult = (timeoutMs) => ({
   error: { name: 'TimeoutError', message: `tests exceeded ${timeoutMs} ms` },
 })
 
-// Without an injected or bundled worker there is nothing to post to (Node,
-// tests): run on this thread. A synchronous hang blocks here, so browser
-// callers must supply a worker; the slot path below is what keeps the viewer
-// live.
+// Without an injected, overridden or bundled worker there is nothing to post
+// to: run on this thread. This branch is chosen explicitly for environments
+// without a browser Worker (Node, vitest, eval) — never silently in the
+// browser, where a synchronous hang would block the viewer.
 const runLocal = (files, api) => Promise.resolve(runTestFiles(files, { api }))
+
+// A real browser Worker exists only where both exist: Node's worker_threads
+// provide Worker but no page location to resolve the bundle URL from.
+const hasBrowserWorker = () =>
+  typeof globalThis.Worker !== 'undefined' && typeof globalThis.location?.href === 'string'
+
+const defaultCreateWorker = (deps) => {
+  if (deps.workerUrl) return () => new globalThis.Worker(deps.workerUrl, { type: 'module' })
+  if (hasBrowserWorker()) return () => new globalThis.Worker(new URL(TEST_WORKER_BUNDLE, globalThis.location.href))
+  return null
+}
 
 /**
  * Run a project's `test/` `.js` files on a separate worker and collect the
  * result. The geometry worker is untouched: only test files run, never
- * `notes/` or model sources. A worker that never answers is terminated on
+ * `notes/` or model sources. In the browser the worker is the test bundle
+ * build.js emits beside the app, so a hang burns the kill timer instead of
+ * freezing the viewer; environments without a browser Worker (Node, vitest,
+ * eval) run in-thread instead. A worker that never answers is terminated on
  * the kill timer and resolves `{ok:false, error:{name:'TimeoutError'}}`.
  * @param {Record<string, string|ArrayBuffer>} [files] the project files
  * @param {string} [api] the api style the run was requested with
@@ -39,10 +58,7 @@ const runLocal = (files, api) => Promise.resolve(runTestFiles(files, { api }))
  */
 export const runProjectTests = (files = {}, api, deps = {}) => {
   const timeoutMs = deps.timeoutMs ?? TEST_WORKER_TIMEOUT_MS
-  const createWorker = deps.createWorker
-    ?? (deps.workerUrl && typeof globalThis.Worker !== 'undefined'
-      ? () => new globalThis.Worker(deps.workerUrl, { type: 'module' })
-      : null)
+  const createWorker = deps.createWorker ?? defaultCreateWorker(deps)
   if (!createWorker) return runLocal(files, api)
   return new Promise((resolve) => {
     let done = false
