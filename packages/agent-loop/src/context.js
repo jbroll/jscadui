@@ -1,4 +1,5 @@
 import { SUMMARY_PREFIX } from './summarize.js'
+import { notesIndex } from './notes.js'
 
 export const CONTEXT_BUDGET = 24_000
 
@@ -94,8 +95,10 @@ const buildSection = (build) => {
 export const projectMessage = (files = {}, build = null, mentioned = [], budget = PROJECT_BUDGET) => {
   const listed = filesSection(files, mentioned, budget)
   if (!listed && !build && Object.keys(files).length === 0) return { role: 'user', content: EMPTY_PROJECT }
+  const notes = notesIndex(files)
   const sections = [
     listed ?? (Object.keys(files).length > 0 ? 'The project has no text files; glob shows every file.' : 'The project has no files.'),
+    ...(notes ? [notes] : []),
     build ? buildSection(build) : 'The project has not been built yet.',
     PROJECT_NOTE,
   ]
