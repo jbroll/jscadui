@@ -235,6 +235,16 @@ NopSCADlib `extrusion_brackets.scad` 3087 → 963 MB, `openscad/bosl2/ALL.js`
 after each cell, which by itself changed no Node peak, and `normalizeAndPlace`
 disposes its two intermediate transforms per geometry.
 
+V1 `.jscad` cells (classic CSG from the app's CSG-compat shim) used to vanish
+silently: modeling's measure reports a zero box for them and modeling's
+transforms leave them untouched, so `normalizeAndPlace` returned `[]` with no
+failure logged (gilboonet polyhedra 12 items → 0 geoms). The grid now measures
+V1 with `getBounds` and places it with its own `translate`/`scale`; nested
+contexts apply as scale+translate, which is all `subGridContext` builds.
+`jscad-hardware` has no grid: its `src/` files are ES-module libraries with no
+`main` (excluded from grids and the demo browser) and its `examples/`+`v1/`
+models need a V1-compat harness (see its `skip.txt`).
+
 ## Library bugs found by the sweep
 
 - **`!` root modifier is ignored.** OpenSCAD renders only the `!` subtree;
