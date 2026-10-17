@@ -614,6 +614,25 @@ describe('eval backend tools', () => {
     expect(await backend.requestTool('docs', { query: 'roundedCuboid' })).toContain('roundRadius: Number = 0.2')
     expect(JSON.parse(await backend.requestTool('docs', { query: 'roundedCube' })).error.name).toBe('NotFoundError')
   })
+
+  it('answers skill from the bundled procedures, by name or id', async () => {
+    const backend = createEvalBackend()
+    for (const input of [{ name: 'brainstorming' }, { id: 'brainstorming' }]) {
+      const body = await backend.requestTool('skill', input)
+      expect(typeof body).toBe('string')
+      expect(body.length).toBeGreaterThan(0)
+      expect(body).not.toContain('NotFoundError')
+    }
+    expect(JSON.parse(await backend.requestTool('skill', { name: 'nope' })).error).toMatchObject({ name: 'NotFoundError' })
+  })
+
+  it('serves the same skill bodies as the bundled prompt index', async () => {
+    const { SKILLS } = await import('../prompt/index.js')
+    const backend = createEvalBackend()
+    for (const [id, body] of Object.entries(SKILLS)) {
+      expect(await backend.requestTool('skill', { name: id })).toBe(body)
+    }
+  })
 })
 
 describe('eval backend grading', () => {

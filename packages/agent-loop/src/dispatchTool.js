@@ -18,12 +18,16 @@ const checkType = (value, type) => {
 // tools.js. `anyOf` properties (measure/check unions) skip deep checks, and
 // `enum` membership is left to handlers: they own domain knowledge the schema
 // does not repeat (export aliases, format lists) and answer instructive
-// errors. A violation is a result the model can retry, never a throw.
+// errors. `requiredAny` (the skill's name/id alias) needs one of its keys.
+// A violation is a result the model can retry, never a throw.
 const validateInput = (name, input) => {
   const schema = SCHEMAS.get(name)
   if (!schema || typeof input !== 'object' || input === null) return null
   for (const key of schema.required ?? []) {
     if (input[key] === undefined) return `missing required property '${key}'`
+  }
+  if (schema.requiredAny && !(schema.requiredAny ?? []).some((key) => input[key] !== undefined)) {
+    return `missing required property '${schema.requiredAny.join(`' or '`)}'`
   }
   if (schema.additionalProperties === false) {
     const known = new Set(Object.keys(schema.properties ?? {}))

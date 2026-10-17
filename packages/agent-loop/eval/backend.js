@@ -15,6 +15,7 @@ import { installConsoleCapture } from '../src/consoleCapture.js'
 import { createScadHandler } from '../src/scadHandler.js'
 import { shouldTransform } from '@jscadui/worker/src/shouldTransform.js'
 import { docsTool } from '../src/docs.js'
+import { skillTool } from '../src/skills.js'
 import { lintSource } from '../src/lint.js'
 import { dispatchTool, toolError } from '../src/dispatchTool.js'
 import { reportError } from '../src/modelError.js'
@@ -30,6 +31,16 @@ import { collectMesh, meshPage, meshPages } from './mesh.js'
 import { runProbe } from './probe.js'
 
 const API_INDEX = JSON.parse(readFileSync(new URL('../api/index.json', import.meta.url), 'utf8'))
+
+// The executor child runs without the `?raw` text loader the bundler and
+// vitest provide, so skill bodies come from disk here rather than from
+// `prompt/index.js` (which `src/prompt.js` imports with `?raw`). Same
+// content, kebab-case id per file name.
+const SKILLS = Object.fromEntries(
+  readdirSync(new URL('../prompt/skills/', import.meta.url), { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
+    .map((entry) => [entry.name.slice(0, -'.md'.length), readFileSync(new URL(`../prompt/skills/${entry.name}`, import.meta.url), 'utf8')]),
+)
 
 const staticWarnings = (diagnostics) => diagnostics.map(({ from: _from, to: _to, ...rest }) => ({ ...rest, source: 'static' }))
 
@@ -179,9 +190,9 @@ const modelError = (error, api) => reportError(error, { api, index: API_INDEX })
 
 // The project's `test/` `.js` files run in-process: Node has no test-worker
 // bundle, so each file goes through Task 4's `runTestFile` the way the
-// browser's testRun.js does, with the identical aggregated shape. Console is
-// captured and dropped — the tool result carries `{build, tests}` only. A
-// throw in one file fails its own run, never the loop.
+// browser's testRun.js does, with the identical aggregated shape (console
+// included, empty when nothing logs). A throw in one file fails its own run,
+// never the loop.
 const runEvalTests = (testFiles, testApi) => {
   const names = Object.keys(testFiles).filter((path) => isTestFile(path) && typeof testFiles[path] === 'string').sort()
   const capture = installConsoleCapture()
@@ -217,7 +228,7 @@ const runEvalTests = (testFiles, testApi) => {
         failures.push({ file, error })
       }
     }
-    return { ok: failed === 0, passed, failed, failures, assertsByPart, files: names }
+    return { ok: failed === 0, passed, failed, failures, assertsByPart, console: capture.list(), files: names }
   } finally {
     capture.restore()
     for (const [name, value] of Object.entries(saved)) {
@@ -431,6 +442,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
     exportModel: onBuild((geometry, args) => exportModel(geometry, args.format)),
     view: () => toolError('UnavailableError', 'view is unavailable in the eval harness'),
     docs: (query) => docsTool(API_INDEX, query, { api }),
+    skill: (args) => skillTool(SKILLS, args.name ?? args.id),
     websearch: searchCanned,
     webfetch: fetchCanned,
     askUser: askCanned,

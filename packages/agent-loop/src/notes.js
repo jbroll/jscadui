@@ -1,3 +1,6 @@
+/**
+ * Max characters of the per-turn notes index in the project message.
+ */
 export const NOTES_BUDGET = 2000
 
 /**

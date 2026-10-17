@@ -17,7 +17,7 @@ const deps = (overrides = {}) => ({
   exportModel: vi.fn(async () => ({ format: 'stlb', size: 684 })),
   view: vi.fn(async () => ({ image: 'data:image/png;base64,x' })),
   docs: vi.fn(() => 'primitives.cube (@jscad/modeling)'),
-  skill: vi.fn((args) => `skill ${args.name}`),
+  skill: vi.fn((args) => `skill ${args.name ?? args.id}`),
   websearch: vi.fn(async () => ({ ok: true, results: [] })),
   webfetch: vi.fn(async () => ({ ok: true, title: '', finalUrl: '', content: '', truncated: false })),
   ...overrides,
@@ -103,6 +103,12 @@ describe('dispatchTool', () => {
     expect(d.docs).toHaveBeenCalledWith('cube')
     expect(await dispatchTool('skill', { name: 'plan-then-build' }, d)).toBe('skill plan-then-build')
     expect(d.skill).toHaveBeenCalledWith({ name: 'plan-then-build' })
+    d.skill.mockClear()
+    expect(await dispatchTool('skill', { id: 'plan-then-build' }, d)).toBe('skill plan-then-build')
+    expect(d.skill).toHaveBeenCalledWith({ id: 'plan-then-build' })
+    d.skill.mockClear()
+    expect(await dispatchTool('skill', {}, d)).toMatchObject({ ok: false, error: { name: 'ValidationError' } })
+    expect(d.skill).not.toHaveBeenCalled()
   })
 
   it.each(['eval', 'params', 'writeModel', 'constructor', 'toString'])('answers %s as an unknown tool', async (name) => {

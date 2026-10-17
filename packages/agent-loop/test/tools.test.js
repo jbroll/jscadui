@@ -215,4 +215,11 @@ describe('agent tools', () => {
     expect(tool.description).toMatch(/never construct URLs/i)
     expect(READ_ONLY.has('webfetch')).toBe(true)
   })
+
+  it('takes the skill id as name or its id alias, one of them required', () => {
+    const skill = TOOLS.find((t) => t.name === 'skill')
+    expect(Object.keys(skill.inputSchema.properties)).toEqual(['name', 'id'])
+    expect(skill.inputSchema.requiredAny).toEqual(['name', 'id'])
+    expect(READ_ONLY.has('skill')).toBe(true)
+  })
 })

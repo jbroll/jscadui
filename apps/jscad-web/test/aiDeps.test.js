@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import index from '@jscadui/agent-loop/api/index.json'
-import { runTimeoutError } from '@jscadui/agent-loop'
+import { dispatchTool, runTimeoutError, SKILLS, skillTool } from '@jscadui/agent-loop'
 import { createProjectTools } from '../src/aiDeps.js'
 import { createLocalStorage } from '../src/storage/local.js'
 import { createSession } from '../src/storage/session.js'
@@ -439,5 +439,23 @@ describe('static lint warnings', () => {
     const { tools: t } = tools({ loadIndex: async () => index })
     const source = `const { cylinder } = require('@jscad/modeling').primitives\ncylinder({ radius: 1 })`
     expect((await t.write({ path: 'main.js', content: source })).warnings).toEqual([])
+  })
+})
+
+describe('skill', () => {
+  // The main.js wiring beside docs: static content, so no loader callback.
+  const skill = (args) => skillTool(SKILLS, args.name ?? args.id)
+
+  it('answers the procedure body by name or id', async () => {
+    expect(await skill({ name: 'brainstorming' })).toBe(SKILLS.brainstorming)
+    expect(await skill({ id: 'brainstorming' })).toBe(SKILLS.brainstorming)
+    expect(JSON.parse(await skill({ name: 'nope' }))).toMatchObject({ ok: false, error: { name: 'NotFoundError' } })
+  })
+
+  it('reaches the handler through dispatchTool', async () => {
+    const { tools: t } = tools()
+    const deps = { ...t, skill }
+    expect(await dispatchTool('skill', { name: 'brainstorming' }, deps)).toBe(SKILLS.brainstorming)
+    expect(await dispatchTool('skill', { id: 'brainstorming' }, deps)).toBe(SKILLS.brainstorming)
   })
 })

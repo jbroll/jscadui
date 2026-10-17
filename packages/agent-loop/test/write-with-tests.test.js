@@ -51,4 +51,13 @@ describe('summarizeTestRun', () => {
     expect(coverageNote).toContain(`test/a.js 'x'`)
     expect(coverageNote).toContain('boom')
   })
+
+  it('ignores the console key the test runners carry', () => {
+    const { tests, coverageNote } = summarizeTestRun(
+      { ok: true, passed: 1, failed: 0, failures: [], assertsByPart: { 0: 1 }, console: ['hi'], files: ['test/a.js'] },
+      1,
+    )
+    expect(tests).toEqual({ ok: true, passed: 1, failed: 0, assertsByPart: { 0: 1 }, uncovered: [] })
+    expect(coverageNote).toContain('1 passed, 0 failed')
+  })
 })

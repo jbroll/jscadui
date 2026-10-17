@@ -165,8 +165,9 @@ export const buildTools = (api = DEFAULT_API) => [
       type: 'object',
       properties: {
         name: { type: 'string', description: 'The skill id, such as plan-then-build' },
+        id: { type: 'string', description: 'Alias of name: the skill id, such as plan-then-build' },
       },
-      required: ['name'],
+      requiredAny: ['name', 'id'],
     },
   },
   {

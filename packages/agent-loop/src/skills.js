@@ -1,3 +1,6 @@
+/**
+ * Max characters of a skill body served to the model; longer bodies are capped.
+ */
 export const SKILL_BUDGET = 2000
 
 const TRUNCATED = '\n[truncated: skill body exceeds budget]'
@@ -6,10 +9,10 @@ const cap = (text) => (text.length <= SKILL_BUDGET ? text : text.slice(0, SKILL_
 
 // The `description:` line of a body's frontmatter block, or '' when none.
 const parseDescription = (body) => {
-  const match = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(body)
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(body)
   if (!match) return ''
-  const line = match[1].split('\n').find((l) => l.startsWith('description:'))
-  return line ? line.slice('description:'.length).trim() : ''
+  const line = match[1].split(/\r?\n/).find((l) => l.trimStart().startsWith('description:'))
+  return line ? line.slice(line.indexOf('description:') + 'description:'.length).trim() : ''
 }
 
 /**

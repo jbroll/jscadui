@@ -75,7 +75,7 @@ import { showApiHelp, apiHelpStyles } from './src/apiHelp.js'
 import { initChat } from './src/aiChat.js'
 import { createSearchStores, createWebSearchHandler } from './src/aiSearch.js'
 import { createWebFetchHandler } from './src/aiFetch.js'
-import { dispatchTool, NO_ENTRY } from '@jscadui/agent-loop'
+import { dispatchTool, NO_ENTRY, SKILLS, skillTool } from '@jscadui/agent-loop'
 import { initAccount, getChatApi, getProviderConfig, getSession, getWebsearchSelection } from './src/aiAccount.js'
 
 /**
@@ -987,6 +987,7 @@ const aiDeps = {
     return { ok: true, image, camera: viewState.viewer.getCamera() }
   },
   docs: createDocs(loadApiIndex, getChatApi),
+  skill: (args) => skillTool(SKILLS, args.name ?? args.id),
   // The question tool is served by the chat card; it can only arrive mid-turn,
   // when the control exists, but guard the not-yet-mounted case anyway.
   askUser: (input) => chatControls?.ask(input) ?? Promise.reject(new Error('chat not ready')),

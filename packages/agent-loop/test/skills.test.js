@@ -21,6 +21,7 @@ describe('lookupSkill', () => {
     const index = { 'plan-then-build': 'one file per part' }
     expect(skillTool(index, 'plan-then-build')).toBe('one file per part')
     expect(skillTool(index, { name: 'plan-then-build' })).toBe('one file per part')
+    expect(skillTool(index, { id: 'plan-then-build' })).toBe('one file per part')
     expect(JSON.parse(skillTool(index, 'nope'))).toMatchObject({ ok: false, error: { name: 'NotFoundError' } })
   })
 })
@@ -34,6 +35,17 @@ describe('skillIndex', () => {
     expect(skillIndex(index)).toEqual([
       { id: 'plan-then-build', description: 'plan first, then build' },
       { id: 'nodesc', description: '' },
+    ])
+  })
+
+  it('reads CRLF frontmatter and a key line with leading whitespace', () => {
+    const index = {
+      crlf: '---\r\ndescription: windows line endings\r\n---\r\nbody',
+      indented: '---\n  description: indented key\n---\nbody',
+    }
+    expect(skillIndex(index)).toEqual([
+      { id: 'crlf', description: 'windows line endings' },
+      { id: 'indented', description: 'indented key' },
     ])
   })
 })
