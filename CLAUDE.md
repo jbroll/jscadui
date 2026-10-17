@@ -26,7 +26,11 @@ under the parent checkout.
 Before creating a new worktree, check `git worktree list` for a free
 preconfigured sibling (`jscadui-wtN` beside the checkout, installs included):
 reuse it when its branch is finished or unrelated, and only create under
-`.worktrees/` when all siblings are occupied.
+`.worktrees/` when all siblings are occupied. Occupied means a branch with
+unique commits or another live session — a sibling sitting on main HEAD is free.
+Agent scratch (ledgers, review packages, notes, probe scripts) stays out of
+the repo: keep it in gitignored locations (`/tmp/opencode`, `/.superpowers/`)
+and extend `.gitignore` when a new scratch kind appears.
 `@jscad/modeling` resolves to `.deps-cache/OpenJSCAD.org` (pinned in
 `scripts/deps/sources.json`, which also pins jscad-fluent and jscad-anchors
 the same way); symlink your own checkout there to edit it live.
