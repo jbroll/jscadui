@@ -15,6 +15,16 @@ const jscad = nodeRequire('@jscad/modeling')
 const { cube } = jscad.primitives
 const { measureAggregateBoundingBox } = jscad.measurements
 
+// V1 .jscad geometry (classic CSG, from the app's CSG-compat shim path) for the
+// V1 grid tests below. Modeling's measure/transform silently ignore it (zero
+// bbox, no-op placement), so the grid must handle it via getBounds/translate.
+const v1csg = nodeRequire('@jscad/csg/api.js')
+const v1cube = () => v1csg.primitives3d.cube({ size: 10 })
+const v1Bounds = (g) => {
+  const [a, b] = g.getBounds()
+  return [[a.x, a.y, a.z], [b.x, b.y, b.z]]
+}
+
 const items = JSON.parse(readFileSync(gridPath, 'utf-8').match(/const items = (\[[\s\S]*?\])/)[1])
 
 const loadCjs = (path, req) => {
@@ -268,5 +278,31 @@ describe('progress without streaming', () => {
     const geoms = await runGrid()
     expect(globalThis.__jscadProgress).toHaveBeenCalledTimes(11)
     expect(geoms).toHaveLength(11)
+  })
+})
+
+describe('V1 CSG cells (.jscad via the CSG shim)', () => {
+  it('places a V1 cell instead of silently dropping it', async () => {
+    const geoms = await runGrid([], { models: { './text-fonts.scad': v1cube } })
+    // 10 modeling cubes + the V1 cube: no failure marker, nothing dropped
+    expect(geoms).toHaveLength(11)
+    expect(geoms.filter(g => g.color)).toHaveLength(0)
+    // Item 3 of 11 sits at gridPosition(3, 11, 60) == (90, -60)
+    const v1 = geoms.filter(g => typeof g.getBounds === 'function')
+    expect(v1).toHaveLength(1)
+    const [[x0, y0, z0], [x1, y1, z1]] = v1Bounds(v1[0])
+    expect(Math.max(x1 - x0, y1 - y0, z1 - z0)).toBeCloseTo(51, 5)
+    expect((x0 + x1) / 2).toBeCloseTo(90, 5)
+    expect((y0 + y1) / 2).toBeCloseTo(-60, 5)
+  })
+
+  it('normalizes a V1 geometry to the cell size at the grid position', () => {
+    const { normalizeAndPlace } = loadGridUtils()
+    const [placed] = normalizeAndPlace([v1cube()], 30, -60, 51)
+    expect(placed).toBeDefined()
+    const [[x0, y0, z0], [x1, y1, z1]] = v1Bounds(placed)
+    expect(Math.max(x1 - x0, y1 - y0, z1 - z0)).toBeCloseTo(51, 5)
+    expect((x0 + x1) / 2).toBeCloseTo(30, 5)
+    expect((y0 + y1) / 2).toBeCloseTo(-60, 5)
   })
 })

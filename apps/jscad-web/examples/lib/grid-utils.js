@@ -60,10 +60,34 @@ function subGridContext(ctx, x, y, cellSize, extent) {
 function toWorld(geoms, ctx) {
   if (ctx === IDENTITY) return geoms
   return geoms.map(g => {
+    if (isV1Geom(g)) return v1ToWorld(g, ctx)
     const placed = transform(ctx, g)
     disposeIntermediate(g, null)
     return placed
   })
+}
+
+// V1 .jscad geometry (classic CSG/CAG from the app's CSG-compat shim) is not a
+// modeling geom: modeling's measure reports a zero box for it and modeling's
+// transforms leave it untouched, so without this a V1 cell silently vanished
+// from the grid. A V1 solid carries its own ruler (getBounds) and mutators
+// (translate/scale), which the placement below uses instead.
+const isV1Geom = (g) =>
+  !!g && typeof g.getBounds === 'function' && typeof g.translate === 'function' &&
+  !g.isManifoldGeom3 && !Array.isArray(g.transforms)
+
+// V1 bounds as [[x0, y0, z0], [x1, y1, z1]]; 2D (CAG) bounds gain a flat z.
+function v1BBox(g) {
+  const [a, b] = g.getBounds()
+  const az = a.z ?? 0
+  const bz = b.z ?? 0
+  return [[a.x, a.y, az], [b.x, b.y, bz]]
+}
+
+// Grid contexts are always uniform-scale-plus-translation products (see
+// subGridContext), which V1 applies without a matrix import: p' = s*p + t.
+function v1ToWorld(g, ctx) {
+  return g.scale(ctx[0]).translate([ctx[12], ctx[13], ctx[14] ?? 0])
 }
 
 /**
@@ -79,28 +103,44 @@ function toWorld(geoms, ctx) {
 function normalizeAndPlace(geoms, gx, gy, cellSize) {
   if (geoms.length === 0) return []
 
-  // Get bounding box - handle both single bbox and array of bboxes
-  const rawBbox = measureAggregateBoundingBox(...geoms)
-
-  let x0, y0, z0, x1, y1, z1
-
-  // Check if we got an array of bboxes (multiple geometries) or a single bbox
-  if (Array.isArray(rawBbox[0]) && Array.isArray(rawBbox[0][0])) {
-    // Multiple bboxes returned - compute aggregate manually
-    x0 = Infinity; y0 = Infinity; z0 = Infinity
-    x1 = -Infinity; y1 = -Infinity; z1 = -Infinity
-
-    for (const [[minX, minY, minZ], [maxX, maxY, maxZ]] of rawBbox) {
-      x0 = Math.min(x0, minX)
-      y0 = Math.min(y0, minY)
-      z0 = Math.min(z0, minZ)
-      x1 = Math.max(x1, maxX)
-      y1 = Math.max(y1, maxY)
-      z1 = Math.max(z1, maxZ)
+  // Modeling's aggregate measure cannot see V1 CSG (it reports a zero box),
+  // so measure each family with its own ruler and combine the boxes.
+  const boxes = []
+  const modeling = []
+  for (const g of geoms) {
+    if (isV1Geom(g)) {
+      try {
+        boxes.push(v1BBox(g))
+      } catch { /* unmeasurable: contributes nothing, as before */ }
+    } else {
+      modeling.push(g)
     }
-  } else {
-    // Single bbox - use directly
-    [[x0, y0, z0], [x1, y1, z1]] = rawBbox
+  }
+
+  if (modeling.length) {
+    // Get bounding box - handle both single bbox and array of bboxes
+    const rawBbox = measureAggregateBoundingBox(...modeling)
+
+    // Check if we got an array of bboxes (multiple geometries) or a single bbox
+    if (Array.isArray(rawBbox[0]) && Array.isArray(rawBbox[0][0])) {
+      // Multiple bboxes returned - compute aggregate manually
+      for (const bb of rawBbox) boxes.push(bb)
+    } else {
+      // Single bbox - use directly
+      boxes.push(rawBbox)
+    }
+  }
+
+  let x0 = Infinity, y0 = Infinity, z0 = Infinity
+  let x1 = -Infinity, y1 = -Infinity, z1 = -Infinity
+
+  for (const [[minX, minY, minZ], [maxX, maxY, maxZ]] of boxes) {
+    x0 = Math.min(x0, minX)
+    y0 = Math.min(y0, minY)
+    z0 = Math.min(z0, minZ)
+    x1 = Math.max(x1, maxX)
+    y1 = Math.max(y1, maxY)
+    z1 = Math.max(z1, maxZ)
   }
 
   const width = x1 - x0
@@ -121,6 +161,9 @@ function normalizeAndPlace(geoms, gx, gy, cellSize) {
 
   // For each geometry: centre → scale → place
   return geoms.map(g => {
+    if (isV1Geom(g)) {
+      return g.translate([-cx, -cy, -cz]).scale(s).translate([gx, gy, 0])
+    }
     const centred = translate([-cx, -cy, -cz], g)
     const scaled = scale([s, s, s], centred)
     const placed = translate([gx, gy, 0], scaled)

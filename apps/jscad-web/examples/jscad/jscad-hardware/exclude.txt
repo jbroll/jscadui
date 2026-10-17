@@ -1,0 +1,3 @@
+# Non-model library sources (ES modules with no main — consumed by examples/,
+# not runnable models): hidden from grids and demo browser.
+src/
