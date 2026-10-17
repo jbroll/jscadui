@@ -557,4 +557,71 @@ test.describe('AI chat tools', () => {
     await expect(page.locator('.chat-tool-mark')).toHaveText('failed')
     await expect(page.locator('.chat-tool-name')).toHaveText('view')
   })
+
+  // The `question` tool is served by the chat card itself: the turn pauses, the
+  // card renders in the transcript, and the chosen answer returns to the loop.
+  // A string result rides through verbatim (like a `docs` result), so the model
+  // sees the raw answer, never JSON.
+  test('question shows options and the picked answer reaches the model', async ({ page }) => {
+    test.setTimeout(60_000)
+    stub = await startStubRelay([
+      { name: 'question', args: { question: 'Which size?', options: ['10 mm', '20 mm'], header: 'Size' } },
+      { text: 'Building 20 mm.' },
+    ])
+    await openChatWithKey(page, stub)
+
+    await page.locator('.chat-input').fill('model a bracket')
+    await page.locator('.chat-send').click()
+
+    // The card renders mid-turn: the short header, the question, and one button
+    // per option.
+    await expect(page.locator('.chat-question')).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('.chat-question-header')).toHaveText('Size')
+    await expect(page.locator('.chat-question-option')).toHaveCount(2)
+
+    await page.locator('.chat-question-option', { hasText: '20 mm' }).click()
+    await expect(page.locator('.chat-messages')).toContainText('Building 20 mm.', { timeout: 30_000 })
+
+    // Model-visible: the raw answer string, verbatim — not `"20 mm"` JSON.
+    const tool = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').at(-1)
+    expect(tool.content).toBe('20 mm')
+
+    // Rendered row: named question, the short header as the target, and success.
+    await expect(page.locator('.chat-tool')).toHaveCount(1)
+    await expect(page.locator('.chat-tool-name')).toHaveText('question')
+    await expect(page.locator('.chat-tool-target')).toHaveText('Size')
+    await expect(page.locator('.chat-tool-mark')).toHaveText('ok')
+  })
+
+  // With no options the card offers its own text input, and the chat input
+  // answers it too: while a question is open a non-empty Send submits the draft
+  // as the answer instead of starting a new turn (the button is the turn's Stop).
+  test('question takes a typed custom answer via the chat input', async ({ page }) => {
+    test.setTimeout(60_000)
+    stub = await startStubRelay([
+      { name: 'question', args: { question: 'Which printer?', header: 'Printer' } },
+      { text: 'Sliced for mk3.' },
+    ])
+    await openChatWithKey(page, stub)
+
+    await page.locator('.chat-input').fill('slice it')
+    await page.locator('.chat-send').click()
+
+    // No options: a text input instead of buttons.
+    await expect(page.locator('.chat-question')).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('.chat-question-input')).toBeVisible()
+    await expect(page.locator('.chat-question-option')).toHaveCount(0)
+
+    await page.locator('.chat-input').fill('mk3')
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('Sliced for mk3.', { timeout: 30_000 })
+
+    // Model-visible: the typed answer, verbatim.
+    const tool = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').at(-1)
+    expect(tool.content).toBe('mk3')
+    await expect(page.locator('.chat-tool')).toHaveCount(1)
+    await expect(page.locator('.chat-tool-name')).toHaveText('question')
+    await expect(page.locator('.chat-tool-target')).toHaveText('Printer')
+    await expect(page.locator('.chat-tool-mark')).toHaveText('ok')
+  })
 })
