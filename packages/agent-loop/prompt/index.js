@@ -16,6 +16,10 @@ import modelingCubeHole from './examples/modeling/03-cube-hole.js?raw'
 import modelingRoundedTray from './examples/modeling/04-rounded-tray.js?raw'
 import modelingHexNut from './examples/modeling/05-hex-nut.js?raw'
 import modelingMountingPlate from './examples/modeling/06-mounting-plate.js?raw'
+import brainstormingSkill from './skills/brainstorming.md?raw'
+import writingPlansSkill from './skills/writing-plans.md?raw'
+import executingPlansSkill from './skills/executing-plans.md?raw'
+import systematicDebuggingSkill from './skills/systematic-debugging.md?raw'
 
 export const PROSE = prose
 
@@ -24,6 +28,17 @@ export const API_PROSE = { fluent: fluentProse, modeling: modelingProse }
 export const SHEETS = { fluent: fluentSheet, modeling: modelingSheet }
 
 export const PARTS = partsBlock
+
+/**
+ * Starter skill procedures by kebab-case id.
+ * @type {Record<string,string>}
+ */
+export const SKILLS = {
+  brainstorming: brainstormingSkill,
+  'writing-plans': writingPlansSkill,
+  'executing-plans': executingPlansSkill,
+  'systematic-debugging': systematicDebuggingSkill,
+}
 
 export const EXAMPLES = {
   fluent: [
