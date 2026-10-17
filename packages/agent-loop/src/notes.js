@@ -1,6 +1,10 @@
 export const NOTES_BUDGET = 2000
 
-const NOTES_HEADER = 'Project notes:\n\n'
+/**
+ * Header opening the per-turn notes index in the project message.
+ * @type {string}
+ */
+export const NOTES_HEADER = 'Project notes:\n\n'
 
 const DESCRIPTION_CAP = 120
 

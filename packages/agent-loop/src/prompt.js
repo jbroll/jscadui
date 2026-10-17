@@ -1,5 +1,6 @@
 import { API_PROSE, EXAMPLES, PARTS, PROSE, SHEETS, SKILLS } from '../prompt/index.js'
 import { APIS, checkApi, DEFAULT_API } from './api.js'
+import { NOTES_HEADER } from './notes.js'
 import { skillIndex } from './skills.js'
 
 const fenced = (source) => `\`\`\`javascript\n${source.trim()}\n\`\`\``
@@ -25,9 +26,10 @@ export const skillsSection = () => {
 /**
  * Pointer to the per-turn notes index. Project notes ride each turn in the
  * project message, so the static system prompt carries only this line naming
- * their `Project notes:` header index.
+ * their header index. Built from NOTES_HEADER so a header rename cannot drift.
+ * @type {string}
  */
-export const NOTES_POINTER = 'Project notes arrive each turn as a `Project notes:` index of headers; read the full file with `read`.'
+export const NOTES_POINTER = `Project notes arrive each turn as a \`${NOTES_HEADER.trim()}\` index of headers; read the full file with \`read\`.`
 
 // partsBlock is generated and empty until the catalog has admitted entries
 // (parts/bin/build.js); an empty block adds no heading and no blank section.
