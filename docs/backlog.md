@@ -166,6 +166,11 @@ Found by `e2e/ai-chat-tools.spec.js` (plan `docs/superpowers/plans/2026-10-17-ch
   invisible to `aiSearch.js:91`'s relay fallback and the fallback is silently
   unreachable. The e2e test uses `device` custody. Decide: share one store
   instance or document that Tavily needs device/synced custody.
+- **The loop's 120 s tool timeout caps an unanswered `question`.**
+  `runTurnLocal` passes no `toolTimeoutMs` (`src/aiChat.js`), so a user
+  thinking for over two minutes gets a `ToolTimeoutError` that ends the turn;
+  a late answer resolves into an abandoned promise. Either pass a longer
+  timeout for question-bearing turns or document the cap.
 
 ## Render sweep
 
