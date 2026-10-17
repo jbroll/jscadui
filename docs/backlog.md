@@ -657,20 +657,6 @@ from the 2026-10-01 review.
   runs on one prompt agree within 1.0 per fixture on a 0 to 8 total. Waits on
   Calibrate the complex grader (Chat API help) reaching usable agreement,
   since the user model is a second unvalidated model in grading.
-- **`skill` tool for short procedures (agent-loop, jscad-web).** `skill({ name
-  })` would return one procedure from `prompt/skills/<name>.md`, imported
-  `?raw` and served by a pure function like `docsTool` (`src/docs.js`), so the
-  app answers it with no worker call and the base prompt lists only names and
-  when each applies. Each stays under about 250 words, since the models under
-  test follow short text better and a load costs context in an 8-round turn.
-  Tool results do not survive to the next user turn, so a procedure is loaded
-  again when needed. First two: clarify-or-default (build a default from
-  common sizes, state the assumed values, expose them as params, ask only what
-  a wrong guess wastes the build on) and plan-then-build (one file per part,
-  `main.js` early, check each with `measure({ parts, between })`, edit one
-  part per step), judged on the dialogue suite and the `assembly` group. A
-  procedure rarely loaded where it applies is tried as two lines in the base
-  prompt instead.
 - **`assembly` fixture group (agent-loop eval).** Fixtures whose parts fit
   together: an enclosure with a lid and board posts, two shelf brackets with
   a cleat, a drawer in a frame. Checks test fit, not process (the lid covers
