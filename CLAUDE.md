@@ -23,6 +23,10 @@ ALL.js grids and builds the web bundles (seconds, not a reinstall), so the
 pre-commit gate passes on a fresh tree. It aborts when the shared
 `.deps-cache` pins drift from the worktree manifest instead of moving them
 under the parent checkout.
+Before creating a new worktree, check `git worktree list` for a free
+preconfigured sibling (`jscadui-wtN` beside the checkout, installs included):
+reuse it when its branch is finished or unrelated, and only create under
+`.worktrees/` when all siblings are occupied.
 `@jscad/modeling` resolves to `.deps-cache/OpenJSCAD.org` (pinned in
 `scripts/deps/sources.json`, which also pins jscad-fluent and jscad-anchors
 the same way); symlink your own checkout there to edit it live.
