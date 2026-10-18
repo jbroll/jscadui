@@ -1,4 +1,5 @@
 import { createIdbPersistence } from './idb.js'
+import { EDIT_COALESCE_MS, sameFiles } from './versioning.js'
 
 export const kindFromEntry = (entry) => (entry.toLowerCase().endsWith('.scad') ? 'openscad' : 'jscad')
 
@@ -61,17 +62,27 @@ export function createLocalStorage(options = {}) {
     return { ...row, files: { ...row.files } }
   }
 
-  const addVersion = (id, { files, entry }, message, created) => {
+  const addVersion = (id, { files, entry }, message, created, coalesceKey) => {
     const list = versions.get(id) ?? []
-    list.unshift({ versionId: crypto.randomUUID(), created, message, files: { ...files }, entry })
+    list.unshift({ versionId: crypto.randomUUID(), created, message, files: { ...files }, entry, coalesceKey })
     versions.set(id, list)
     return save('versions', id, { projectId: id, rows: list })
+  }
+
+  // Replace the newest row in place, keeping its id, so a burst of editor
+  // compiles reads as one version holding the latest content.
+  const foldVersion = async (id, latest, row, message, ts) => {
+    latest.files = { ...row.files }
+    latest.entry = row.entry
+    latest.message = message
+    latest.created = ts
+    await save('versions', id, { projectId: id, rows: versions.get(id) })
   }
 
   // `version: false` stores the files with no version row; `snapshot` records one later.
   const writeFiles = async (id, files, options = {}) => {
     await ready
-    const { message = '', name, entry, mode = 'local', version = true } = options
+    const { message = '', name, entry, mode = 'local', version = true, coalesceKey, coalesceMs = EDIT_COALESCE_MS } = options
     const existing = projects.get(id)
     const entryPath = entry ?? existing?.entry ?? 'main.js'
     const ts = now()
@@ -88,7 +99,20 @@ export function createLocalStorage(options = {}) {
     projects.set(id, row)
     dirty = true
     await save('projects', id, row)
-    if (version) await addVersion(id, row, message, ts)
+    if (version) {
+      const latest = versions.get(id)?.[0]
+      // A restore always mints its own row, and two bursts that were never
+      // asked to coalesce (no key) or that carry a different key never share.
+      const folding = coalesceKey && latest && latest.coalesceKey === coalesceKey &&
+        !message.startsWith('restore ') && ts - latest.created < coalesceMs
+      if (folding) {
+        // Identical content is not a new version; the project row above still
+        // records the write.
+        if (!sameFiles(latest.files, row.files)) await foldVersion(id, latest, row, message, ts)
+      } else {
+        await addVersion(id, row, message, ts, coalesceKey)
+      }
+    }
     return { id, entry: entryPath, kind: row.kind }
   }
 
@@ -97,6 +121,20 @@ export function createLocalStorage(options = {}) {
     const row = projects.get(id)
     if (!row) throw Object.assign(new Error(`projects: not found (${id})`), { name: 'NotFoundError' })
     await addVersion(id, row, message, now())
+  }
+
+  // Snapshot only when the stored files differ from the latest version: the
+  // switch-away path calls this so an unchanged project mints no row. Returns
+  // false when it skipped. No versions yet means there is nothing to compare,
+  // so the first snapshot always mints.
+  const snapshotUnique = async (id, { message = '' } = {}) => {
+    await ready
+    const row = projects.get(id)
+    if (!row) throw Object.assign(new Error(`projects: not found (${id})`), { name: 'NotFoundError' })
+    const latest = versions.get(id)?.[0]
+    if (latest && sameFiles(latest.files, row.files)) return false
+    await addVersion(id, row, message, now())
+    return true
   }
 
   // Remove files a delete dropped, so a reload does not bring them back. Not
@@ -152,5 +190,5 @@ export function createLocalStorage(options = {}) {
     await Promise.all([drop('projects', id), drop('versions', id), drop('conversations', id)])
   }
 
-  return { listProjects, readProject, writeFiles, removeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation, deleteProject, markClean, isDirty, persists }
+  return { listProjects, readProject, writeFiles, removeFiles, snapshot, snapshotUnique, listVersions, readVersion, readConversation, writeConversation, deleteProject, markClean, isDirty, persists }
 }

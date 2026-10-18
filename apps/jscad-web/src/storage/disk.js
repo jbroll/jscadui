@@ -146,6 +146,7 @@ export function createDiskStorage(options = {}) {
     removeFiles,
     writeFile: (path, bytes) => put(path, bytes),
     snapshot: async () => {},
+    snapshotUnique: async () => false,
     listVersions: async () => [],
     readVersion: async () => {
       throw new Error("disk storage keeps no snapshots; read history from the directory's own git")

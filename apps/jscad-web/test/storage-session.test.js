@@ -149,6 +149,45 @@ describe('disk mode', () => {
   })
 })
 
+const withDiskForUnique = () => {
+  const local = createLocalStorage()
+  const server = fakeServer({ 'main.js': 'm' })
+  const disk = createDiskStorage({ fetch: server.fetch, EventSource: server.EventSource })
+  const session = createSession({ local, disk, getBackend: (projectId) => (projectId === 'disk' ? 'disk' : 'local') })
+  return { local, server, session }
+}
+
+describe('snapshotUnique routing', () => {
+  it('snapshots a unique version then skips the identical one', async () => {
+    const local = createLocalStorage()
+    const session = createSession({ local, getBackend: () => 'local' })
+    await local.writeFiles('p1', { 'main.js': 'v1' }, { message: 'create', name: 'P', entry: 'main.js' })
+    await session.writeThrough('p1', 'main.js', 'v2', { message: 'edit', version: false })
+
+    expect(await session.snapshotUnique('p1', { message: 'edit' })).toBe(true)
+    expect(await session.snapshotUnique('p1', { message: 'edit' })).toBe(false)
+    expect((await local.listVersions('p1')).map((v) => v.message)).toEqual(['edit', 'create'])
+  })
+
+  it('routes through the project mode backend', async () => {
+    const local = createLocalStorage()
+    const rowboat = createLocalStorage()
+    await rowboat.writeFiles('p1', { 'main.js': 'v1' }, { message: 'edit', entry: 'main.js' })
+    const session = createSession({ local, rowboat, getBackend: () => 'rowboat' })
+
+    expect(await session.snapshotUnique('p1', { message: 'edit' })).toBe(false)
+    expect((await rowboat.listVersions('p1')).map((v) => v.message)).toEqual(['edit'])
+    expect(await local.listVersions('p1')).toEqual([])
+  })
+
+  it('snapshots nothing uniquely in disk mode', async () => {
+    const { server, session } = withDiskForUnique()
+    server.clear()
+    await expect(session.snapshotUnique('disk', { message: 'edit' })).resolves.toBe(false)
+    expect(server.requests).toEqual([])
+  })
+})
+
 describe('rowboat attach and per-project modes', () => {
   it('routes to rowboat once attached and the mode says so', async () => {
     const local = createLocalStorage()

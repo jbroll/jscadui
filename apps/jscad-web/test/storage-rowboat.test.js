@@ -2,7 +2,7 @@
 // rowboat store; sync and blob traffic go through a recorded-transcript
 // fetchFn whose calls the test asserts on.
 import 'fake-indexeddb/auto'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRowboatStorage } from '../src/storage/rowboat.js'
 
 const dbOptions = { indexedDB: globalThis.indexedDB, IDBKeyRange: globalThis.IDBKeyRange }
@@ -109,6 +109,103 @@ describe('rowboat backend', () => {
     await store.writeFiles('p6', { 'main.js': 'main', 'lib.js': 'lib-content' }, { message: 'create', name: 'P6', entry: 'main.js' })
     await store.removeFiles('p6', ['lib.js'])
     expect((await store.readProject('p6')).files).toEqual({ 'main.js': 'main' })
+    await store.close()
+  })
+})
+
+describe('rowboat edit coalescing', () => {
+  beforeEach(() => vi.useFakeTimers({ toFake: ['Date'] }))
+  afterEach(() => vi.useRealTimers())
+
+  // A content-addressed blob client, so a changed file gets a changed hash and
+  // the manifest comparison the coalescing relies on is meaningful.
+  const contentStore = () =>
+    createRowboatStorage({
+      syncBase: 'http://fake/db/x/api/sync',
+      identity: `u1-${crypto.randomUUID()}`,
+      getHeaders: async () => ({}),
+      dbOptions,
+      fetchFn: vi.fn(async () => new Response('{}')),
+      blobClient: {
+        upload: async (bytes) => ({ hash: await sha256Hex(bytes), size: bytes.byteLength }),
+        fetch: async () => { throw new Error('unexpected blob fetch in coalescing test') },
+      },
+    })
+
+  const edit = { message: 'edit', coalesceKey: 'edit', coalesceMs: 300000 }
+
+  it('folds a burst of edits into one row holding the latest manifest', async () => {
+    vi.setSystemTime(1_000_000)
+    const store = contentStore()
+    await store.writeFiles('p1', { 'main.js': 'v1' }, { message: 'create', name: 'P', entry: 'main.js' })
+    await store.writeFiles('p1', { 'main.js': 'v2' }, edit)
+    vi.setSystemTime(1_060_000)
+    await store.writeFiles('p1', { 'main.js': 'v3' }, edit)
+
+    const versions = await store.listVersions('p1')
+    expect(versions.map((v) => v.message)).toEqual(['edit', 'create'])
+    expect((await store.readVersion('p1', versions[0].versionId)).files).toEqual({ 'main.js': 'v3' })
+    await store.close()
+  })
+
+  it('mints a new row once the idle window has passed', async () => {
+    vi.setSystemTime(1_000_000)
+    const store = contentStore()
+    await store.writeFiles('p2', { 'main.js': 'v1' }, edit)
+    vi.setSystemTime(1_000_000 + 300000 + 1)
+    await store.writeFiles('p2', { 'main.js': 'v2' }, edit)
+
+    expect(await store.listVersions('p2')).toHaveLength(2)
+    await store.close()
+  })
+
+  it('never folds across a different coalesce key', async () => {
+    vi.setSystemTime(1_000_000)
+    const store = contentStore()
+    await store.writeFiles('p3', { 'main.js': 'v1' }, edit)
+    await store.writeFiles('p3', { 'main.js': 'v2' }, { message: 'edit', coalesceKey: 'other', coalesceMs: 300000 })
+
+    expect(await store.listVersions('p3')).toHaveLength(2)
+    await store.close()
+  })
+
+  it('always mints a row for a restore even inside the window', async () => {
+    vi.setSystemTime(1_000_000)
+    const store = contentStore()
+    await store.writeFiles('p4', { 'main.js': 'v1' }, edit)
+    await store.writeFiles('p4', { 'main.js': 'v0' }, { message: 'restore abcdef12', coalesceKey: 'edit', coalesceMs: 300000 })
+
+    expect((await store.listVersions('p4')).map((v) => v.message)).toEqual(['restore abcdef12', 'edit'])
+    await store.close()
+  })
+
+  it('skips the row when the manifest matches the latest version', async () => {
+    vi.setSystemTime(1_000_000)
+    const store = contentStore()
+    await store.writeFiles('p5', { 'main.js': 'v1' }, edit)
+    await store.writeFiles('p5', { 'main.js': 'v1' }, edit)
+
+    expect(await store.listVersions('p5')).toHaveLength(1)
+    expect((await store.readProject('p5')).files).toEqual({ 'main.js': 'v1' })
+    await store.close()
+  })
+
+  it('snapshots only when the stored manifest differs from the latest version', async () => {
+    const store = contentStore()
+    await store.writeFiles('p6', { 'main.js': 'v1' }, { message: 'create', name: 'P6', entry: 'main.js' })
+    expect(await store.snapshotUnique('p6', { message: 'unique' })).toBe(false)
+    await store.writeFiles('p6', { 'main.js': 'v2' }, { message: 'edit', version: false })
+    expect(await store.snapshotUnique('p6', { message: 'unique' })).toBe(true)
+    expect(await store.snapshotUnique('p6', { message: 'unique' })).toBe(false)
+    expect((await store.listVersions('p6')).map((v) => v.message)).toEqual(['unique', 'create'])
+    await store.close()
+  })
+
+  it('snapshots the first version when the project has none', async () => {
+    const store = contentStore()
+    await store.writeFiles('p7', { 'main.js': 'v1' }, { name: 'P7', entry: 'main.js', version: false })
+    expect(await store.snapshotUnique('p7', { message: 'unique' })).toBe(true)
+    expect((await store.listVersions('p7')).map((v) => v.message)).toEqual(['unique'])
     await store.close()
   })
 })

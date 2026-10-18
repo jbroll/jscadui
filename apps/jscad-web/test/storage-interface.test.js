@@ -1,7 +1,7 @@
 // Storage interface contract against the fake local backend: every mode
 // implements the same shape, so the editor and chat can swap backends.
 import { indexedDB as fakeIndexedDB } from 'fake-indexeddb'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLocalStorage } from '../src/storage/local.js'
 
 const MAIN = 'const gear = { teeth: 12 }'
@@ -176,5 +176,83 @@ describe('local persistence (IndexedDB)', () => {
     await store.writeFiles('p1', { 'main.js': MAIN }, { message: 'create', name: 'Gear', entry: 'main.js' })
     expect((await store.readProject('p1')).files).toEqual({ 'main.js': MAIN })
     expect(store.isDirty()).toBe(true)
+  })
+})
+
+describe('local edit coalescing', () => {
+  beforeEach(() => vi.useFakeTimers({ toFake: ['Date'] }))
+  afterEach(() => vi.useRealTimers())
+
+  const edit = { message: 'edit', coalesceKey: 'edit', coalesceMs: 300000 }
+
+  it('folds a burst of edits into one row holding the latest content', async () => {
+    vi.setSystemTime(1_000_000)
+    const store = createLocalStorage()
+    await store.writeFiles('c1', { 'main.js': 'v1' }, { message: 'create', name: 'C', entry: 'main.js' })
+    await store.writeFiles('c1', { 'main.js': 'v2' }, edit)
+    vi.setSystemTime(1_060_000)
+    await store.writeFiles('c1', { 'main.js': 'v3' }, edit)
+
+    const versions = await store.listVersions('c1')
+    expect(versions.map((v) => v.message)).toEqual(['edit', 'create'])
+    expect((await store.readVersion('c1', versions[0].versionId)).files).toEqual({ 'main.js': 'v3' })
+  })
+
+  it('mints a new row once the idle window has passed', async () => {
+    vi.setSystemTime(1_000_000)
+    const store = createLocalStorage()
+    await store.writeFiles('c2', { 'main.js': 'v1' }, edit)
+    vi.setSystemTime(1_000_000 + 300000 + 1)
+    await store.writeFiles('c2', { 'main.js': 'v2' }, edit)
+
+    expect(await store.listVersions('c2')).toHaveLength(2)
+  })
+
+  it('never folds across a different coalesce key', async () => {
+    vi.setSystemTime(1_000_000)
+    const store = createLocalStorage()
+    await store.writeFiles('c3', { 'main.js': 'v1' }, edit)
+    await store.writeFiles('c3', { 'main.js': 'v2' }, { message: 'edit', coalesceKey: 'other', coalesceMs: 300000 })
+
+    expect(await store.listVersions('c3')).toHaveLength(2)
+  })
+
+  it('always mints a row for a restore even inside the window', async () => {
+    vi.setSystemTime(1_000_000)
+    const store = createLocalStorage()
+    await store.writeFiles('c4', { 'main.js': 'v1' }, edit)
+    await store.writeFiles('c4', { 'main.js': 'v0' }, { message: 'restore abcdef12', coalesceKey: 'edit', coalesceMs: 300000 })
+
+    const versions = await store.listVersions('c4')
+    expect(versions.map((v) => v.message)).toEqual(['restore abcdef12', 'edit'])
+  })
+
+  it('skips the row when the content matches the latest version', async () => {
+    vi.setSystemTime(1_000_000)
+    const store = createLocalStorage()
+    await store.writeFiles('c5', { 'main.js': 'v1' }, edit)
+    await store.writeFiles('c5', { 'main.js': 'v1' }, edit)
+
+    expect(await store.listVersions('c5')).toHaveLength(1)
+    expect((await store.readProject('c5')).files).toEqual({ 'main.js': 'v1' })
+  })
+})
+
+describe('local snapshotUnique', () => {
+  it('snapshots only when the stored files differ from the latest version', async () => {
+    const store = createLocalStorage()
+    await store.writeFiles('u1', { 'main.js': 'v1' }, { message: 'create', name: 'U', entry: 'main.js' })
+    expect(await store.snapshotUnique('u1', { message: 'edit' })).toBe(false)
+    await store.writeFiles('u1', { 'main.js': 'v2' }, { message: 'edit', version: false })
+    expect(await store.snapshotUnique('u1', { message: 'edit' })).toBe(true)
+    expect(await store.snapshotUnique('u1', { message: 'edit' })).toBe(false)
+    expect((await store.listVersions('u1')).map((v) => v.message)).toEqual(['edit', 'create'])
+  })
+
+  it('snapshots the first version when the project has none', async () => {
+    const store = createLocalStorage()
+    await store.writeFiles('u2', { 'main.js': 'v1' }, { name: 'U2', entry: 'main.js', version: false })
+    expect(await store.snapshotUnique('u2', { message: 'edit' })).toBe(true)
+    expect((await store.listVersions('u2')).map((v) => v.message)).toEqual(['edit'])
   })
 })

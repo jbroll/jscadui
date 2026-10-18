@@ -39,8 +39,12 @@ export function createSession({ local, rowboat, getRowboat, getBackend, disk = n
   // A version row of what the project's backend holds now.
   const snapshot = (projectId, options = {}) => backendFor(projectId).snapshot(projectId, options)
 
+  // A version row only when the project differs from its latest version; the
+  // backend owns the comparison and answers false when it skipped.
+  const snapshotUnique = (projectId, options = {}) => backendFor(projectId).snapshotUnique(projectId, options)
+
   const readConversation = (projectId) => backendFor(projectId).readConversation(projectId)
   const writeConversation = (projectId, messages) => backendFor(projectId).writeConversation(projectId, messages)
 
-  return { readThrough, writeThrough, removeThrough, snapshot, readConversation, writeConversation }
+  return { readThrough, writeThrough, removeThrough, snapshot, snapshotUnique, readConversation, writeConversation }
 }

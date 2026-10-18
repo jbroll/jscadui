@@ -1,9 +1,36 @@
 import { buildRowboatDb, createBlobClient, storeName, syncWithServer } from '@jbroll/rowboat-client'
 import { kindFromEntry } from './local.js'
 import { manifest } from './manifest.js'
+import { EDIT_COALESCE_MS } from './versioning.js'
 
 const APP_NAME = 'jscad-web'
 const APP_VERSION = 0
+
+// A `{hash, size}` cell can be read back as JSON text; the hash alone is the
+// identity a manifest comparison cares about.
+const hashOf = (hash) => {
+  if (typeof hash !== 'string') return hash?.hash ?? hash
+  try {
+    return JSON.parse(hash)?.hash ?? hash
+  } catch {
+    return hash
+  }
+}
+
+const manifestKey = (file) => `${file.path}\u0000${hashOf(file.hash)}`
+
+// Two `[{path, hash}]` manifests are equal when they name the same paths with
+// the same content hashes, whatever order the rows came back in. A stored
+// manifest comes back as JSON text.
+const sameManifest = (a, b) => {
+  const keys = (list) => {
+    const rows = typeof list === 'string' ? JSON.parse(list) : list
+    return (rows ?? []).map(manifestKey).sort()
+  }
+  const x = keys(a)
+  const y = keys(b)
+  return x.length === y.length && x.every((key, i) => key === y[i])
+}
 
 export function createRowboatStorage(options) {
   const {
@@ -90,9 +117,20 @@ export function createRowboatStorage(options) {
       manifest,
     })
 
+  // The newest version row by timestamp, the one a coalesced write folds into.
+  const latestVersion = async (id) => {
+    const rows = await rowsFor('versions', id)
+    return rows.reduce((latest, row) => (latest === null || row.created > latest.created ? row : latest), null)
+  }
+
+  // The rowboat `versions` table has no column for the coalesce key, so the key
+  // of the newest row this store instance wrote lives here instead. After a
+  // reload the newest row's key is unknown, so the next write starts a row.
+  const coalesceKeys = new Map()
+
   // `version: false` stores the files with no version row; `snapshot` records one later.
   const writeFiles = async (id, files, options = {}) => {
-    const { message = '', name, entry, version = true } = options
+    const { message = '', name, entry, version = true, coalesceKey, coalesceMs = EDIT_COALESCE_MS } = options
     const existing = await db.table('projects').get(id)
     const entryPath = entry ?? existing?.entry ?? 'main.js'
     const ts = now()
@@ -140,7 +178,24 @@ export function createRowboatStorage(options) {
         hash: fileManifest[path],
       })),
     )
-    if (version) await addVersion(id, Object.entries(fileManifest).map(([path, media]) => ({ path, hash: media })), message, ts)
+    const nextManifest = Object.entries(fileManifest).map(([path, media]) => ({ path, hash: media }))
+    if (version) {
+      const latest = await latestVersion(id)
+      // A restore always mints its own row, and two bursts that were never
+      // asked to coalesce (no key) or that carry a different key never share.
+      const folding = coalesceKey && latest && coalesceKeys.get(id) === coalesceKey &&
+        !message.startsWith('restore ') && ts - latest.created < coalesceMs
+      if (folding) {
+        // Identical content is not a new version; the file rows above still
+        // record the write.
+        if (!sameManifest(latest.manifest, nextManifest)) {
+          await db.update('versions', latest.id, { manifest: nextManifest, created: ts, message })
+        }
+      } else {
+        await addVersion(id, nextManifest, message, ts)
+      }
+      coalesceKeys.set(id, coalesceKey)
+    }
     return { id, entry: entryPath, kind: kindFromEntry(entryPath) }
   }
 
@@ -148,6 +203,18 @@ export function createRowboatStorage(options) {
     await readRow('projects', id)
     const manifest = (await rowsFor('files', id)).map(({ path, hash }) => ({ path, hash }))
     await addVersion(id, manifest, message, now())
+  }
+
+  // Snapshot only when the stored manifest differs from the latest version:
+  // the switch-away path calls this so an unchanged project mints no row.
+  // Returns false when it skipped. No versions yet means the first snapshot.
+  const snapshotUnique = async (id, { message = '' } = {}) => {
+    await readRow('projects', id)
+    const current = (await rowsFor('files', id)).map(({ path, hash }) => ({ path, hash }))
+    const latest = await latestVersion(id)
+    if (latest && sameManifest(latest.manifest, current)) return false
+    await addVersion(id, current, message, now())
+    return true
   }
 
   const listVersions = async (id) => {
@@ -211,5 +278,5 @@ export function createRowboatStorage(options) {
     await globalThis.indexedDB?.deleteDatabase?.(dbName)
   }
 
-  return { sync, close, listProjects, readProject, writeFiles, removeFiles, snapshot, listVersions, readVersion, readConversation, writeConversation, deleteProject }
+  return { sync, close, listProjects, readProject, writeFiles, removeFiles, snapshot, snapshotUnique, listVersions, readVersion, readConversation, writeConversation, deleteProject }
 }
