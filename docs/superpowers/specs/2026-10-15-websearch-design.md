@@ -74,7 +74,10 @@ New `packages/agent-loop/src/websearch.js`, no new dependencies (bare
    conversation reuses one provider unless it fails. On 429 or network
    error the provider cools down (60 s, or `Retry-After`), and the call
    retries with the next pool member; all cooling → `toolError`
-   (`SearchUnavailableError`). Every result is tagged with the serving
+   (`SearchUnavailableError`). Cooldown skips carry the causing failure
+   (`causedBy: {status}`, e.g. the `429` that triggered the backoff) plus
+   `retryInMs`, so the aggregate message names real causes instead of a
+   bare `cooldown` (follow-up 2026-10-18, `jscadui-wt2`). Every result is tagged with the serving
    provider (`{ title, url, snippet, provider }`), capped chars (see
    Injection), so failover is visible in transcripts and tests.
 3. **Loop-tool surface.** Tool name **`web_search`** (OpenAI + Anthropic
