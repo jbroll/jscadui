@@ -960,6 +960,14 @@ p {
   min-width: 0;
   font-size: 10pt;
 }
+#editor-header .editor-versions {
+  padding: 0 10px 8px;
+}
+#editor-header .version-select {
+  width: 100%;
+  min-width: 0;
+  font-size: 10pt;
+}
 .project-header {
   display: flex;
   align-items: center;

@@ -239,9 +239,106 @@ describe('drawer header slots', () => {
     expect(buttons).toContain('Sign in to Sync')
   })
 
-  it('leaves the versions slot empty with an id for the dropdown', async () => {
+  it('mounts the versions dropdown in the reserved slot', async () => {
     await setup()
     await vi.waitFor(() => expect(document.getElementById('editor-versions')).not.toBeNull())
-    expect(document.getElementById('editor-versions').textContent).toBe('')
+    expect(document.querySelector('#editor-versions .version-select')).not.toBeNull()
+  })
+})
+
+describe('versions dropdown', () => {
+  const versionTexts = () => [...document.querySelectorAll('.version-select option')].map((o) => o.textContent)
+
+  it('lists versions newest first with a locale timestamp, kind and chat excerpt', async () => {
+    const { header, local, id } = await setup()
+    await local.writeFiles(id, { 'main.js': 'v2' }, { message: 'edit', entry: 'main.js' })
+    await local.writeFiles(id, { 'main.js': 'v3' }, { message: 'chat: exhaust pipes at the rear', entry: 'main.js' })
+    await header.render()
+    const versions = await local.listVersions(id)
+    expect(versions).toHaveLength(3)
+    expect(versionTexts()).toEqual(versions.map((v) => `${new Date(v.created).toLocaleString()} — ${v.message}`))
+    expect(versionTexts()[0]).toContain('chat: exhaust pipes at the rear')
+    expect(versionTexts()[1]).toContain('— edit')
+    expect(document.querySelector('.version-select').disabled).toBe(false)
+  })
+
+  it('restores the selected version in place then calls onRestore', async () => {
+    const calls = []
+    const onRestore = vi.fn(() => { calls.push('onRestore') })
+    const { header, local, manager, id } = await setup({ onRestore })
+    await local.writeFiles(id, { 'main.js': 'v2' }, { message: 'edit', entry: 'main.js' })
+    await header.render()
+    const versions = await manager.listVersions(id)
+    const create = versions.find((v) => v.message === 'create')
+    const restoreVersion = manager.restoreVersion
+    manager.restoreVersion = vi.fn(async (...args) => { calls.push('restore'); return restoreVersion(...args) })
+
+    const select = document.querySelector('.version-select')
+    select.value = create.versionId
+    select.dispatchEvent(new Event('change'))
+
+    await vi.waitFor(() => expect(onRestore).toHaveBeenCalledWith(id))
+    expect(calls).toEqual(['restore', 'onRestore'])
+    expect((await manager.readForSwitch(id)).files).toEqual({ 'main.js': 'v1' })
+    const restored = await manager.listVersions(id)
+    expect(restored[0].message).toMatch(/^restore /)
+    expect(select.value).toBe(restored[0].versionId)
+  })
+
+  it('asks the discard confirm before restoring and keeps the version when declined', async () => {
+    const calls = []
+    const confirmDiscard = vi.fn(async () => { calls.push('confirm'); return false })
+    const onRestore = vi.fn(() => { calls.push('onRestore') })
+    const { header, local, manager, id } = await setup({ confirmDiscard, onRestore })
+    await local.writeFiles(id, { 'main.js': 'v2' }, { message: 'edit', entry: 'main.js' })
+    await header.render()
+    const restoreVersion = manager.restoreVersion
+    manager.restoreVersion = vi.fn(async (...args) => { calls.push('restore'); return restoreVersion(...args) })
+    const create = (await manager.listVersions(id)).find((v) => v.message === 'create')
+
+    const select = document.querySelector('.version-select')
+    select.value = create.versionId
+    select.dispatchEvent(new Event('change'))
+    await vi.waitFor(() => expect(confirmDiscard).toHaveBeenCalled())
+    expect(calls).toEqual(['confirm'])
+    expect(manager.restoreVersion).not.toHaveBeenCalled()
+    expect(onRestore).not.toHaveBeenCalled()
+
+    confirmDiscard.mockImplementation(async () => { calls.push('confirm'); return true })
+    select.value = create.versionId
+    select.dispatchEvent(new Event('change'))
+    await vi.waitFor(() => expect(onRestore).toHaveBeenCalledWith(id))
+    expect(calls).toEqual(['confirm', 'confirm', 'restore', 'onRestore'])
+  })
+
+  it('disables the dropdown with a reason when the project has no versions', async () => {
+    document.body.innerHTML = '<div id="panel"></div>'
+    const local = createLocalStorage()
+    const manager = createProjectManager({ local, getRowboat: () => null })
+    await local.writeFiles('bare', { 'main.js': 'v1' }, { message: 'create', entry: 'main.js', version: false })
+    const header = initEditorHeader(document.getElementById('panel'), {
+      manager,
+      onSwitch: async () => {},
+      confirmDiscard: async () => true,
+    })
+    await header.select('bare')
+    const select = document.querySelector('.version-select')
+    expect(select.disabled).toBe(true)
+    expect(select.textContent).toBe('No versions yet')
+  })
+
+  it('disables the dropdown with the git reason on the disk project', async () => {
+    document.body.innerHTML = '<div id="panel"></div>'
+    const disk = { listProjects: async () => [{ id: 'disk', name: 'main.js', entry: 'main.js', mode: 'disk' }], listVersions: async () => [] }
+    const manager = createProjectManager({ local: createLocalStorage(), disk, getRowboat: () => null })
+    const header = initEditorHeader(document.getElementById('panel'), {
+      manager,
+      onSwitch: async () => {},
+      confirmDiscard: async () => true,
+      canUseRowboat: true,
+    })
+    await header.select('disk')
+    await vi.waitFor(() => expect(document.querySelector('.version-select').disabled).toBe(true))
+    expect(document.querySelector('.version-select').textContent).toBe('Folder projects keep history in git')
   })
 })

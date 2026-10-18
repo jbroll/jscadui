@@ -412,12 +412,21 @@ const diskStore = __LOCAL_FS__ ? (await import('./src/storage/disk.js')).createD
 const projectManager = createProjectManager({ local: localStore, disk: diskStore, getRowboat: () => rowboatStore })
 const storageSession = createSession({ local: localStore, disk: diskStore, getRowboat: () => rowboatStore, getBackend: (projectId) => projectManager.peekMode(projectId) })
 
+// The editor drawer header mounts after the sync loop starts; callbacks reach
+// it lazily. Every version-minting write refreshes its versions dropdown.
+let editorHeader = null
+const refreshHeader = () => {
+  if (!editorHeader) return
+  editorHeader.render().catch((err) => console.warn('header refresh failed:', err))
+}
+
 // Editing a helper leaves the entry as it is; `entry` names a model the user ran on its own.
 // A burst of compiles folds into one `edit` row (five idle minutes):
 // `coalesceKey` names the run and `coalesceMs` its window.
 const recordEdit = async (script, path, { entry } = {}) => {
   if (!isRecordablePath(path)) return
   await storageSession.writeThrough(currentProjectId, path, script, { message: 'edit', coalesceKey: 'edit', coalesceMs: EDIT_COALESCE_MS, ...(entry ? { entry } : {}) }).catch((err) => console.warn('storage write failed:', err))
+  refreshHeader()
 }
 
 let currentProjectId = 'default'
@@ -527,10 +536,6 @@ const getRowboatStore = async () => {
   }
   return rowboatStorePromise
 }
-
-// The editor drawer header mounts after the sync loop starts; callbacks reach
-// it lazily.
-let editorHeader = null
 
 // Interval table sync while signed in; anonymous users never reach it.
 const initSyncLoop = async () => {
@@ -1021,7 +1026,10 @@ const chatTools = createProjectTools({
   storeFile: (projectId, path, content) =>
     storageSession.writeThrough(projectId, path, content, { message: 'chat', version: false }),
   removeFile: (projectId, path) => storageSession.removeThrough(projectId, path),
-  snapshot: (projectId, excerpt) => storageSession.snapshot(projectId, { message: chatVersionMessage(excerptOf(excerpt ?? '')) }),
+  snapshot: async (projectId, excerpt) => {
+    await storageSession.snapshot(projectId, { message: chatVersionMessage(excerptOf(excerpt ?? '')) })
+    if (projectId === currentProjectId) refreshHeader()
+  },
   getApi: getChatApi,
   loadIndex: loadApiIndex,
 })
@@ -1175,6 +1183,9 @@ editorHeader = initEditorHeader(byId('editor-header'), {
   manager: projectManager,
   // The header asked the discard confirm before calling this.
   onSwitch: (id) => afterHeaderDiscard(() => switchProject(id)).catch(setError),
+  // A restore already wrote the project's files; the header asked the discard
+  // confirm, so the reopen must not ask a second time.
+  onRestore: (id) => afterHeaderDiscard(() => switchProject(id)).catch(setError),
   onFileCreate: () => switchProject(currentProjectId).catch(setError),
   writeFile: (projectId, path, content) => storageSession.writeThrough(projectId, path, content, { message: 'edit', coalesceKey: 'edit', coalesceMs: EDIT_COALESCE_MS }),
   onDropOnProject: async (id, dataTransfer) => {

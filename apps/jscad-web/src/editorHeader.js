@@ -1,7 +1,6 @@
-// The editor drawer header: the project dropdown, New Project / New File, and
-// the current project's own controls (rename, delete, mode flip, sync status,
-// drop target). The versions slot stays an empty div until the versions
-// dropdown fills it.
+// The editor drawer header: the project dropdown, New Project / New File, the
+// current project's own controls (rename, delete, mode flip, sync status, drop
+// target) and the versions dropdown that restores in place.
 import { mountSyncEntry } from './syncEntry.js'
 
 const el = (tag, className, text) => {
@@ -16,8 +15,9 @@ const modeLabel = (mode) => MODE_LABEL[mode] ?? mode
 
 /**
  * @typedef {Object} EditorHeaderDeps
- * @property {{listAll:Function,createProject:Function,renameProject:Function,deleteProject:Function,flipMode:Function,peekMode:Function}} manager
+ * @property {{listAll:Function,createProject:Function,renameProject:Function,deleteProject:Function,flipMode:Function,peekMode:Function,listVersions:Function,restoreVersion:Function}} manager
  * @property {(id:string) => (void|Promise<void>)} [onSwitch] called with the project the user picked
+ * @property {(id:string) => (void|Promise<void>)} [onRestore] after a version was restored in place
  * @property {(path:string) => (void|Promise<void>)} [onFileCreate] after a new file was written
  * @property {(projectId:string, path:string, content:string) => Promise<void>} [writeFile] lands a new file in the current project
  * @property {() => ({code:string,path:string})} [readBuffer] seeds a new project from the editor
@@ -26,7 +26,7 @@ const modeLabel = (mode) => MODE_LABEL[mode] ?? mode
  * @property {(id:string) => Promise<void>} [onDelete]
  * @property {() => void} [onRetrySync]
  * @property {(err:Error) => void} [onError]
- * @property {() => Promise<boolean>} [confirmDiscard] the dirty-buffer gate before switching
+ * @property {() => Promise<boolean>} [confirmDiscard] the dirty-buffer gate before switching or restoring
  * @property {(options:{title:string,message:string,confirmLabel:string,cancelLabel:string}) => Promise<boolean>} [confirm]
  * @property {boolean} [canUseRowboat]
  * @property {{hasLocalWork?: () => boolean, onSignOut?: () => (void|Promise<void>)}} [syncDeps] for the shared sign-in control
@@ -40,6 +40,7 @@ const modeLabel = (mode) => MODE_LABEL[mode] ?? mode
 export const initEditorHeader = (container, {
   manager,
   onSwitch = () => {},
+  onRestore = () => {},
   onFileCreate = () => {},
   writeFile = async () => {},
   readBuffer = () => ({ code: '', path: 'main.js' }),
@@ -76,13 +77,19 @@ export const initEditorHeader = (container, {
 
   const syncEl = el('div', 'project-sync-status')
   syncEl.style.display = 'none'
-  // Reserved for the versions dropdown; the id keeps the slot findable.
+  // The versions dropdown: a row per version, newest first, restoring in place.
   const versionsEl = el('div', 'editor-versions')
   versionsEl.id = 'editor-versions'
+  const versionSelect = el('select', 'version-select')
+  versionSelect.setAttribute('aria-label', 'Version')
+  versionsEl.append(versionSelect)
   container.append(syncSlot, row, syncEl, versionsEl)
 
   let selectedId = null
   let projects = []
+  // The row the dropdown is showing: kept so a declined restore can paint back.
+  let selectedVersionId = null
+  let versionGen = 0
 
   const currentProject = () => projects.find((p) => p.id === selectedId)
 
@@ -116,6 +123,62 @@ export const initEditorHeader = (container, {
     deleteBtn.title = deleteBtn.disabled ? 'The model directory stays on disk' : 'Delete this project'
   }
 
+  // A disabled dropdown still names why there is nothing to restore: an empty
+  // project or a disk project whose history lives in its own git.
+  const versionsDisabled = (reason) => {
+    versionSelect.innerHTML = ''
+    const option = el('option', '', reason)
+    option.value = ''
+    versionSelect.append(option)
+    versionSelect.value = ''
+    versionSelect.disabled = true
+    versionSelect.title = reason
+    selectedVersionId = null
+  }
+
+  // The dropdown is repainted by every render, so a version minted by a compile
+  // or a chat turn shows up without a separate refresh call. The generation
+  // guard drops a list whose project was switched away mid-read.
+  const renderVersions = async () => {
+    const gen = ++versionGen
+    const id = selectedId
+    if (!id) return versionsDisabled('No versions yet')
+    if (manager.peekMode?.(id) === 'disk') return versionsDisabled('Folder projects keep history in git')
+    const versions = await Promise.resolve(manager.listVersions(id)).catch(() => [])
+    if (gen !== versionGen || id !== selectedId) return
+    if (!versions.length) return versionsDisabled('No versions yet')
+    versionSelect.innerHTML = ''
+    for (const version of versions) {
+      const option = el('option', '', `${new Date(version.created).toLocaleString()} — ${version.message}`)
+      option.value = version.versionId
+      versionSelect.append(option)
+    }
+    versionSelect.disabled = false
+    versionSelect.title = ''
+    versionSelect.value = versions[0].versionId
+    selectedVersionId = versions[0].versionId
+  }
+
+  // Restoring replaces the project's files, so it reuses the dirty-buffer gate;
+  // a declined confirm leaves the dropdown on the version it showed before.
+  versionSelect.addEventListener('change', async () => {
+    const id = selectedId
+    const versionId = versionSelect.value
+    if (!id || !versionId) return
+    try {
+      if (!(await confirmDiscard())) {
+        versionSelect.value = selectedVersionId ?? ''
+        return
+      }
+      await manager.restoreVersion(id, versionId)
+      await renderVersions()
+      await onRestore(id)
+    } catch (err) {
+      onError(err)
+      versionSelect.value = selectedVersionId ?? ''
+    }
+  })
+
   // The dropdown is the only multi-project surface, so it is also the only
   // place a selection can differ from the open project.
   const paintSelection = () => {
@@ -130,6 +193,7 @@ export const initEditorHeader = (container, {
   const select = async (id) => {
     selectedId = id
     paintSelection()
+    await renderVersions()
   }
 
   const render = async () => {
@@ -145,6 +209,7 @@ export const initEditorHeader = (container, {
       if (first) selectedId = first.id
     }
     paintSelection()
+    await renderVersions()
   }
 
   // Switching a dirty buffer away asks first; a declined confirm leaves both the
