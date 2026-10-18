@@ -233,6 +233,7 @@ export const createWebSearch = ({
 } = {}) => {
   const resolvedKeys = { ...envKeys(), ...(keys ?? {}), ...(getKeys?.() ?? {}) }
   const cooldowns = new Map()
+  const lastFailure = new Map()
   const tinyfishTools = new Map()
 
   const searchVia = async (provider, query, count) => {
@@ -279,9 +280,16 @@ export const createWebSearch = ({
     let cooling = 0
     for (let step = 0; step < pool.length; step++) {
       const provider = pool[(start + step) % pool.length]
-      if ((cooldowns.get(provider.id) ?? 0) > now) {
+      const until = cooldowns.get(provider.id) ?? 0
+      if (until > now) {
         cooling += 1
-        failures.push({ provider: provider.id, status: 'cooldown', retryable: true })
+        failures.push({
+          provider: provider.id,
+          status: 'cooldown',
+          retryable: true,
+          retryInMs: until - now,
+          ...(lastFailure.has(provider.id) ? { causedBy: lastFailure.get(provider.id) } : {}),
+        })
         continue
       }
       const attempt = await searchVia(provider, query.trim(), Math.min(Math.max(count, 1), MAX_COUNT))
@@ -292,9 +300,10 @@ export const createWebSearch = ({
         continue
       }
       failures.push({ provider: provider.id, status: attempt.status ?? 0, retryable: !!attempt.retryable })
+      lastFailure.set(provider.id, { status: attempt.status ?? 0, retryable: !!attempt.retryable })
       if (attempt.retryable) cooldowns.set(provider.id, Date.now() + retryAfterMs(attempt.headers))
     }
-    const summary = failures.map((f) => `${f.provider}:${f.status}`).join(', ')
+    const summary = failures.map((f) => (f.status === 'cooldown' && f.causedBy ? `${f.provider}:cooldown(caused by ${f.causedBy.status})` : `${f.provider}:${f.status}`)).join(', ')
     const suffix = cooling > 0 ? ` (${cooling} cooling)` : ''
     return toolError('SearchUnavailableError', `websearch: all providers failed [${summary}]${suffix}`, failures)
   }

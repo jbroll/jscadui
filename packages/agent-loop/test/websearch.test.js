@@ -196,4 +196,50 @@ describe('createWebSearch', () => {
     expect(res.error.details).toEqual(expect.arrayContaining([expect.objectContaining({ provider: expect.any(String), status: 406 })]))
     expect(res.error.message).not.toMatch(/cooling down/)
   })
+
+  it('cooldown skips report the causing failure and retry-in, not bare cooldown', async () => {
+    let calls = 0
+    const fetchFn = vi.fn(async () => {
+      calls += 1
+      return jsonResponse(429, {}, { 'retry-after': '55' })
+    })
+    const handler = createWebSearch({ fetchFn, context: 'node', projectId: 'cool-cause' })
+    const first = await handler({ query: 'willys mb' })
+    expect(first.ok).toBe(false)
+    const before = fetchFn.mock.calls.length
+    const second = await handler({ query: 'willys mb' })
+    // Both providers cooling: no new network, but the cause survives.
+    expect(fetchFn.mock.calls.length).toBe(before)
+    expect(second.error.details).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ provider: expect.any(String), status: 'cooldown', causedBy: expect.objectContaining({ status: 429 }) }),
+      ]),
+    )
+    for (const entry of second.error.details) {
+      expect(entry.retryInMs).toEqual(expect.any(Number))
+      expect(entry.retryInMs).toBeGreaterThan(0)
+    }
+    expect(second.error.message).toMatch(/429/)
+  })
+
+  it('recovers after the cooldown expires', async () => {
+    let mode = 'fail'
+    const fetchFn = vi.fn(async (url) => {
+      if (mode === 'fail') return jsonResponse(429, {})
+      return searchResults(resultsFor(providerOf(String(url))))
+    })
+    const handler = createWebSearch({ fetchFn, context: 'node', projectId: 'cool-recover' })
+    expect((await handler({ query: 'willys mb' })).ok).toBe(false)
+    mode = 'ok'
+    // Fast-forward past the 60 s cooldown.
+    const realNow = Date.now
+    try {
+      const jumped = realNow() + 61_000
+      Date.now = () => jumped
+      const res = await handler({ query: 'willys mb' })
+      expect(res.ok).toBe(true)
+    } finally {
+      Date.now = realNow
+    }
+  })
 })
