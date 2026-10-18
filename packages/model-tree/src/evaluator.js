@@ -15,6 +15,32 @@ const isFluentArray = (value) => Boolean(value && typeof value === 'object' && v
 
 const mapSnapshot = (snapshot, matrix) => (matrix ? { ...snapshot, matrix: mulMat(matrix, snapshot.matrix) } : snapshot)
 
+// A build stamps part-path anchors on tree nodes; `measure({anchors: true})`
+// reads them off the solids the worker exposes, so `finish` is where a solid
+// and its node's anchors meet. The frames are the node's world frames (the tag
+// table mapped them at build time) and the basis is read live, so model-tools'
+// `toPolygons` bake — which bakes the polygons in place and resets `transforms`
+// — leaves `basisOf(geometry) === anchors.basis` true and `worldFrames` on the
+// already-world frames. Manifold geometry has its own basis and is skipped.
+const isAnchorableSolid = (solid) =>
+  Boolean(solid) &&
+  solid.isManifoldGeom3 !== true &&
+  solid.isManifoldGeom2 !== true &&
+  (solid.polygons !== undefined || solid.sides !== undefined)
+
+const attachPartAnchors = (node, solids) => {
+  const frames = node.anchors && node.anchors.frames
+  if (!frames || Object.keys(frames).length === 0) return
+  for (const solid of solids) {
+    if (!isAnchorableSolid(solid)) continue
+    Object.defineProperty(solid, 'anchors', {
+      configurable: true,
+      enumerable: true,
+      get: () => ({ frames, basis: solid.polygons !== undefined ? solid.polygons : solid.sides }),
+    })
+  }
+}
+
 const snapshotsOf = (node, ctx) => {
   const entry = ctx.specials && ctx.specials.get(node)
   return entry && Array.isArray(entry.snapshots) ? entry.snapshots : null
@@ -100,6 +126,7 @@ export const createEvaluator = (engine) => {
   }
 
   const finish = (node, ctx, solids, ghosts, matrixOverride) => {
+    attachPartAnchors(node, solids)
     if (solids.length === 1) ctx.memo.set(node, solids[0])
     else if (solids.length > 1) ctx.memo.set(node, solids)
     const extra = overlayGhosts(node, ctx, matrixOverride)
@@ -269,6 +296,7 @@ export const createSyncEvaluator = (engine) => {
   }
 
   const finish = (node, ctx, solids, ghosts, matrixOverride) => {
+    attachPartAnchors(node, solids)
     if (solids.length === 1) ctx.memo.set(node, solids[0])
     else if (solids.length > 1) ctx.memo.set(node, solids)
     const extra = overlayGhosts(node, ctx, matrixOverride)

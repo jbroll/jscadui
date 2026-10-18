@@ -122,6 +122,9 @@ wheel hub), so part names resolve through auto-attached anchors instead:
 - lookAt resolves a part name through `measure({anchors: true})` frame origins, not
   indices. A name with no frame is `PartNotFoundError`; suffix-ambiguous names are
   `AmbiguousPartError` (Task 2 matching rules stand, backend repointed to anchors).
+  Anchors ride jscad-engine solids only: on a manifold build (the app default) the
+  measurement reports none, so part names miss and coords are the route — manifold
+  anchor propagation is follow-up work, not this plan.
 
 ## What's left to the builder
 

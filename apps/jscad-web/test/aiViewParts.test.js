@@ -1,78 +1,72 @@
 import { describe, expect, it } from 'vitest'
 import { resolveLookAt } from '../src/aiViewParts.js'
 
-// The centers the caller's measurement would return, keyed by part index; the
-// resolver only ever hands the index back to measurePart and returns its answer.
-const CENTERS = { 0: [7, 0, 2.5], 2: [-7, 0, 2.5], 4: [1, 2, 3] }
-const measurePart = (index) => CENTERS[index]
-
-// A car's parts: each index is where the part lands in the flattened geometry
-// `main()` returns, each path its hierarchical param path.
-const ctx = {
-  partPaths: [
-    { path: 'front.left', index: 0 },
-    { path: 'body', index: 4 },
-  ],
-  measurePart,
-}
+// The origins a build's auto-attached anchors would report, keyed by part path;
+// the resolver only ever reads a name's frame origin from the map.
+const frames = new Map([
+  ['front.left', [7, -6, 0]],
+  ['body', [0, 0, 4.5]],
+])
 
 // Two parts whose last segment is the same, so the short name `left` cannot pick.
-const ctxDup = {
-  partPaths: [
-    { path: 'front.left', index: 0 },
-    { path: 'rear.left', index: 2 },
-  ],
-  measurePart,
-}
+const dupFrames = new Map([
+  ['front.left', [7, -6, 0]],
+  ['rear.left', [-7, -6, 0]],
+])
 
 describe('resolveLookAt', () => {
-  it('resolves a dotted part path to its centroid', async () => {
-    expect(await resolveLookAt({ kind: 'lookAtPart', part: 'front.left' }, ctx)).toEqual([7, 0, 2.5])
+  it('resolves a dotted part path to its frame origin', () => {
+    expect(resolveLookAt({ kind: 'lookAtPart', part: 'front.left' }, { anchorFrames: frames })).toEqual([7, -6, 0])
   })
 
-  it('resolves a leaf name to the single part that ends with it', async () => {
-    expect(await resolveLookAt({ kind: 'lookAtPart', part: 'body' }, ctx)).toEqual([1, 2, 3])
+  it('resolves a leaf name to the single part that ends with it', () => {
+    expect(resolveLookAt({ kind: 'lookAtPart', part: 'body' }, { anchorFrames: frames })).toEqual([0, 0, 4.5])
   })
 
-  it('lets an exact dotted path win over a shorter nested path', async () => {
-    const nested = {
-      partPaths: [
-        { path: 'front.left', index: 0 },
-        { path: 'car.front.left', index: 2 },
-      ],
-      measurePart,
-    }
-    expect(await resolveLookAt({ kind: 'lookAtPart', part: 'front.left' }, nested)).toEqual([7, 0, 2.5])
+  it('lets an exact dotted path win over a shorter nested path', () => {
+    const nested = new Map([
+      ['front.left', [7, -6, 0]],
+      ['car.front.left', [1, 2, 3]],
+    ])
+    expect(resolveLookAt({ kind: 'lookAtPart', part: 'front.left' }, { anchorFrames: nested })).toEqual([7, -6, 0])
   })
 
-  it('throws PartNotFoundError for a name no part has', async () => {
-    await expect(resolveLookAt({ kind: 'lookAtPart', part: 'nope' }, ctx)).rejects.toThrowError(/PartNotFound/)
-    await expect(resolveLookAt({ kind: 'lookAtPart', part: 'nope' }, ctx)).rejects.toMatchObject({ name: 'PartNotFoundError' })
+  it('throws PartNotFoundError for a name no part has', () => {
+    expect(() => resolveLookAt({ kind: 'lookAtPart', part: 'nope' }, { anchorFrames: frames })).toThrowError(/PartNotFound/)
+    expect(() => resolveLookAt({ kind: 'lookAtPart', part: 'nope' }, { anchorFrames: frames })).toThrowError(
+      expect.objectContaining({ name: 'PartNotFoundError' }),
+    )
   })
 
-  it('throws AmbiguousPartError when a short name matches several parts', async () => {
-    await expect(resolveLookAt({ kind: 'lookAtPart', part: 'left' }, ctxDup)).rejects.toThrowError(/Ambiguous/)
-    await expect(resolveLookAt({ kind: 'lookAtPart', part: 'left' }, ctxDup)).rejects.toMatchObject({ name: 'AmbiguousPartError' })
+  it('throws AmbiguousPartError when a short name matches several parts', () => {
+    expect(() => resolveLookAt({ kind: 'lookAtPart', part: 'left' }, { anchorFrames: dupFrames })).toThrowError(/Ambiguous/)
+    expect(() => resolveLookAt({ kind: 'lookAtPart', part: 'left' }, { anchorFrames: dupFrames })).toThrowError(
+      expect.objectContaining({ name: 'AmbiguousPartError' }),
+    )
   })
 
-  it('never substring-matches: a longer sibling segment is not a match', async () => {
-    const substringy = { partPaths: [{ path: 'front.leftover', index: 0 }], measurePart }
-    await expect(resolveLookAt({ kind: 'lookAtPart', part: 'left' }, substringy)).rejects.toThrowError(/PartNotFound/)
+  it('never substring-matches: a longer sibling segment is not a match', () => {
+    const substringy = new Map([['front.leftover', [1, 2, 3]]])
+    expect(() => resolveLookAt({ kind: 'lookAtPart', part: 'left' }, { anchorFrames: substringy })).toThrowError(/PartNotFound/)
   })
 
-  it('treats traversal and empty segments as not found', async () => {
-    await expect(resolveLookAt({ kind: 'lookAtPart', part: '../secret' }, ctx)).rejects.toThrowError(/PartNotFound/)
-    await expect(resolveLookAt({ kind: 'lookAtPart', part: 'front..left' }, ctx)).rejects.toThrowError(/PartNotFound/)
-    await expect(resolveLookAt({ kind: 'lookAtPart', part: 'front/left' }, ctx)).rejects.toThrowError(/PartNotFound/)
+  it('treats traversal and empty segments as not found', () => {
+    expect(() => resolveLookAt({ kind: 'lookAtPart', part: '../secret' }, { anchorFrames: frames })).toThrowError(/PartNotFound/)
+    expect(() => resolveLookAt({ kind: 'lookAtPart', part: 'front..left' }, { anchorFrames: frames })).toThrowError(/PartNotFound/)
+    expect(() => resolveLookAt({ kind: 'lookAtPart', part: 'front/left' }, { anchorFrames: frames })).toThrowError(/PartNotFound/)
   })
 
-  it('passes a raw point through after checking it is three finite numbers', async () => {
-    expect(await resolveLookAt({ kind: 'lookAt', point: [1, 2, 3] }, ctx)).toEqual([1, 2, 3])
-    await expect(resolveLookAt({ kind: 'lookAt', point: [1, 2] }, ctx)).rejects.toThrowError(/three/)
-    await expect(resolveLookAt({ kind: 'lookAt', point: [1, 2, NaN] }, ctx)).rejects.toThrowError(/three/)
+  it('reads no frames when the build attached none', () => {
+    expect(() => resolveLookAt({ kind: 'lookAtPart', part: 'body' }, {})).toThrowError(/PartNotFound/)
   })
 
-  it('refuses a spec that is not a look-at aim', async () => {
-    await expect(resolveLookAt({ kind: 'preset', preset: 'top' }, ctx)).rejects.toThrowError(/lookAt/)
+  it('passes a raw point through after checking it is three finite numbers', () => {
+    expect(resolveLookAt({ kind: 'lookAt', point: [1, 2, 3] }, { anchorFrames: frames })).toEqual([1, 2, 3])
+    expect(() => resolveLookAt({ kind: 'lookAt', point: [1, 2] }, {})).toThrowError(/three/)
+    expect(() => resolveLookAt({ kind: 'lookAt', point: [1, 2, NaN] }, {})).toThrowError(/three/)
+  })
+
+  it('refuses a spec that is not a look-at aim', () => {
+    expect(() => resolveLookAt({ kind: 'preset', preset: 'top' }, {})).toThrowError(/lookAt/)
   })
 })

@@ -1085,12 +1085,14 @@ const aiDeps = {
   ...chatTools,
   // The off-screen multi-view render: the live viewer's canvas is never read,
   // so a view call leaves the user's own camera and view exactly as they were.
-  // A part-name aim is refused by the handler (no build reports which geometry
-  // item belongs to which part), so no measurement or typed-path map is wired.
+  // A part-name aim resolves through the build's auto-attached anchors, so the
+  // frame must return each solid's named frames: `measure` runs with anchors on
+  // and reports the part-path frames the model tree stamped.
   view: createViewHandler({
     getMesh: () => viewState.model,
     noGeometry: projectBuilds.noGeometry,
     render: renderViews,
+    measure: (options) => workerApi.jscadMeasure({ options }),
     env: () => ({ THREE: globalThis.THREE, smooth: viewState.smoothRender, bg: viewState.theme.bg }),
   }),
   docs: createDocs(loadApiIndex, getChatApi),

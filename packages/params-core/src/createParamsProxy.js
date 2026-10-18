@@ -273,6 +273,12 @@ export const createParamsProxy = (state, path = '') => {
       // Symbol handling (for console.log, etc.)
       if (typeof prop === 'symbol') return undefined
 
+      // Provenance: a build context remembers the most recently read part-group
+      // path, so a primitive the model creates next can be stamped with that
+      // part's name (Task 7). Only whole-segment paths name a part; the root
+      // proxy (empty path) sets nothing.
+      if (path !== '' && globalThis.__jscadBuild) globalThis.__jscadBuild.lastTouchedPartPath = path
+
       const propStr = String(prop)
       const fullPath = path ? `${path}.${propStr}` : propStr
 

@@ -1,8 +1,8 @@
 // The `view` tool's app-side pipeline: validate the request, turn its aims
 // into the renderer's shot plan, render off-screen and hand the agent loop raw
-// shots. Everything that touches the app — the live mesh and the renderer — is
-// injected, so this module never imports the app and the unit suite drives it
-// without WebGL or a worker.
+// shots. Everything that touches the app — the live mesh, the renderer and the
+// build's anchors — is injected, so this module never imports the app and the
+// unit suite drives it without WebGL or a worker.
 //
 // The live viewer is deliberately absent: the handler neither reads nor writes
 // the user's camera, so a view call can never move what they are looking at.
@@ -10,15 +10,12 @@
 // A bad view fails the whole call: the plan is built for every shot before the
 // renderer runs, so one bad aim means no renders at all.
 //
-// A part-name aim is refused, never guessed. `proxyState.types` is keyed by
-// param path in the order the model set `_type` while building, while
-// `measure({parts})` numbers the items `main()` returns; on a real multi-part
-// model the two orders match neither in length nor in content (the hierarchical
-// car: 11 typed paths against 13 geometry items, and `body` lands on a rear
-// wheel hub — test/aiViewProvenance.test.js is that evidence). Nothing in a
-// build reports which geometry item belongs to which part, so no honest mapping
-// exists today and the aim fails with the coordinate route that does work.
-// A build that named its own geometry would let a part-name aim resolve here.
+// A part-name aim resolves through the build's auto-attached anchors: the
+// injected `measure({anchors: true})` reports each solid's named frames, and a
+// name maps to its frame origin (Task 7; an index mapping was disproven on the
+// real car). A name no build names is a `PartNotFoundError`, never a guess.
+// Anchors ride jscad-engine solids only — on a manifold build the measurement
+// reports none and every part name misses as not-found; coords always work.
 
 import { boundingBox } from '@jscadui/format-common'
 import { normalizeViewRequest } from '@jscadui/agent-loop/src/viewSpec.js'
@@ -45,14 +42,23 @@ const modelCenter = (mesh) => {
   return [(box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2, (box.min.z + box.max.z) / 2]
 }
 
-// The part-name aim's refusal: the name asked for, why no mapping exists, and
-// the route that gets the same shot, so the agent corrects the call in one step.
-const unsupportedPart = (part) =>
-  named(
-    'PartLookAtUnsupportedError',
-    `cannot aim at part ${JSON.stringify(part)} by name: a build does not report which geometry item belongs to which part, ` +
-      `so a name cannot be resolved to a measured center. Use a preset, or measure the parts and aim with lookAt: [x, y, z] coordinates.`,
-  )
+/**
+ * The part-name -> [x, y, z] frame origins a `measure({anchors: true})` result
+ * reports. A name several solids share keeps the first origin (a part's solids
+ * share one name, and the first is the part's own primitive). Missing anchors
+ * read as an empty map, so an unmeasured build simply resolves nothing.
+ * @param {{anchors?: Array<{part: string, anchors: Object|null}>|null}} result a model-tools measure result
+ * @returns {Map<string, [number, number, number]>}
+ */
+export const buildAnchorFrames = (result) => {
+  const frames = new Map()
+  for (const part of result?.anchors ?? []) {
+    for (const [name, frame] of Object.entries(part?.anchors ?? {})) {
+      if (!frames.has(name) && Array.isArray(frame?.origin)) frames.set(name, frame.origin)
+    }
+  }
+  return frames
+}
 
 // The no-geometry result is the last build's own wording when it has one (so
 // the agent hears why the model is empty), else a plain statement of fact.
@@ -73,21 +79,30 @@ const noGeometryError = async (noGeometry) => {
  *
  * The returned handler takes the tool's raw arguments and resolves to
  * `{ok: true, shots}`, each shot `{image: {dataUrl, mime}, camera}` in the loop's
- * shape; it rejects with a named Error on a bad call, an empty model or a
- * part-name aim (which the app cannot resolve — see the module comment).
+ * shape; it rejects with a named Error on a bad call, an empty model or a part
+ * name no build names (`PartNotFoundError`/`AmbiguousPartError`).
  * @param {{
  *   getMesh: () => Array<object> | undefined,
  *   noGeometry: () => Promise<object | null>,
  *   render: (mesh: Array<object>, plan: object, env?: object) => Promise<Array<{pngDataUrl: string, camera: object}>>,
+ *   measure?: (options: {anchors: true}) => Promise<object>,
  *   env?: () => object,
  * }} deps
  * @returns {(input: unknown) => Promise<{ok: true, shots: Array<object>}>}
  */
-export const createViewHandler = ({ getMesh, noGeometry, render, env }) => async (input) => {
+export const createViewHandler = ({ getMesh, noGeometry, render, measure, env }) => async (input) => {
   const { views, size } = normalizeViewRequest(input)
 
   const mesh = getMesh()
   if (!Array.isArray(mesh) || mesh.length === 0) throw await noGeometryError(noGeometry)
+
+  // The build's anchors are measured at most once, and only when a part-name
+  // aim needs them, so a preset or point call never pays for the measurement.
+  let anchorFrames
+  const framesOf = async () => {
+    if (!anchorFrames) anchorFrames = buildAnchorFrames(measure ? await measure({ anchors: true }) : null)
+    return anchorFrames
+  }
 
   // Every shot is planned before the renderer runs: an unusable aim throws here
   // and nothing is rendered.
@@ -97,12 +112,14 @@ export const createViewHandler = ({ getMesh, noGeometry, render, env }) => async
       const dirs = PRESET_DIRS[view.preset]
       shots.push({ dir: dirs.dir, up: dirs.up })
     } else if (view.kind === 'lookAtPart') {
-      throw unsupportedPart(view.part)
+      // A part-name aim shoots iso-front auto-fit to that part's frame origin.
+      const iso = PRESET_DIRS['iso-front']
+      shots.push({ dir: iso.dir, up: iso.up, target: resolveLookAt(view, { anchorFrames: await framesOf() }) })
     } else if (view.kind === 'lookAt') {
       // A point aim shoots the default iso-front direction; the renderer
       // auto-fits the whole model around the target it is given.
       const iso = PRESET_DIRS['iso-front']
-      shots.push({ dir: iso.dir, up: iso.up, target: await resolveLookAt(view) })
+      shots.push({ dir: iso.dir, up: iso.up, target: resolveLookAt(view) })
     } else {
       // A position aim looks from the requested point (plus its offset) back at
       // the model centre; the renderer owns the distance, so the model auto-fits.

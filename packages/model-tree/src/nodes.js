@@ -7,6 +7,7 @@
 
 import { createSyncEvaluator, AsyncLeafError } from './evaluator.js'
 import { resolveGeometry, resolveGeometryAsync } from './resolve.js'
+import { makeFrameMath, frameFromBBox, TREE_BASIS } from './tags.js'
 
 const isTreeNode = (value) => Boolean(value && value.isTreeNode === true)
 const isThenable = (value) => Boolean(value && typeof value.then === 'function')
@@ -141,25 +142,59 @@ const tagGroupOf = (path) => {
   if (MERGE_OPS.has(path)) return 'merge'
   if (DROP_PREFIXES.some((prefix) => path.startsWith(prefix))) return 'drop'
   if (path.startsWith('modifiers.')) return 'carry'
+  // `colorize` keeps its child's frames; without this the car body (a colorize
+  // of a translate) would drop the part anchor stamped on its primitive.
+  if (path === 'colorize') return 'carry'
   return null
 }
 
+// The ops whose result is geometry created from scratch, so a part-path anchor
+// can be stamped on it: primitives, extrusions, and the literal leaves real
+// geometry (text output) becomes.
+const PART_CREATORS = ['primitives.', 'extrusions.']
+const isPartCreator = (path) => PART_CREATORS.some((prefix) => path.startsWith(prefix))
+
 export function createNamespace(engine, opts = {}) {
   const tagOps = opts && opts.tagOps ? opts.tagOps : null
+  const math = tagOps && engine.maths ? makeFrameMath(engine) : null
   const rawGeom = engine.geometries || {}
   const rawIs2D = (value) => Boolean((rawGeom.geom2 && rawGeom.geom2.isA && rawGeom.geom2.isA(value)) || (rawGeom.path2 && rawGeom.path2.isA && rawGeom.path2.isA(value)))
   const rawIs3D = (value) => Boolean(rawGeom.geom3 && rawGeom.geom3.isA && rawGeom.geom3.isA(value))
   const detectDim = (value) => rawIs2D(value) ? 2 : rawIs3D(value) ? 3 : undefined
 
-  const literalNode = (value) => ({
-    op: 'literal',
-    value,
-    isTreeNode: true,
-    dim: detectDim(value),
-    overlay: null,
-    anchors: null,
-    color: null,
-  })
+  // The part-path anchor for a just-created node: a frame at the node's own
+  // (creation-time) bounding-box centre, named by the build context's most
+  // recently read part path (`params-core`). Null when no part is tracked, in
+  // anchors-free mode, or when the node cannot be measured (an async leaf or a
+  // failing engine call must not break the build).
+  const partAnchor = (node) => {
+    if (!tagOps || !math) return null
+    const ctx = globalThis.__jscadBuild
+    const partPath = ctx && ctx.lastTouchedPartPath
+    if (!partPath) return null
+    try {
+      const geom = syncEvaluate(node).solids[0]
+      if (!geom) return null
+      const bbox = engine.measurements.measureBoundingBox(geom)
+      return { frames: { [partPath]: frameFromBBox(math, bbox, [0, 0, 0]) }, pending: [], basis: TREE_BASIS }
+    } catch {
+      return null
+    }
+  }
+
+  const literalNode = (value) => {
+    const node = {
+      op: 'literal',
+      value,
+      isTreeNode: true,
+      dim: detectDim(value),
+      overlay: null,
+      anchors: null,
+      color: null,
+    }
+    const anchors = partAnchor(node)
+    return anchors ? { ...node, anchors } : node
+  }
 
   // Flatten operands: arrays and fluent arrays spread, sentinels drop out,
   // real values become literal leaves, nodes and thenables pass through.
@@ -200,7 +235,11 @@ export function createNamespace(engine, opts = {}) {
     if (!tagOps) return node
     const group = tagGroupOf(path)
     const apply = group && typeof tagOps[group] === 'function' ? tagOps[group] : null
-    return apply ? { ...node, anchors: apply(node, children) } : node
+    // Model-authored frames come up from the children and win; a node that
+    // creates its own geometry (a primitive or extrusion) instead gets the
+    // build context's part-path anchor stamped at its creation-time centre.
+    const anchors = (apply ? apply(node, children) : null) || (isPartCreator(path) ? partAnchor(node) : null)
+    return anchors ? { ...node, anchors } : node
   }
 
   const defer = (path, cfg = {}) => {

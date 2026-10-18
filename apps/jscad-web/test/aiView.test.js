@@ -3,9 +3,9 @@
 // injected, so this suite runs in the node env and never touches WebGL; the
 // live render itself is covered by the e2e spec.
 //
-// Part-name aims are refused here: nothing in a build reports which geometry
-// item belongs to which typed param path, so a name cannot be mapped to a
-// measured centre (test/aiViewProvenance.test.js pins that with a real model).
+// A part-name aim resolves through the build's auto-attached anchors, injected
+// as `measure({anchors: true})` frames (test/aiViewProvenance.test.js pins that
+// against the real model).
 import { describe, expect, it, vi } from 'vitest'
 import { PRESET_DIRS } from '../src/aiViewRender.js'
 import { createViewHandler } from '../src/aiView.js'
@@ -98,26 +98,48 @@ describe('view handler', () => {
     })
   })
 
-  it('refuses a part-name lookAt and renders nothing', async () => {
-    const render = renderOf()
-    const view = handler({ render })
+  it('aims a part-name lookAt at its auto-attached anchor frame', async () => {
+    const plans = []
+    const measure = vi.fn(async () => ({
+      anchors: [
+        { part: '0', anchors: { body: { origin: [0, 0, 4.5], z: [0, 0, 1], x: [1, 0, 0] } } },
+        { part: '1', anchors: { 'front.left': { origin: [7, -6, 0], z: [0, 0, 1], x: [1, 0, 0] } } },
+      ],
+    }))
+    const view = handler({ render: renderOf(plans), measure })
 
-    await expect(view({ views: [{ lookAt: 'front.left' }] })).rejects.toThrowError(/PartLookAtUnsupportedError/)
+    await view({ views: [{ lookAt: 'front.left' }] })
+
+    expect(plans[0].shots[0]).toEqual({
+      dir: PRESET_DIRS['iso-front'].dir,
+      up: PRESET_DIRS['iso-front'].up,
+      target: [7, -6, 0],
+    })
+    // The frame map is built once for the whole call, not once per shot.
+    expect(measure).toHaveBeenCalledTimes(1)
+    expect(measure).toHaveBeenCalledWith({ anchors: true })
+  })
+
+  it('never measures when no shot names a part', async () => {
+    const measure = vi.fn(async () => ({ anchors: [] }))
+    await handler({ measure })({ views: [{ preset: 'top' }, { lookAt: [1, 2, 3] }] })
+    expect(measure).not.toHaveBeenCalled()
+  })
+
+  it('errors on a part name no build names, rendering nothing', async () => {
+    const render = renderOf()
+    const measure = async () => ({ anchors: [{ part: '0', anchors: { body: { origin: [0, 0, 4.5], z: [0, 0, 1], x: [1, 0, 0] } } }] })
+    const view = handler({ render, measure })
+
+    await expect(view({ views: [{ lookAt: 'ghost-part' }] })).rejects.toThrowError(/PartNotFound/)
     expect(render).not.toHaveBeenCalled()
   })
 
-  it('names the part and the coordinate route in the unsupported-part message', async () => {
-    // The agent must be able to act on the error: the name it asked for, why it
-    // cannot be resolved, and the measure-then-coordinates route that can.
-    await expect(handler()({ views: [{ lookAt: 'body.cabin' }] })).rejects.toThrowError(
-      /body\.cabin[\s\S]*measure[\s\S]*\[x, y, z\]/,
-    )
-  })
-
-  it('fails the whole request atomically on an unsupported part aim, rendering nothing', async () => {
+  it('fails the whole request atomically on an unknown part aim, rendering nothing', async () => {
     const render = renderOf()
-    const view = handler({ render })
-    await expect(view({ views: [{ preset: 'top' }, { lookAt: 'nope' }] })).rejects.toThrowError(/PartLookAtUnsupported/)
+    const measure = async () => ({ anchors: [{ part: '0', anchors: { body: { origin: [0, 0, 4.5], z: [0, 0, 1], x: [1, 0, 0] } } }] })
+    const view = handler({ render, measure })
+    await expect(view({ views: [{ preset: 'top' }, { lookAt: 'nope' }] })).rejects.toThrowError(/PartNotFound/)
     expect(render).not.toHaveBeenCalled()
   })
 

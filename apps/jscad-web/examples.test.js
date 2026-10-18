@@ -117,6 +117,12 @@ const exampleFiles = readdirSync(examplesDir, { recursive: true })
   .map(f => join(examplesDir, f))
   .filter(f => !matchesScopes(f, skipScopes))
 
+// Heavy example models (tspspi printer parts and friends) measure 20-85s on
+// dev hardware against the 30s default: they fail identically with and without
+// any feature change, so the timeout — not the models — is what fails here.
+// One suite-wide budget fits the population; nothing is skipped.
+const EXECUTE_TIMEOUT_MS = 120_000
+
 describe('Example files', () => {
   // Initialize engines that require async setup (e.g. Manifold WASM)
   beforeAll(async () => {
@@ -142,7 +148,7 @@ describe('Example files', () => {
             expect(typeof mod.main).toBe('function')
           })
 
-          it('should execute main() with params proxy', () => {
+          it('should execute main() with params proxy', { timeout: EXECUTE_TIMEOUT_MS }, () => {
             // Clear cache for fresh load
             moduleCache.clear()
             const mod = loadExample(filePath, engineModule, engineName)
