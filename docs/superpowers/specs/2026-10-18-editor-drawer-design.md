@@ -91,16 +91,19 @@ what files it holds, which file is displayed, and where the project has been
 
 1. Consolidation: project drawer folds into the editor drawer; remaining
    drawers are editor and AI.
-2. Header: project dropdown + New + versions dropdown + sync/sign-in at the
-   top of the editor drawer; same sign-in name top-left in editor and AI
-   drawers.
-3. Tree: nested browser driving the displayed file; marks the entry file,
+2. Header: project dropdown + New Project + New File (on the current
+   project) + versions dropdown + sync/sign-in at the top of the editor
+   drawer; same sign-in name top-left in editor and AI drawers.
+3. Scope: every moved drawer feature (rename/delete project, sync status
+   + retry, drop-onto-project, versions) acts on the current project
+   only; the dropdown is the only multi-project surface.
+4. Tree: nested browser driving the displayed file; marks the entry file,
    dirty state, and files the turn touched; never hidden for one file.
-4. Icons: trash = delete, pencil = rename, at the file row.
-5. Versions: dropdown rows of timestamp + kind; `chat` rows gain a turn
+5. Icons: trash = delete, pencil = rename, at the file row.
+6. Versions: dropdown rows of timestamp + kind; `chat` rows gain a turn
    excerpt (threaded through `endTurn` snapshot message, fallback bare
    `chat` for old rows); restore in place, no preview step.
-6. Chunking: idle-window coalescing for editor `edit` rows; conditional
+7. Chunking: idle-window coalescing for editor `edit` rows; conditional
    snapshot on switch-away (unique content only); agent cap stays one per
    turn.
 
