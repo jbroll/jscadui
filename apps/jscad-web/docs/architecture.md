@@ -1122,12 +1122,10 @@ renders would push the relay past its 1MB body limit. The tool is offered to a
 vision-capable model alone — the provider's own model metadata
 (`capabilities.vision`, carried on the selection from the account dialog's
 model list), else `VISION_MODELS`, or `vision: true` in `eval/models.json` for
-the eval. A part-name look-at is refused with `PartLookAtUnsupportedError`
-rather than guessed: the params controller's typed paths are keyed in
-`_type`-assignment order while `measure` numbers the items `main()` returns, and
-those orders differ on a real model (`test/aiViewProvenance.test.js`), so no
-honest mapping exists and the error names the `measure`-then-coordinates route.
-A point look-at and every preset still resolve, and one bad aim fails the whole
+the eval. A part-name look-at resolves through the build's auto-attached anchors
+(a dotted param path to its anchor frame origin via `measure({anchors: true})`;
+jscad-engine builds only): an unknown or ambiguous name fails the call with
+`PartNotFoundError`/`AmbiguousPartError` rather than guessed. A point look-at and every preset still resolve, and one bad aim fails the whole
 call before anything renders.
 
 `export` answers `{ ok, format, size }` (`src/aiExport.js`): the model learns

@@ -401,8 +401,8 @@ explicit direct-vs-relay routing proof:
    `provider: 'tavily'`; pinned `off` fails closed with no network.
 4. **View** (2): `view` renders the model off-screen and the PNG reaches the
    model as a native image part while the transcript shows only the cameras
-   (served though unoffered to the text stub model); a part-name aim is refused
-   (`PartLookAtUnsupportedError`, no name→geometry provenance) and fails the row
+   (served though unoffered to the text stub model); a part-name aim resolves
+   through the build's auto-attached anchors and an unknown name fails the row
    without hanging.
 5. **Question** (2): option click resolves the raw answer string to the
    model; typed custom answer via fill + Send (hybrid); abort/switch/turn-end
