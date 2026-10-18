@@ -1,6 +1,6 @@
 // packages/agent-loop/test/providers.test.js
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createProvider, fetchWithRetry, parseAnthropicStream, parseOpenAIStream, streamWithRetry } from '../src/providers.js'
+import { createProvider, fetchWithRetry, parseAnthropicStream, parseOpenAIStream, streamWithRetry, VISION_MODELS } from '../src/providers.js'
 import { parseResponsesStream } from '../src/responses.js'
 import { buildMessages } from '../src/context.js'
 
@@ -928,5 +928,15 @@ describe('jscad-web kind routing', () => {
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe(`${base}/v1/messages`)
     expect(typeof init.headers['x-opencode-session']).toBe('string')
+  })
+})
+
+describe('VISION_MODELS', () => {
+  it('lists the image-capable models as ids, not the text-only ones', () => {
+    expect(VISION_MODELS).toBeInstanceOf(Set)
+    for (const id of VISION_MODELS) expect(typeof id, id).toBe('string')
+    expect(VISION_MODELS.has('muse-spark-1.3-contributor')).toBe(true)
+    expect(VISION_MODELS.has('deepseek-v4.1-flash')).toBe(false)
+    expect(VISION_MODELS.has('minimax-m3')).toBe(false)
   })
 })

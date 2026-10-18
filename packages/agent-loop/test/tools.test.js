@@ -1,6 +1,7 @@
 // packages/agent-loop/test/tools.test.js
 import { describe, expect, it } from 'vitest'
 import { buildTools, READ_ONLY, TOOLS } from '../src/tools.js'
+import { viewInputSchema } from '../src/viewSpec.js'
 
 const docsDescription = (api) => buildTools(api).find((t) => t.name === 'docs').description
 
@@ -16,8 +17,20 @@ describe('agent tools', () => {
     }
   })
 
-  it('does not offer view to the model', () => {
+  it('offers view only to vision-capable models', () => {
+    expect(buildTools('modeling', { vision: true }).map((t) => t.name)).toContain('view')
+    expect(buildTools('modeling', { vision: false }).map((t) => t.name)).not.toContain('view')
+    // The default call is the text model's catalog, unchanged by this gate.
     expect(TOOLS.map((t) => t.name)).not.toContain('view')
+    expect(buildTools('fluent').map((t) => t.name)).not.toContain('view')
+  })
+
+  it('offers the view tool with the shared request schema and an undisturbed-user-view description', () => {
+    const view = buildTools('fluent', { vision: true }).find((t) => t.name === 'view')
+    // The offered schema is the one the spec validates with, not a copy.
+    expect(view.inputSchema).toBe(viewInputSchema)
+    expect(view.description).toMatch(/user's own view never moves/)
+    expect(READ_ONLY.has('view')).toBe(true)
   })
 
   it('offers the same tools under either API', () => {

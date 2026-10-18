@@ -31,6 +31,15 @@ describe('dispatchTool', () => {
     }
   })
 
+  it('serves view even though the text catalog does not offer it', async () => {
+    // Gating is offering-only: a view call still routes, so a stale or
+    // hand-made call answers rather than failing as an unknown tool.
+    expect(TOOLS.map((tool) => tool.name)).not.toContain('view')
+    const d = deps()
+    expect((await dispatchTool('view', { views: [{ preset: 'top' }] }, d)).image).toMatch(/^data:image\/png/)
+    expect(d.view).toHaveBeenCalledWith({ views: [{ preset: 'top' }] })
+  })
+
   it('routes glob to deps.list, forwarding any pattern or path', async () => {
     const d = deps()
     expect((await dispatchTool('glob', {}, d)).files).toHaveLength(1)

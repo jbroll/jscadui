@@ -1,4 +1,5 @@
 import { checkApi, DEFAULT_API } from './api.js'
+import { viewInputSchema } from './viewSpec.js'
 
 const DOCS_DESCRIPTION = {
   fluent:
@@ -10,7 +11,17 @@ const DOCS_DESCRIPTION = {
 const BUILDS =
   'builds the project and returns the build report: saved (the file written, kept even when the build fails), ok, entry, error with its file, line and column, warnings, console output, params and, when it builds, the geometry (parts, boundingBox, dimensions in mm, volume in mm³, watertight, manifold, selfIntersecting).'
 
-export const buildTools = (api = DEFAULT_API) => [
+// Vision-only: only a model that reads images may be offered `view`, so the
+// gated catalog adds this entry; `dispatchTool` serves it regardless, so a
+// call still answers rather than failing as an unknown tool.
+const VIEW_TOOL = {
+  name: 'view',
+  description:
+    "Render the current model and look at it: ask for one to four views (each a preset, a lookAt point or part name, or a position with an offset) and get back an image per view with the camera finally used. The render is off-screen for this call only, so the user's own view never moves. Images are resent in later rounds, so ask for the fewest views that answer the question.",
+  inputSchema: viewInputSchema,
+}
+
+export const buildTools = (api = DEFAULT_API, { vision = false } = {}) => [
   {
     name: 'glob',
     description: 'List project file paths (with sizes); pattern like **/*.js filters, omitted means all. Every message already carries text files + last build, so glob only for sizes or non-text.',
@@ -138,6 +149,8 @@ export const buildTools = (api = DEFAULT_API) => [
       },
     },
   },
+  // Only a vision-capable model is offered the image-rendering tool.
+  ...(vision ? [VIEW_TOOL] : []),
   {
     name: 'export',
     description: 'Export the current model in the given format; the result gives its size, not the file. The user downloads it from the app.',
