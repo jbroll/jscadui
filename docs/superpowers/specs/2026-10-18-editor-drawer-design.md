@@ -104,6 +104,24 @@ what files it holds, which file is displayed, and where the project has been
    snapshot on switch-away (unique content only); agent cap stays one per
    turn.
 
+## Reviewer pass (my calls, 2026-10-18)
+
+- Dirty buffer: every navigation away from a dirty file (tree file-switch,
+  project-switch, delete/rename of the open file, version restore) reuses
+  the existing discard confirm (`src/editor.js:200-206`); no autosave is
+  added. No per-file buffer store beyond what `setFiles` already does.
+- Delete/rename guardrails: confirm on delete; block deleting the entry
+  file or the last file with a message; rename validates collisions the
+  same way `write` does. Deleting the displayed file reuses
+  `openReplacement` (`src/editor.js:262-273`).
+- Empty/Folder versions states: dropdown disabled with a one-line reason
+  (`No versions yet`, Folder projects keep history in git); restore also
+  goes through the discard confirm.
+- Markers: entry from the project manifest; dirty per open buffer;
+  turn-touched from `turnMentions`, cleared when the next turn starts.
+- Sign-in duplication is a shared component, not copy-paste (builder picks
+  the module shape).
+
 ## What's left to the builder (plan may decide)
 
 - Idle-window length and where the timer lives; whether coalescing
