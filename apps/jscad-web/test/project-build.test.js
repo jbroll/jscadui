@@ -141,7 +141,7 @@ describe('createProjectBuilds', () => {
   it('forgets the project build when something else is loaded, since the frame no longer holds it', async () => {
     const b = builds()
     b.recordLoad('http://project.local/main.js', { result: {} })
-    b.recordLoad('https://jscad.rkroll.com/examples/jscad/01-two-cars.example.js', { result: {} })
+    b.recordLoad('https://jscad.rkroll.com/examples/jscad/jscad-examples/01-two-cars.example.js', { result: {} })
     expect(await b.report()).toBe(null)
   })
 

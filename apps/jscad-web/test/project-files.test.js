@@ -132,7 +132,7 @@ describe('projectPathOf', () => {
   })
 
   it('is null for an example or a remote script, which is not a project file', () => {
-    expect(projectPathOf('http://localhost:5120/examples/jscad/01-two-cars.example.js')).toBeNull()
+    expect(projectPathOf('http://localhost:5120/examples/jscad/jscad-examples/01-two-cars.example.js')).toBeNull()
     expect(projectPathOf('https://example.com/model.js')).toBeNull()
   })
 })
@@ -141,7 +141,7 @@ describe('isRecordablePath', () => {
   it('marks URL scripts unrecordable and project paths recordable', () => {
     expect(isRecordablePath('main.js')).toBe(true)
     expect(isRecordablePath('/parts/gear.js')).toBe(true)
-    expect(isRecordablePath('http://localhost:5120/examples/jscad/01-two-cars.example.js')).toBe(false)
+    expect(isRecordablePath('http://localhost:5120/examples/jscad/jscad-examples/01-two-cars.example.js')).toBe(false)
     expect(isRecordablePath('https://example.com/model.js')).toBe(false)
     expect(isRecordablePath('data:application/gzip;base64,AAA')).toBe(false)
   })
@@ -192,7 +192,7 @@ describe('shouldRestoreBootProject', () => {
 })
 
 describe('defaultProjectFiles', () => {
-  const read = (name) => readFileSync(new URL(`../examples/jscad/${name}`, import.meta.url), 'utf8')
+  const read = (name) => readFileSync(new URL(`../examples/jscad/jscad-examples/${name}`, import.meta.url), 'utf8')
   const seed = () => defaultProjectFiles({ main: read('01-two-cars.example.js'), hierarchicalCar: read('02-hierarchical-car.example.js') })
 
   it('seeds main.js with the default example and its required sibling under the spec it requires', () => {

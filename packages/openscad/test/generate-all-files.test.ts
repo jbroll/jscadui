@@ -28,6 +28,7 @@ describe('generate-all-files', () => {
     for (const rel of ['model', 'helper', 'sub/helper', 'sub/broken', 'parts/gear']) touch(`lib-d/${rel}.scad`)
     writeFileSync(join(root, 'lib-d/exclude.txt'), 'helper.scad\nparts/\n')
     writeFileSync(join(root, 'lib-d/skip.txt'), 'broken.scad\n')
+    touch('lib-e/import/index.js')
     execFileSync('node', [generator, '--no-rename', '--examples-dir', root], { stdio: 'pipe', timeout: 30_000 })
   })
 
@@ -40,7 +41,7 @@ describe('generate-all-files', () => {
   })
 
   it('points the parent at the grid a wrapper would have held', () => {
-    expect(itemsOf(join(root, 'ALL.js'))).toEqual(['./lib-a/outer/tests/ALL.js', './lib-b/ALL.js', './lib-c/tests/ALL.js', './lib-d/ALL.js'])
+    expect(itemsOf(join(root, 'ALL.js'))).toEqual(['./lib-a/outer/tests/ALL.js', './lib-b/ALL.js', './lib-c/tests/ALL.js', './lib-d/ALL.js', './lib-e/ALL.js'])
   })
 
   it('leaves out exclude.txt entries, anchored to their directory, and skip.txt entries by name', () => {
@@ -62,5 +63,10 @@ describe('generate-all-files', () => {
 
   it('removes stale category grids', () => {
     expect(existsSync(join(root, 'lib-c', 'tests', 'ALL.stale.js'))).toBe(false)
+  })
+
+  it('references an index-only folder-project from the parent grid, with no grid of its own', () => {
+    expect(itemsOf(join(root, 'lib-e', 'ALL.js'))).toEqual(['./import/index.js'])
+    expect(existsSync(join(root, 'lib-e', 'import', 'ALL.js'))).toBe(false)
   })
 })

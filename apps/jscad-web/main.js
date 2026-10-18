@@ -25,8 +25,8 @@ import { OrbitControl, OrbitState } from '@jscadui/orbit'
 import { boundingBox } from '@jscadui/format-common'
 
 // Local modules
-import defaultCode from './examples/jscad/01-two-cars.example.js'
-import hierarchicalCarCode from './examples/jscad/02-hierarchical-car.example.js'
+import defaultCode from './examples/jscad/jscad-examples/01-two-cars.example.js'
+import hierarchicalCarCode from './examples/jscad/jscad-examples/02-hierarchical-car.example.js'
 import { addV1Shim } from '@jscadui/worker/src/addV1Shim.js'
 import * as editor from './src/editor.js'
 import { confirm } from './src/ui/dialog.js'
@@ -905,7 +905,7 @@ await exporter.init(workerApi, { onError: setError })
 
 // ============== Default Script ==============
 if (loadDefault && !hasRemoteScript) {
-  const defaultUrl = './examples/jscad/01-two-cars.example.js'
+  const defaultUrl = './examples/jscad/jscad-examples/01-two-cars.example.js'
   const fullUrl = new URL(defaultUrl, appBase).toString()
   if (await editor.confirmDiscard()) {
     editor.setSource(defaultCode, fullUrl)

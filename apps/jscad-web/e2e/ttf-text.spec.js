@@ -11,7 +11,7 @@ test.describe('TTF text example', () => {
   test.setTimeout(120_000)
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#./examples/jscad/14-ttf-text.example.js')
+    await page.goto('/#./examples/jscad/jscad-examples/14-ttf-text.example.js')
     await dismissWelcome(page)
     // Allow extra time for CDN font download on first run
     await waitForRender(page, 60_000)

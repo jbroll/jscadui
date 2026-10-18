@@ -324,7 +324,14 @@ function processDirectory(dir, examplesRoot, scopes, depth = 0) {
 
     items.push(...subdirItems(subdirResults))
 
-    // Generate ALL.js if this directory has any items
+    // Generate ALL.js if this directory has any items. An index-only
+    // directory (a folder-style project: single index.js, no subdirs) holds
+    // no grid of its own — the parent references its index file directly —
+    // but it is still a model, so it reports hasModels for the parent.
+    // modelFiles is already exclusion-filtered, so a skipped index stays hidden.
+    const indexOnlyModel = items.length === 0
+      && isIndexOnlyDirectory(dir)
+      && modelFiles.some((f) => f === 'index.js' || f === 'index.scad')
     if (items.length > 0) {
       stats.hasModels = true
       stats.dirs++
@@ -359,6 +366,8 @@ function processDirectory(dir, examplesRoot, scopes, depth = 0) {
       } else {
         stats.files += generateAllFile(dir, finalItems, examplesRoot)
       }
+    } else if (indexOnlyModel) {
+      stats.hasModels = true
     }
   } catch (err) {
     console.error(`Error processing ${dir}: ${err.message}`)
