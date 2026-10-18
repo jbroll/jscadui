@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildPool, createWebSearch, SNIPPET_MAX_CHARS } from '../src/websearch.js'
+import { buildPool, createWebSearch, mcpCall, SNIPPET_MAX_CHARS } from '../src/websearch.js'
 
 const jsonResponse = (status, body, headers = {}) => ({
   ok: status >= 200 && status < 300,
@@ -26,13 +26,14 @@ const successFetch = (seen = []) =>
   })
 
 describe('buildPool', () => {
-  it('keyless node pool is Exa, Parallel, Firecrawl only', () => {
-    expect(buildPool({ keys: {}, context: 'node' }).map((p) => p.id)).toEqual(['exa', 'parallel', 'firecrawl'])
+  it('keyless node pool is Exa and Parallel only (Firecrawl is keyed since 2026-10)', () => {
+    expect(buildPool({ keys: {}, context: 'node' }).map((p) => p.id)).toEqual(['exa', 'parallel'])
   })
 
-  it('keyed node pool adds TinyFish and Tavily after the keyless providers', () => {
-    const ids = buildPool({ keys: { tinyfish: 'k1', tavily: 'k2' }, context: 'node' }).map((p) => p.id)
-    expect(ids.slice(0, 3)).toEqual(['exa', 'parallel', 'firecrawl'])
+  it('keyed node pool adds Firecrawl, TinyFish and Tavily after the keyless providers', () => {
+    const ids = buildPool({ keys: { firecrawl: 'k0', tinyfish: 'k1', tavily: 'k2' }, context: 'node' }).map((p) => p.id)
+    expect(ids.slice(0, 2)).toEqual(['exa', 'parallel'])
+    expect(ids).toContain('firecrawl')
     expect(ids).toContain('tinyfish')
     expect(ids).toContain('tavily')
   })
@@ -110,5 +111,89 @@ describe('createWebSearch', () => {
     } finally {
       if (saved !== undefined) globalThis.process = saved
     }
+  })
+
+  it('sends Accept for JSON + SSE so Exa does not 406', async () => {
+    let sentHeaders = null
+    const fetchFn = vi.fn(async (url, init) => {
+      sentHeaders = init?.headers
+      return searchResults(resultsFor(providerOf(String(url))))
+    })
+    const handler = createWebSearch({ fetchFn, context: 'node', projectId: 'accept-probe' })
+    await handler({ query: 'willys mb wheelbase' })
+    expect(sentHeaders?.Accept ?? sentHeaders?.accept).toMatch(/application\/json.*text\/event-stream/)
+  })
+
+  it('maps query to Parallel objective+search_queries', async () => {
+    let sentBody = null
+    const fetchFn = vi.fn(async (url, init) => {
+      if (String(url).includes('parallel')) {
+        sentBody = JSON.parse(init.body).params.arguments
+        return searchResults([{ title: 't', url: 'https://example.com', snippet: 's' }])
+      }
+      return jsonResponse(500, {})
+    })
+    const handler = createWebSearch({ fetchFn, context: 'node', projectId: 'parallel-args', pinned: 'parallel' })
+    const res = await handler({ query: 'Willys MB wheelbase' })
+    expect(res.ok).toBe(true)
+    expect(sentBody).toMatchObject({ objective: expect.stringContaining('Willys MB'), search_queries: expect.any(Array) })
+  })
+
+  it('maps query to Exa query+objective+numResults', async () => {
+    let sentBody = null
+    const fetchFn = vi.fn(async (url, init) => {
+      if (String(url).includes('exa.ai')) {
+        sentBody = JSON.parse(init.body).params.arguments
+        return searchResults([{ title: 't', url: 'https://example.com', snippet: 's' }])
+      }
+      return jsonResponse(500, {})
+    })
+    const handler = createWebSearch({ fetchFn, context: 'node', projectId: 'exa-args', pinned: 'exa' })
+    const res = await handler({ query: 'Willys MB wheelbase', count: 5 })
+    expect(res.ok).toBe(true)
+    expect(sentBody).toMatchObject({ query: 'Willys MB wheelbase', objective: expect.any(String), numResults: 5 })
+  })
+
+  it('parses Parallel excerpts into snippets', async () => {
+    const parallelBody = {
+      result: { content: [{ type: 'text', text: JSON.stringify({ results: [{ url: 'https://example.com', title: 'T', excerpts: ['first excerpt', 'second'] }] }) }] },
+    }
+    const fetchFn = vi.fn(async (url) => {
+      if (String(url).includes('parallel')) return jsonResponse(200, parallelBody)
+      return jsonResponse(500, {})
+    })
+    const handler = createWebSearch({ fetchFn, context: 'node', projectId: 'parallel-excerpts', pinned: 'parallel' })
+    const res = await handler({ query: 'Willys MB' })
+    expect(res.ok).toBe(true)
+    expect(res.results[0]).toMatchObject({ title: 'T', url: 'https://example.com', snippet: expect.stringContaining('first excerpt') })
+  })
+
+  it('parses Exa markdown highlights into results', async () => {
+    const exaText = 'Title: Willys MB\nURL: https://example.com/mb\nHighlights:\nWheelbase 80 in vintage jeep\n\nTitle: Second\nURL: https://example.com/2\nHighlights:\nsecond snippet'
+    const fetchFn = vi.fn(async (url) => {
+      if (String(url).includes('exa.ai')) return jsonResponse(200, { result: { content: [{ type: 'text', text: exaText }] } })
+      return jsonResponse(500, {})
+    })
+    const handler = createWebSearch({ fetchFn, context: 'node', projectId: 'exa-md', pinned: 'exa' })
+    const res = await handler({ query: 'Willys MB' })
+    expect(res.ok).toBe(true)
+    expect(res.results[0]).toMatchObject({ title: 'Willys MB', url: 'https://example.com/mb', provider: 'exa' })
+  })
+
+  it('parses SSE event-stream bodies', async () => {
+    const inner = JSON.stringify({ result: { results: [{ title: 't', url: 'https://example.com', snippet: 's' }] } })
+    const fetchFn = vi.fn(async () => ({ ok: true, status: 200, headers: { get: (n) => (n.toLowerCase() === 'content-type' ? 'text/event-stream' : null) }, text: async () => `event: message\ndata: ${inner}\n\n` }))
+    const out = await mcpCall('https://mcp.exa.ai/mcp', 'web_search_exa', { query: 'x', objective: 'x' }, { fetchFn })
+    expect(out.ok).toBe(true)
+    expect(out.body?.result?.results?.[0]?.title).toBe('t')
+  })
+
+  it('reports per-provider failure detail instead of claiming cooldown', async () => {
+    const handler = createWebSearch({ fetchFn: vi.fn(async () => jsonResponse(406, { error: { code: -32000 } })), context: 'node' })
+    const res = await handler({ query: 'willys mb' })
+    expect(res.ok).toBe(false)
+    expect(res.error.name).toBe('SearchUnavailableError')
+    expect(res.error.details).toEqual(expect.arrayContaining([expect.objectContaining({ provider: expect.any(String), status: 406 })]))
+    expect(res.error.message).not.toMatch(/cooling down/)
   })
 })

@@ -12,11 +12,12 @@ export const MAX_COUNT = 20
 const PROVIDERS = [
   { id: 'exa', endpoint: 'https://mcp.exa.ai/mcp', tool: 'web_search_exa', needsKey: false, browserDirect: true },
   { id: 'parallel', endpoint: 'https://search.parallel.ai/mcp', tool: 'web_search', needsKey: false, browserDirect: true },
+  // Firecrawl now requires OAuth (401 keyless since 2026-10); keyed only.
   {
     id: 'firecrawl',
     endpoint: 'https://mcp.firecrawl.dev/v2/mcp-search',
     tool: 'firecrawl_search',
-    needsKey: false,
+    needsKey: true,
     browserDirect: true,
   },
   // TinyFish needs a key and its search tool name is resolved live via
@@ -68,24 +69,45 @@ const retryAfterMs = (headers) => {
 }
 
 // Streamable-HTTP tools/call. { error } bodies become failures, never throws.
+// Sends Accept for both JSON and SSE: Exa answers 406 without it and streams
+// `text/event-stream` (event:/data: lines) on success.
 export const mcpCall = async (url, tool, args, { fetchFn = globalThis.fetch, headers = {}, timeoutMs = SEARCH_TIMEOUT_MS } = {}) => {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const response = await fetchFn(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...headers },
       body: JSON.stringify({ jsonrpc: '2.0', id: 'jscadui-search', method: 'tools/call', params: { name: tool, arguments: args } }),
       signal: controller.signal,
     })
+    const contentType = response.headers?.get?.('content-type') ?? ''
     let body = null
-    try {
-      body = await response.json()
-    } catch {
-      return { ok: false, status: response.status, retryable: response.status === 429, headers: response.headers }
+    if (contentType.includes('text/event-stream')) {
+      try {
+        const text = await response.text()
+        const dataLine = text
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => line.startsWith('data:'))
+          .map((line) => line.slice('data:'.length).trim())
+          .find((line) => line && line !== '[DONE]')
+        body = dataLine ? JSON.parse(dataLine) : null
+      } catch {
+        return { ok: false, status: response.status, retryable: response.status === 429, headers: response.headers }
+      }
+    } else {
+      try {
+        body = await response.json()
+      } catch {
+        return { ok: false, status: response.status, retryable: response.status === 429, headers: response.headers }
+      }
     }
     if (!response.ok || body?.error) {
       return { ok: false, status: response.status, retryable: response.status === 429, headers: response.headers }
+    }
+    if (body?.result?.isError) {
+      return { ok: false, status: response.status, retryable: false, headers: response.headers, body }
     }
     return { ok: true, status: response.status, body }
   } catch {
@@ -101,10 +123,22 @@ const mcpList = async (url, { fetchFn, headers, timeoutMs }) => {
   try {
     const response = await fetchFn(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...headers },
       body: JSON.stringify({ jsonrpc: '2.0', id: 'jscadui-tools', method: 'tools/list', params: {} }),
       signal: controller.signal,
     })
+    const contentType = response.headers?.get?.('content-type') ?? ''
+    if (contentType.includes('text/event-stream')) {
+      const text = await response.text()
+      const dataLine = text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice('data:'.length).trim())
+        .find((line) => line && line !== '[DONE]')
+      const body = dataLine ? JSON.parse(dataLine) : null
+      return body?.result?.tools ?? []
+    }
     const body = await response.json()
     return body?.result?.tools ?? []
   } catch {
@@ -120,17 +154,56 @@ const capSnippet = (snippet) =>
     .join('``\u200b`')
     .slice(0, SNIPPET_MAX_CHARS)
 
+// Per-provider arg shapes (upstream drift 2026-10): Exa requires
+// query+objective (+numResults), Parallel requires objective+search_queries.
+export const buildArgs = (providerId, query, count) => {
+  if (providerId === 'exa') return { query, objective: query, numResults: count }
+  if (providerId === 'parallel') return { objective: query, search_queries: [query] }
+  return { query, count }
+}
+
+const parseExaMarkdown = (text) => {
+  const blocks = String(text ?? '').split(/\n-{3,}\n|\n(?=Title: )/)
+  const hits = []
+  for (const block of blocks) {
+    const title = block.match(/^Title:\s*(.+)$/m)?.[1]?.trim()
+    const url = block.match(/^URL:\s*(.+)$/m)?.[1]?.trim()
+    if (!title || !url) continue
+    const highlights = block.split(/Highlights:\s*/)[1] ?? ''
+    hits.push({ title, url, snippet: highlights.trim() })
+  }
+  return hits.length ? hits : null
+}
+
 const normalizeResults = (body, provider) => {
-  const raw = body?.result?.results ?? (() => {
+  if (Array.isArray(body?.result?.results)) {
+    const raw = body.result.results
+    return raw.map((hit) => ({
+      title: String(hit?.title ?? ''),
+      url: String(hit?.url ?? ''),
+      snippet: capSnippet(hit?.snippet ?? (Array.isArray(hit?.excerpts) ? hit.excerpts.join('\n') : '')),
+      provider,
+    }))
+  }
+  const text = body?.result?.content?.find?.((block) => block?.type === 'text')?.text
+  if (typeof text === 'string') {
     try {
-      const text = body?.result?.content?.find?.((block) => block?.type === 'text')?.text
-      return JSON.parse(text ?? 'null')?.results
+      const parsed = JSON.parse(text)
+      if (Array.isArray(parsed?.results)) {
+        return parsed.results.map((hit) => ({
+          title: String(hit?.title ?? ''),
+          url: String(hit?.url ?? ''),
+          snippet: capSnippet(hit?.snippet ?? (Array.isArray(hit?.excerpts) ? hit.excerpts.join('\n') : '')),
+          provider,
+        }))
+      }
     } catch {
-      return undefined
+      // Not JSON: fall through to Exa markdown below.
     }
-  })()
-  if (!Array.isArray(raw)) return null
-  return raw.map((hit) => ({ title: String(hit?.title ?? ''), url: String(hit?.url ?? ''), snippet: capSnippet(hit?.snippet), provider }))
+    const md = parseExaMarkdown(text)
+    if (md) return md.map((hit) => ({ ...hit, snippet: capSnippet(hit.snippet), provider }))
+  }
+  return null
 }
 
 // Keyed auth per provider: TinyFish documents X-API-Key; the rest take a
@@ -164,29 +237,30 @@ export const createWebSearch = ({
 
   const searchVia = async (provider, query, count) => {
     const key = resolvedKeys[provider.id]
+    const args = buildArgs(provider.id, query, count)
     if (provider.id === 'tavily' && context === 'node' && key) {
       const url = `${provider.endpoint}?tavilyApiKey=${encodeURIComponent(key)}`
       const call = await mcpCall(url, provider.tool, { query, count }, { fetchFn, headers: authHeaders(provider, key, version) })
       return { ...call, provider: provider.id }
     }
     if (!provider.browserDirect && context === 'browser') {
-      if (typeof relaySearch !== 'function') return { ok: false, retryable: false }
+      if (typeof relaySearch !== 'function') return { ok: false, retryable: false, status: 0, provider: provider.id }
       try {
         const results = await relaySearch({ query, count })
         return { ok: true, body: { result: { results } }, provider: provider.id }
       } catch {
-        return { ok: false, retryable: true, provider: provider.id }
+        return { ok: false, retryable: true, status: 0, provider: provider.id }
       }
     }
     let tool = provider.tool
     if (provider.id === 'tinyfish' && !tinyfishTools.has(provider.endpoint)) {
       const tools = await mcpList(provider.endpoint, { fetchFn, headers: authHeaders(provider, key, version) })
       const match = tools.find((tool) => /search/i.test(tool?.name ?? ''))
-      if (!match?.name) return { ok: false, retryable: false, provider: provider.id }
+      if (!match?.name) return { ok: false, retryable: false, status: 0, provider: provider.id }
       tinyfishTools.set(provider.endpoint, match.name)
     }
     if (provider.id === 'tinyfish') tool = tinyfishTools.get(provider.endpoint)
-    const call = await mcpCall(provider.endpoint, tool, { query, count }, { fetchFn, headers: authHeaders(provider, key, version) })
+    const call = await mcpCall(provider.endpoint, tool, args, { fetchFn, headers: authHeaders(provider, key, version) })
     return { ...call, provider: provider.id }
   }
 
@@ -201,17 +275,27 @@ export const createWebSearch = ({
     if (!pool.length) return toolError('SearchUnavailableError', 'websearch: no usable search provider')
     const start = hashId(String(projectId ?? sessionId ?? '')) % pool.length
     const now = Date.now()
+    const failures = []
+    let cooling = 0
     for (let step = 0; step < pool.length; step++) {
       const provider = pool[(start + step) % pool.length]
-      if ((cooldowns.get(provider.id) ?? 0) > now) continue
+      if ((cooldowns.get(provider.id) ?? 0) > now) {
+        cooling += 1
+        failures.push({ provider: provider.id, status: 'cooldown', retryable: true })
+        continue
+      }
       const attempt = await searchVia(provider, query.trim(), Math.min(Math.max(count, 1), MAX_COUNT))
       if (attempt.ok) {
         const results = normalizeResults(attempt.body, provider.id)
         if (results) return { ok: true, results: results.slice(0, Math.min(Math.max(count, 1), MAX_COUNT)) }
+        failures.push({ provider: provider.id, status: attempt.status ?? 200, retryable: false, note: 'unparseable response' })
         continue
       }
+      failures.push({ provider: provider.id, status: attempt.status ?? 0, retryable: !!attempt.retryable })
       if (attempt.retryable) cooldowns.set(provider.id, Date.now() + retryAfterMs(attempt.headers))
     }
-    return toolError('SearchUnavailableError', 'websearch: every provider failed or is cooling down')
+    const summary = failures.map((f) => `${f.provider}:${f.status}`).join(', ')
+    const suffix = cooling > 0 ? ` (${cooling} cooling)` : ''
+    return toolError('SearchUnavailableError', `websearch: all providers failed [${summary}]${suffix}`, failures)
   }
 }

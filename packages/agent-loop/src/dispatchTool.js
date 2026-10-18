@@ -1,4 +1,7 @@
-export const toolError = (name, message) => ({ ok: false, error: { name, message } })
+export const toolError = (name, message, details) => ({
+  ok: false,
+  error: details === undefined ? { name, message } : { name, message, details },
+})
 
 import { TOOLS } from './tools.js'
 
