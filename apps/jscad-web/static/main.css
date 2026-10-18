@@ -530,8 +530,7 @@ p {
 /* On phones an open right drawer spans the width; the menu steps aside rather
  * than painting over it and its toggle from its higher z-index. */
 @media (max-width: 767px) {
-  .container:has(#ai-drawer:not(.closed)) #model-options,
-  .container:has(#project-drawer:not(.closed)) #model-options {
+  .container:has(#ai-drawer:not(.closed)) #model-options {
     display: none;
   }
 }
@@ -915,6 +914,9 @@ p {
 }
 #ai-drawer.closed {
   transform: translateX(100%);
+  /* The closed drawer's toggle sits at the right edge over the editor panel, so
+   * it stays above the page chrome and stays clickable. */
+  z-index: 41;
 }
 .dark #ai-drawer {
   background: #222;
@@ -943,62 +945,20 @@ p {
   content: "\27E9";
 }
 
-/* Project drawer: fixed right panel like the AI drawer, at the same z-index.
- * The app opens at most one of the two at a time (main.js). Toggle tabs stack
- * vertically (project above middle, AI below). */
-#project-drawer {
-  position: fixed;
-  right: 0;
-  top: 0;
-  width: 360px;
-  max-width: 90vw;
-  height: 100vh;
-  background: #fff;
-  border-left: 1px solid #444;
-  z-index: 40;
-  display: flex;
-  transition: transform 0.3s;
+/* The editor drawer header: the sign-in control both drawers mount, then the
+ * project dropdown with the current project's own controls (New Project, New
+ * File, rename, delete, mode). The strip wraps, so nothing is clipped inside
+ * the 400px-wide editor drawer. */
+#editor-header .editor-sync {
+  padding: 8px 10px 0;
 }
-#project-drawer.closed {
-  transform: translateX(100%);
+#editor-header .project-header {
+  flex-wrap: wrap;
 }
-.dark #project-drawer {
-  background: #222;
-  border-left-color: #666;
-}
-/* A closed drawer keeps its toggle above the open panel on the right, so the
- * other drawer stays reachable while one is open. */
-#ai-drawer.closed,
-#project-drawer.closed {
-  z-index: 41;
-}
-#project-toggle {
-  position: absolute;
-  width: 16px;
-  height: 90px;
-  left: -17px;
-  top: calc(50% - 110px);
-  margin-top: -45px;
-  background-color: #fec;
-  border: 1px solid #444;
-  border-right: none;
-  border-top-left-radius: 10px;
-  border-bottom-left-radius: 10px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-}
-#project-toggle::after {
-  content: "\27E8";
-}
-#project-drawer.closed #project-toggle::after {
-  content: "\27E9";
-}
-#project-drawer-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+#editor-header .project-select {
+  flex: 1 1 8rem;
+  min-width: 0;
+  font-size: 10pt;
 }
 .project-header {
   display: flex;
@@ -1009,53 +969,17 @@ p {
   font-size: 10pt;
   font-weight: bold;
 }
-.project-rows {
-  overflow-y: auto;
-}
-.project-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-bottom: 1px solid #eee;
-}
-.project-open {
-  flex: 1;
-  text-align: left;
-  font-size: 10pt;
-}
 .project-sync-status {
   padding: 6px 10px;
   font-size: 0.8rem;
   color: #b00020;
 }
 .project-delete { margin-left: 4px; }
-.project-versions {
-  overflow-y: auto;
-  border-top: 1px solid #ccc;
-  font-size: 10pt;
-}
-.version-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-bottom: 1px solid #eee;
-}
 .dark .project-header {
   border-bottom-color: #555;
 }
-.dark .project-row {
-  border-bottom-color: #444;
-}
 .dark .project-sync-status {
   color: #ff8a8a;
-}
-.dark .project-versions {
-  border-top-color: #555;
-}
-.dark .version-row {
-  border-bottom-color: #444;
 }
 #ai-drawer-body {
   flex: 1;

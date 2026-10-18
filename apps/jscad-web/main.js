@@ -56,7 +56,7 @@ import { assembleFileMap } from './src/storage/map.js'
 import { createProjectManager } from './src/storage/projects.js'
 import { createSession } from './src/storage/session.js'
 import { chatVersionMessage, EDIT_COALESCE_MS, excerptOf } from './src/storage/versioning.js'
-import { initProjects } from './src/projects.js'
+import { initEditorHeader } from './src/editorHeader.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createFrame, createJobTracker } from './src/frameSetup.js'
 import { createProjectSwitch, defaultProjectFiles, isRecordablePath, loadSource, pickBootProject, projectPathOf, shouldRestoreBootProject, toEditorFiles } from './src/projectFiles.js'
@@ -77,7 +77,8 @@ import { initChat } from './src/aiChat.js'
 import { createSearchStores, createWebSearchHandler } from './src/aiSearch.js'
 import { createWebFetchHandler } from './src/aiFetch.js'
 import { dispatchTool, NO_ENTRY, SKILLS, skillTool } from '@jscadui/agent-loop'
-import { initAccount, getChatApi, getProviderConfig, getSession, getWebsearchSelection } from './src/aiAccount.js'
+import { initAccount, getChatApi, getProviderConfig, getWebsearchSelection } from './src/aiAccount.js'
+import { getSession } from './src/syncEntry.js'
 
 /**
  * @typedef {import('@jscadui/worker').JscadWorker} JscadWorker
@@ -424,10 +425,25 @@ let currentEntry
 // mounts, so an early switch (a launcher model hash) skips it.
 let chatControls = null
 
+// The editor drawer header asks the discard confirm itself before it hands a
+// switch to the app, so the open that follows skips the switch's own ask: one
+// navigation, one prompt.
+let discardAnswered = false
+
+/**
+ * Run a header-driven open with the header's discard answer already given.
+ * @param {() => Promise<unknown>} open
+ * @returns {Promise<unknown>}
+ */
+const afterHeaderDiscard = (open) => {
+  discardAnswered = true
+  return open().finally(() => { discardAnswered = false })
+}
+
 const switchProject = createProjectSwitch({
   manager: projectManager,
   fileSystem,
-  editor,
+  editor: { ...editor, confirmDiscard: () => (discardAnswered ? Promise.resolve(true) : editor.confirmDiscard()) },
   clearTempCache: () => workerApi.jscadClearTempCache(),
   build: (entry) => buildProject(entry),
   onOpen: (id, entry, name) => {
@@ -503,8 +519,9 @@ const getRowboatStore = async () => {
   return rowboatStorePromise
 }
 
-// Project panel mounts after the sync loop starts; callbacks reach it lazily.
-let projectPanel = null
+// The editor drawer header mounts after the sync loop starts; callbacks reach
+// it lazily.
+let editorHeader = null
 
 // Interval table sync while signed in; anonymous users never reach it.
 const initSyncLoop = async () => {
@@ -516,9 +533,9 @@ const initSyncLoop = async () => {
     getToken: async () => (await fetchSyncToken())?.token ?? null,
     onError: (err) => {
       console.warn('rowboat sync failed:', err)
-      projectPanel?.setSyncStatus('Sync failed')
+      editorHeader?.setSyncStatus('Sync failed')
     },
-    onSync: () => projectPanel?.setSyncStatus(''),
+    onSync: () => editorHeader?.setSyncStatus(''),
   })
   syncHandle.start()
 }
@@ -1011,26 +1028,32 @@ const aiDeps = {
   webfetch: createWebFetchHandler({}),
 }
 
-if (byId('ai-account')) initAccount(byId('ai-account'), {
+// Both drawer headers mount the same sign-in control and sign out together.
+const accountDeps = {
   // The local backend persists to IndexedDB when available, so a reload keeps
   // this session's work; the unload warning applies only when it does not
   // (private mode, the compute frame), where a reload drops it. `isDirty`
   // stays false for a session that only booted the untouched default.
   hasLocalWork: () => localStore.isDirty() && !localStore.persists(),
-  // The blanket web-search grant covers the live conversation; revoking it
-  // clears the grant but never the stored search keys.
-  onWebsearchGrant: (on) => chatControls?.setWebsearchGranted(on),
-  // Any provider/recording change rewrites the chat drawer's notice line.
-  onSelectionChange: () => chatControls?.refreshNotice(),
   onSignOut: async () => {
     syncHandle?.stop()
     syncHandle = null
     try { await rowboatStore?.close() } catch (err) { console.warn('rowboat close failed:', err) }
     rowboatStore = null
     rowboatStorePromise = null
-    projectPanel?.setSyncStatus('')
-    await projectPanel?.render()
+    editorHeader?.setSyncStatus('')
+    await editorHeader?.render()
   },
+}
+
+if (byId('ai-account')) initAccount(byId('ai-account'), {
+  hasLocalWork: accountDeps.hasLocalWork,
+  // The blanket web-search grant covers the live conversation; revoking it
+  // clears the grant but never the stored search keys.
+  onWebsearchGrant: (on) => chatControls?.setWebsearchGranted(on),
+  // Any provider/recording change rewrites the chat drawer's notice line.
+  onSelectionChange: () => chatControls?.refreshNotice(),
+  onSignOut: accountDeps.onSignOut,
 })
 if (byId('ai-chat')) {
   const chatStorage = {
@@ -1055,13 +1078,11 @@ if (byId('ai-chat')) {
     endTurn: chatTools.endTurn,
   })
 }
+// The AI drawer keeps the right column to itself now that the project drawer
+// folded into the editor drawer.
 const aiDrawer = byId('ai-drawer')
-const projectDrawer = byId('project-drawer')
-// The two right drawers share one column, so opening either closes the other;
-// otherwise the newest panel would stay behind the older one.
 const setDrawer = (drawer, open) => {
   drawer?.classList.toggle('closed', !open)
-  if (open) (drawer === aiDrawer ? projectDrawer : aiDrawer)?.classList.add('closed')
 }
 const toggleDrawer = (drawer) => setDrawer(drawer, drawer?.classList.contains('closed'))
 byId('ai-toggle')?.addEventListener('click', () => toggleDrawer(aiDrawer))
@@ -1074,7 +1095,7 @@ byId('api-help-btn')?.addEventListener('click', () => {
   showApiHelp({ loadIndex: loadApiIndex, getApi: getChatApi })
 })
 
-// ============== Project Panel ==============
+// ============== Editor Drawer Header ==============
 const bootProjects = await projectManager.listAll()
 if (shouldRestoreBootProject({ hasRemoteScript, diskEntry, projects: bootProjects })) {
   const bootId = pickBootProject(bootProjects)
@@ -1085,40 +1106,45 @@ if (shouldRestoreBootProject({ hasRemoteScript, diskEntry, projects: bootProject
 // Boot is the baseline: everything the app itself created on load is not
 // "work", so the reload warning keys off writes that came after it.
 localStore.markClean()
-projectPanel = initProjects({
-  container: byId('project-drawer-body'),
+editorHeader = initEditorHeader(byId('editor-header'), {
   manager: projectManager,
-  onSwitch: (id) => switchProject(id).catch(setError),
+  // The header asked the discard confirm before calling this.
+  onSwitch: (id) => afterHeaderDiscard(() => switchProject(id)).catch(setError),
+  onFileCreate: () => switchProject(currentProjectId).catch(setError),
+  writeFile: (projectId, path, content) => storageSession.writeThrough(projectId, path, content, { message: 'edit', coalesceKey: 'edit', coalesceMs: EDIT_COALESCE_MS }),
   onDropOnProject: async (id, dataTransfer) => {
     const entries = await extractEntries(dataTransfer)
     await projectManager.mergeDrop(id, entries, { readDir, readAsText }).catch(setError)
     if (id === currentProjectId) await switchProject(id).catch(setError)
-    projectPanel.render()
+    editorHeader.render()
   },
-  onRestore: (id) => switchProject(id).catch(setError),
   onError: setError,
-  onFlip: () => projectPanel.render(),
+  onFlip: () => editorHeader.render(),
   readBuffer: () => ({ code: editor.getSource(), path: 'main.js' }),
   canUseRowboat: (await getRowboatStore()) !== null,
   confirm,
+  confirmDiscard: () => editor.confirmDiscard(),
+  syncDeps: accountDeps,
   onDelete: async (id) => {
     await projectManager.deleteProject(id)
     if (id === currentProjectId) {
       const next = pickBootProject(await projectManager.listAll())
       if (next) {
         await switchProject(next).catch(setError)
-        await projectPanel.select(next)
+        await editorHeader.select(next)
       } else {
         const created = await projectManager.createProject('Untitled', { entry: 'main.js', files: defaultProjectFiles({ main: defaultCode, hierarchicalCar: hierarchicalCarCode }) })
         await switchProject(created.id).catch(setError)
-        await projectPanel.select(created.id)
+        await editorHeader.select(created.id)
       }
     }
-    await projectPanel.render()
+    await editorHeader.render()
   },
   onRetrySync: () => syncHandle?.syncNow(),
 })
-byId('project-toggle')?.addEventListener('click', () => toggleDrawer(projectDrawer))
+// The boot switch above ran before the header existed; the dropdown opens on
+// whatever project that left open.
+await editorHeader.select(currentProjectId)
 
 // ============== Cleanup on Page Unload ==============
 // Call destroy functions to clean up event listeners and resources
