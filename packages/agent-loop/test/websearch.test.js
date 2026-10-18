@@ -124,6 +124,28 @@ describe('createWebSearch', () => {
     expect(sentHeaders?.Accept ?? sentHeaders?.accept).toMatch(/application\/json.*text\/event-stream/)
   })
 
+  it('omits User-Agent in browser context so CORS preflight passes', async () => {
+    let sentHeaders = null
+    const fetchFn = vi.fn(async (url, init) => {
+      sentHeaders = init?.headers
+      return searchResults(resultsFor(providerOf(String(url))))
+    })
+    const handler = createWebSearch({ fetchFn, context: 'browser', projectId: 'cors-probe' })
+    await handler({ query: 'willys mb wheelbase' })
+    expect(sentHeaders).not.toMatchObject({ 'User-Agent': expect.anything() })
+  })
+
+  it('sends User-Agent in node context', async () => {
+    let sentHeaders = null
+    const fetchFn = vi.fn(async (url, init) => {
+      sentHeaders = init?.headers
+      return searchResults(resultsFor(providerOf(String(url))))
+    })
+    const handler = createWebSearch({ fetchFn, context: 'node', projectId: 'ua-probe', version: '9.9.9' })
+    await handler({ query: 'willys mb wheelbase' })
+    expect(sentHeaders?.['User-Agent']).toBe('jscadui/9.9.9')
+  })
+
   it('maps query to Parallel objective+search_queries', async () => {
     let sentBody = null
     const fetchFn = vi.fn(async (url, init) => {
@@ -198,9 +220,7 @@ describe('createWebSearch', () => {
   })
 
   it('cooldown skips report the causing failure and retry-in, not bare cooldown', async () => {
-    let calls = 0
     const fetchFn = vi.fn(async () => {
-      calls += 1
       return jsonResponse(429, {}, { 'retry-after': '55' })
     })
     const handler = createWebSearch({ fetchFn, context: 'node', projectId: 'cool-cause' })

@@ -44,16 +44,34 @@ Parallel requires `{objective, search_queries}` and returns results with
 `packages/agent-loop/src/websearch.js` (per-provider `buildArgs`, SSE
 parsing, Firecrawl keyed-only, `details` on the aggregate error).
 
+2026-10-18 CORS preflight (live `OPTIONS` probes + browser console):
+`User-Agent` forces a preflight and is in neither provider's
+`Access-Control-Allow-Headers` (Exa: `Accept, Content-Type, Authorization,
+x-api-key, x-exa-source, Mcp-Session-Id, MCP-Protocol-Version,
+Last-Event-ID`; Parallel: `Content-Type, Mcp-Session-Id, Last-Event-ID,
+MCP-Protocol-Version, x-api-key, Authorization,
+x-parallel-search-config`), so every browser-direct call with `User-Agent`
+died before any status was readable (`header 'user-agent' is not allowed`,
+`CORS request did not succeed`). Fixed in
+`packages/agent-loop/src/websearch.js` (`authHeaders` omits `User-Agent`
+when `context === 'browser'`; Node keeps `User-Agent:
+jscadui/<version>`). `Accept` is CORS-safelisted (no preflight);
+`Authorization`/`X-API-Key` are allow-listed by both, so keyed
+browser-direct is unaffected.
+
 Consequences, locked here:
 
 - **Browser-direct pool: Exa, Parallel** (keyless) **+ Firecrawl, TinyFish**
   (keyed). The app page calls these straight from JS; no relay needed.
+  Browser requests must never send `User-Agent` (see 2026-10-18 preflight
+  note above); only `Content-Type`, `Accept`, and keyed auth headers.
 - **Tavily is relay-only** (no preflight → browser `fetch` dies before any
   status is readable). Tavily also needs a key, so it only enters the pool
   when the user sets one, and browser calls go through `POST /api/search`.
 - **Keyless pool: Exa, Parallel.** Firecrawl (since 2026-10-18), TinyFish
   and Tavily join only with user keys. No keyless path may ever send
-  `Authorization`; keyless requests carry only `User-Agent: jscadui/<version>`.
+  `Authorization`; Node keyless requests carry `User-Agent:
+  jscadui/<version>`, browser keyless requests carry no identifying header.
 
 ## Architecture
 
@@ -190,7 +208,9 @@ snippet that grading proves the model ignored.
   keyed pool includes them; 429 on first provider retries second and tags
   the serving provider; all-cooling → `SearchUnavailableError`; Tavily
   never attempted from a browser-context pool member (assert the pool
-  builder takes the context, not just keys); result char cap enforced.
+  builder takes the context, not just keys); browser context never sends
+  `User-Agent` (CORS preflight), node context sends `User-Agent:
+  jscadui/<version>`; result char cap enforced.
 - Dialog (`apps/jscad-web/test/`): per-provider save/clear round-trips
   through parameterized stores; no network calls (fetch mocked).
 - Dispatch (`dispatchTool.test.js` + eval `backend.test.js` mirror):

@@ -207,9 +207,11 @@ const normalizeResults = (body, provider) => {
 }
 
 // Keyed auth per provider: TinyFish documents X-API-Key; the rest take a
-// bearer token. Keyless requests carry only the User-Agent, never Authorization.
-const authHeaders = (provider, key, version) => {
-  const base = { 'User-Agent': `jscadui/${version}` }
+// bearer token. Keyless requests carry no Authorization. User-Agent is
+// Node-only: browsers forbid setting it and Exa/Parallel omit it from
+// Access-Control-Allow-Headers, so sending it breaks the CORS preflight.
+const authHeaders = (provider, key, version, context) => {
+  const base = context === 'browser' ? {} : { 'User-Agent': `jscadui/${version}` }
   if (!provider.needsKey) return base
   if (provider.id === 'tinyfish') return { ...base, 'X-API-Key': key }
   return { ...base, Authorization: `Bearer ${key}` }
@@ -241,7 +243,7 @@ export const createWebSearch = ({
     const args = buildArgs(provider.id, query, count)
     if (provider.id === 'tavily' && context === 'node' && key) {
       const url = `${provider.endpoint}?tavilyApiKey=${encodeURIComponent(key)}`
-      const call = await mcpCall(url, provider.tool, { query, count }, { fetchFn, headers: authHeaders(provider, key, version) })
+      const call = await mcpCall(url, provider.tool, { query, count }, { fetchFn, headers: authHeaders(provider, key, version, context) })
       return { ...call, provider: provider.id }
     }
     if (!provider.browserDirect && context === 'browser') {
@@ -255,13 +257,13 @@ export const createWebSearch = ({
     }
     let tool = provider.tool
     if (provider.id === 'tinyfish' && !tinyfishTools.has(provider.endpoint)) {
-      const tools = await mcpList(provider.endpoint, { fetchFn, headers: authHeaders(provider, key, version) })
+      const tools = await mcpList(provider.endpoint, { fetchFn, headers: authHeaders(provider, key, version, context) })
       const match = tools.find((tool) => /search/i.test(tool?.name ?? ''))
       if (!match?.name) return { ok: false, retryable: false, status: 0, provider: provider.id }
       tinyfishTools.set(provider.endpoint, match.name)
     }
     if (provider.id === 'tinyfish') tool = tinyfishTools.get(provider.endpoint)
-    const call = await mcpCall(provider.endpoint, tool, args, { fetchFn, headers: authHeaders(provider, key, version) })
+    const call = await mcpCall(provider.endpoint, tool, args, { fetchFn, headers: authHeaders(provider, key, version, context) })
     return { ...call, provider: provider.id }
   }
 
