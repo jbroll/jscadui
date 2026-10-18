@@ -15,14 +15,20 @@ const toResponsesTool = (tool) => ({
 // Exported for tests only; not part of the package's public surface.
 export const toResponsesInput = (messages) => {
   const input = []
+  let images = []
+  const flushImages = () => {
+    if (images.length === 0) return
+    input.push({ role: 'user', content: images.map((image) => ({ type: 'input_image', image_url: image.dataUrl })) })
+    images = []
+  }
   for (const message of messages) {
     if (message.role === 'tool') {
       input.push({ type: 'function_call_output', call_id: message.toolCallId, output: message.content })
-      const images = Array.isArray(message.images) ? message.images : []
-      if (images.length > 0) {
-        input.push({ role: 'user', content: images.map((image) => ({ type: 'input_image', image_url: image.dataUrl })) })
-      }
-    } else if (message.role === 'assistant') {
+      if (Array.isArray(message.images)) images.push(...message.images)
+      continue
+    }
+    flushImages()
+    if (message.role === 'assistant') {
       if (message.content) input.push({ role: 'assistant', content: message.content })
       for (const call of message.toolCalls ?? []) {
         input.push({ type: 'function_call', call_id: call.id, name: call.name, arguments: JSON.stringify(call.input) })
@@ -31,6 +37,7 @@ export const toResponsesInput = (messages) => {
       input.push({ role: message.role, content: message.content })
     }
   }
+  flushImages()
   return input
 }
 

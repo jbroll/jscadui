@@ -356,22 +356,27 @@ const anthropicProvider = (config) => {
   }
 }
 
-// Chat-completions has no image content on a tool message, so a view's images
-// follow it as a user message of image_url parts. Returns an array: one source
-// message may become the tool row plus that follow-up.
+// Chat-completions has no image content on a tool message, so a batch's view
+// images follow it as ONE user message of image_url parts, after the last tool
+// row of that assistant batch (tool, tool, user), which strict relays accept.
 // Exported for tests only; not part of the package's public surface.
-export const toOpenAIMessages = (message) => {
-  if (message.role === 'tool') {
-    const out = [{ role: 'tool', tool_call_id: message.toolCallId, content: message.content }]
-    const images = Array.isArray(message.images) ? message.images : []
-    if (images.length > 0) {
-      out.push({ role: 'user', content: images.map((image) => ({ type: 'image_url', image_url: { url: image.dataUrl } })) })
-    }
-    return out
+export const toOpenAIMessages = (messages) => {
+  const out = []
+  let images = []
+  const flushImages = () => {
+    if (images.length === 0) return
+    out.push({ role: 'user', content: images.map((image) => ({ type: 'image_url', image_url: { url: image.dataUrl } })) })
+    images = []
   }
-  if (message.role === 'assistant' && (message.toolCalls ?? []).length > 0) {
-    return [
-      {
+  for (const message of messages) {
+    if (message.role === 'tool') {
+      out.push({ role: 'tool', tool_call_id: message.toolCallId, content: message.content })
+      if (Array.isArray(message.images)) images.push(...message.images)
+      continue
+    }
+    flushImages()
+    if (message.role === 'assistant' && (message.toolCalls ?? []).length > 0) {
+      out.push({
         role: 'assistant',
         content: message.content,
         tool_calls: message.toolCalls.map((call) => ({
@@ -379,10 +384,13 @@ export const toOpenAIMessages = (message) => {
           type: 'function',
           function: { name: call.name, arguments: JSON.stringify(call.input) },
         })),
-      },
-    ]
+      })
+    } else {
+      out.push({ role: message.role, content: message.content })
+    }
   }
-  return [{ role: message.role, content: message.content }]
+  flushImages()
+  return out
 }
 
 const toOpenAITool = (tool) => ({
@@ -446,7 +454,7 @@ const openaiProvider = (config) => {
       const body = {
         model: config.model,
         stream: true,
-        messages: messages.flatMap(toOpenAIMessages),
+        messages: toOpenAIMessages(messages),
       }
       if (tools.length > 0) body.tools = tools.map(toOpenAITool)
       if (toolChoice === 'none') body.tool_choice = 'none'

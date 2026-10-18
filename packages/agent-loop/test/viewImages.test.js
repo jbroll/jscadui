@@ -50,6 +50,28 @@ const sentToolMessages = (run) => run.sent.at(-1).filter((m) => m.role === 'tool
 const sentImages = (run) => sentToolMessages(run).flatMap((m) => m.images ?? [])
 const sentCameras = (run) => sentToolMessages(run).flatMap((m) => JSON.parse(m.content).cameras ?? [])
 
+// A parallel round: the provider asks for view and another read-only tool in
+// the same assistant message, then answers. Returns the messages of every send.
+const runParallelRound = async () => {
+  const sent = []
+  const provider = {
+    async *send(messages) {
+      sent.push([...messages])
+      if (sent.length === 1) {
+        yield { type: 'tool_use', id: 'v1', name: 'view', input: {} }
+        yield { type: 'tool_use', id: 'g1', name: 'glob', input: {} }
+        yield { type: 'done', stopReason: 'tool_use' }
+      } else {
+        yield { type: 'text', text: 'done' }
+        yield { type: 'done', stopReason: 'end_turn' }
+      }
+    },
+  }
+  const requestTool = async (name) => (name === 'view' ? viewResult(secondPng, camera(1)) : '{"ok":true}')
+  await runTurn({ conversation: { messages: [{ role: 'user', content: 'look' }] }, provider, requestTool })
+  return sent
+}
+
 describe('view images in the loop', () => {
   it('bypass the text cap and prune to the latest view, keeping every camera', async () => {
     const run = await runTurnWithView([viewResult(bigPng, camera(1)), viewResult(secondPng, camera(2))])
@@ -62,6 +84,10 @@ describe('view images in the loop', () => {
     const run = await runTurnWithView([viewResult(bigPng, camera(1))])
     expect(sentImages(run)).toHaveLength(1)
     expect(sentImages(run)[0].dataUrl).toBe(bigPng)
+    // The image rides the tool message as an image part, bypassing the cap.
+    const tools = sentToolMessages(run)
+    expect(tools).toHaveLength(1)
+    expect(tools[0].images).toHaveLength(1)
   })
 
   it('drops the earlier view image but leaves its camera text stub in place', async () => {
@@ -121,7 +147,7 @@ describe('provider image mapping', () => {
   })
 
   it('openai chat-completions puts images in a follow-up user message', () => {
-    const mapped = toOpenAIMessages(viewToolMsg)
+    const mapped = toOpenAIMessages([viewToolMsg])
     expect(mapped).toEqual([
       { role: 'tool', tool_call_id: 't1', content: '{"ok":true,"cameras":[]}' },
       { role: 'user', content: [{ type: 'image_url', image_url: { url: secondPng } }] },
@@ -134,6 +160,27 @@ describe('provider image mapping', () => {
       { type: 'function_call_output', call_id: 't1', output: '{"ok":true,"cameras":[]}' },
       { role: 'user', content: [{ type: 'input_image', image_url: secondPng }] },
     ])
+  })
+
+  it('openai batches a parallel round into tool, tool, user(images)', async () => {
+    const sent = await runParallelRound()
+    const wire = toOpenAIMessages(sent.at(-1))
+    expect(wire.map((m) => m.role)).toEqual(['user', 'assistant', 'tool', 'tool', 'user'])
+    expect(wire.at(-1).content).toEqual([{ type: 'image_url', image_url: { url: secondPng } }])
+  })
+
+  it('responses batches a parallel round into outputs then one user(images)', async () => {
+    const sent = await runParallelRound()
+    const wire = toResponsesInput(sent.at(-1))
+    expect(wire.map((m) => m.type ?? m.role)).toEqual([
+      'user',
+      'function_call',
+      'function_call',
+      'function_call_output',
+      'function_call_output',
+      'user',
+    ])
+    expect(wire.at(-1).content).toEqual([{ type: 'input_image', image_url: secondPng }])
   })
 })
 
