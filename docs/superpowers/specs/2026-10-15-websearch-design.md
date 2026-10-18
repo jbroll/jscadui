@@ -22,7 +22,7 @@ the browser CORS reality opencode never faces.
 Non-goals: page fetch (relay spec owns it), browser automation, server-held
 shared keys, per-query approval UI.
 
-## Evidence: CORS + keyless matrix (probed 2026-10-15 with curl)
+## Evidence: CORS + keyless matrix (probed 2026-10-15 with curl; re-probed 2026-10-18 live)
 
 Preflight: `OPTIONS` with `Origin: https://jscad.example.com`,
 `Access-Control-Request-Method: POST`. Handshake: MCP `initialize` POST,
@@ -32,20 +32,28 @@ no key.
 |---|---|---|---|
 | Exa | `https://mcp.exa.ai/mcp` | `ACAO: *` | 200 |
 | Parallel | `https://search.parallel.ai/mcp` | `ACAO: *` | 200 |
-| Firecrawl | `https://mcp.firecrawl.dev/v2/mcp` | `ACAO: *` | 200 |
+| Firecrawl | `https://mcp.firecrawl.dev/v2/mcp` | `ACAO: *` | 200 (2026-10-15); **401 OAuth-only since 2026-10-18** |
 | TinyFish | `https://agent.tinyfish.ai/mcp` | `ACAO: *` | 401 (OAuth or `X-API-Key` required) |
 | Tavily | `https://mcp.tavily.com/mcp/?tavilyApiKey=<key>` | **405, no CORS headers** | 401 (key required) |
 
+2026-10-18 drift (live `tools/call` probes from `jscadui-wt2`): Exa answers
+`406` unless `Accept: application/json, text/event-stream` is sent and now
+requires `{query, objective}` (`numResults` optional), streaming SSE;
+Parallel requires `{objective, search_queries}` and returns results with
+`excerpts[]`; Firecrawl keyless is `401 invalid_token`. Fixed in
+`packages/agent-loop/src/websearch.js` (per-provider `buildArgs`, SSE
+parsing, Firecrawl keyed-only, `details` on the aggregate error).
+
 Consequences, locked here:
 
-- **Browser-direct pool: Exa, Parallel, Firecrawl** (keyless) **+ TinyFish**
+- **Browser-direct pool: Exa, Parallel** (keyless) **+ Firecrawl, TinyFish**
   (keyed). The app page calls these straight from JS; no relay needed.
 - **Tavily is relay-only** (no preflight → browser `fetch` dies before any
   status is readable). Tavily also needs a key, so it only enters the pool
   when the user sets one, and browser calls go through `POST /api/search`.
-- **Keyless pool: Exa, Parallel, Firecrawl.** TinyFish and Tavily join only
-  with user keys. No keyless path may ever send `Authorization`; keyless
-  requests carry only `User-Agent: jscadui/<version>`.
+- **Keyless pool: Exa, Parallel.** Firecrawl (since 2026-10-18), TinyFish
+  and Tavily join only with user keys. No keyless path may ever send
+  `Authorization`; keyless requests carry only `User-Agent: jscadui/<version>`.
 
 ## Architecture
 

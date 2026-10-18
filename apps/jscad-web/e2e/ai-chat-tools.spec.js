@@ -166,9 +166,10 @@ const routeApi = async (page, pattern, respond = {}) => {
   return calls
 }
 
-// The keyless search tiers the browser reaches directly. Tavily cannot join
+// The keyless search tiers the browser reaches directly (Firecrawl went
+// OAuth-only 2026-10-18, so it is keyed-only now). Tavily cannot join
 // them: it answers no CORS preflight, so it is relay-only.
-const DIRECT_MCP_ENDPOINTS = ['https://mcp.exa.ai/mcp', 'https://search.parallel.ai/mcp', 'https://mcp.firecrawl.dev/v2/mcp-search']
+const DIRECT_MCP_ENDPOINTS = ['https://mcp.exa.ai/mcp', 'https://search.parallel.ai/mcp']
 
 const MCP_CORS = {
   'access-control-allow-origin': '*',
@@ -365,15 +366,19 @@ test.describe('AI chat tools', () => {
     await expect(page.locator('.chat-messages')).toContainText('Found.', { timeout: 30_000 })
 
     // ROUTING (direct): at least one MCP endpoint answered, and every endpoint
-    // hit was a JSON-RPC tools/call; the relay never saw a search.
+    // hit was a JSON-RPC tools/call with its provider's arg shape
+    // (Exa {query,objective,numResults}, Parallel {objective,search_queries});
+    // the relay never saw a search.
     expect(directHits.length).toBeGreaterThanOrEqual(1)
     for (const hit of directHits) {
       expect(DIRECT_MCP_ENDPOINTS).toContain(hit.url)
-      expect(hit.body).toMatchObject({
-        jsonrpc: '2.0',
-        method: 'tools/call',
-        params: { arguments: { query, count: 8 } },
-      })
+      expect(hit.body).toMatchObject({ jsonrpc: '2.0', method: 'tools/call' })
+      const toolArgs = hit.body.params.arguments
+      if (hit.url.includes('exa.ai')) {
+        expect(toolArgs).toMatchObject({ query, objective: expect.any(String), numResults: 8 })
+      } else {
+        expect(toolArgs).toMatchObject({ objective: expect.stringContaining(query), search_queries: expect.any(Array) })
+      }
     }
     expect(relayHits).toEqual([])
 
@@ -385,10 +390,10 @@ test.describe('AI chat tools', () => {
       title: '608',
       url: 'https://example.com/bearing',
       snippet: '8x22x7',
-      provider: expect.stringMatching(/^(exa|parallel|firecrawl)$/),
+      provider: expect.stringMatching(/^(exa|parallel)$/),
     })
     // ...and the audit log names the provider that answered.
-    expect(logs.join('\n')).toMatch(/provider: (exa|parallel|firecrawl)/)
+    expect(logs.join('\n')).toMatch(/provider: (exa|parallel)/)
 
     // Rendered row: websearch carries a query, so the target detail shows it.
     await expect(page.locator('.chat-tool')).toHaveCount(1)
@@ -450,15 +455,11 @@ test.describe('AI chat tools', () => {
     await expect(page.locator('.chat-messages')).toContainText('Fallback found.', { timeout: 30_000 })
 
     // ROUTING (relay): the direct pool was tried and exhausted (429)...
-    expect(directHits.length).toBeGreaterThanOrEqual(3)
+    expect(directHits.length).toBeGreaterThanOrEqual(2)
     for (const hit of directHits) {
       expect(DIRECT_MCP_ENDPOINTS).toContain(hit.url)
       expect(hit.status).toBe(429)
-      expect(hit.body).toMatchObject({
-        jsonrpc: '2.0',
-        method: 'tools/call',
-        params: { arguments: { query: 'bearing 608', count: 8 } },
-      })
+      expect(hit.body).toMatchObject({ jsonrpc: '2.0', method: 'tools/call' })
     }
     // ...then POST /api/search carried exactly { query, count: 8 }.
     expect(relayHits).toEqual([{ query: 'bearing 608', count: 8 }])

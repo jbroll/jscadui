@@ -71,7 +71,8 @@ handling. Not proposed until a concrete fixture needs it.
 
 Verdict 2026-10-15: `websearch` graduates from deferred under
 `docs/superpowers/specs/2026-10-15-websearch-design.md`, which trips the
-gate above: rotating keyless MCP providers (Exa, Parallel, Firecrawl)
+gate above: rotating keyless MCP providers (Exa, Parallel — Firecrawl went
+keyed-only 2026-10-18, see the spec's re-probe note)
 plus keyed TinyFish direct and Tavily via `POST /api/search`, blanket
 per-conversation permission, snippet caps with fence escaping, and the
 `catalog-search` eval fixture proving the tool path with an ignored
