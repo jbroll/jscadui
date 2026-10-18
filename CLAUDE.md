@@ -22,7 +22,12 @@ checkout's install via symlinks, fetches the example corpora, generates the
 ALL.js grids and builds the web bundles (seconds, not a reinstall), so the
 pre-commit gate passes on a fresh tree. It aborts when the shared
 `.deps-cache` pins drift from the worktree manifest instead of moving them
-under the parent checkout.
+under the parent checkout. Never run plain `npm install` in a fresh worktree:
+this system's npm (12.2.0) denies `remote:`/`git:` fetches by default, so it
+aborts with `EALLOWREMOTE` on `@jscad/modeling` and leaves `node_modules/.bin`
+(tsc/turbo/vitest) missing and the pre-commit gate broken — the bootstrap
+`install` step's `--allow-remote=all --allow-git=all` flags (or the script
+above, which avoids a reinstall entirely) are required.
 Before creating a new worktree, check `git worktree list` for a free
 preconfigured sibling (`jscadui-wtN` beside the checkout, installs included):
 reuse it when its branch is finished or unrelated, and only create under
