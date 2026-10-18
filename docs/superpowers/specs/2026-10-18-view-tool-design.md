@@ -71,16 +71,10 @@ Camera spec element (one per requested view), exactly one aim form each:
   as `body`, `front.left`, typed via `proxyState.types` from the params-proxy system,
   e.g. `packages/params-core/src/createParamsProxy.js`, example
   `apps/jscad-web/examples/jscad/jscad-examples/02-hierarchical-car.example.js`).
-  A part name resolves to that part's centroid for framing.
-  **Unresolved at implementation (Task 6 fix round 1):** no honest name→index
-  mapping exists. `proxyState.types` is keyed in `_type`-assignment order while
-  `measure` numbers the array `main()` returns; on
-  `02-hierarchical-car.example.js` that is 11 typed paths against 13 geometry
-  items and `body` lands on a rear wheel hub
-  (`apps/jscad-web/test/aiViewProvenance.test.js`). The app therefore refuses a
-  part-name aim with `PartLookAtUnsupportedError` and names the
-  `measure`-then-`[x, y, z]` route instead. Restoring a name aim needs a build
-  that reports which geometry item belongs to which part.
+  A part name resolves to an auto-attached anchor frame for that part (see Provenance),
+  falling back to nothing — never an index guess. (An earlier index-mapping attempt
+  was disproven on the hierarchical-car model — 11 typed paths against 13 geometry
+  items, `body` landing on a rear wheel hub — and removed in favour of anchors.)
 - `position` plus `offset`: explicit camera position plus a world-coords offset that
   shifts the camera for that render.
 
@@ -94,10 +88,10 @@ target, fov, aspect}}` plus `ok: true`. The camera returned is the final one use
 ## Builder-check resolutions (my call)
 
 - Complement defaults: a preset sets direction and auto-fits distance to the whole-model
-  bounding box; a `lookAt`-only spec targets the coords or part centroid, shot from a
-  default iso-front direction auto-fit to the part bbox when a part name is given, else
-  the whole model; a `position`+`offset`-only spec looks at the whole-model bbox center
-  (part centroid when the call also names a part — not yet specified, builder picks the
+  bounding box; a `lookAt`-only spec targets the coords or part-anchor origin, shot from a
+  default iso-front direction with distance auto-fit to the whole-model bbox (part stays
+  in context); a `position`+`offset`-only spec looks at the whole-model bbox center
+  (part anchor origin when the call also names a part — not yet specified, builder picks the
   whole-model default if ambiguous).
 - Pruning: `runTurn` drops superseded `view` image parts but keeps the text stub with all
   returned `camera` JSON, so the agent keeps aim history without paying image resend.
@@ -109,6 +103,26 @@ target, fov, aspect}}` plus `ok: true`. The camera returned is the final one use
 - Partial failure (one bad element of a multi-view array): atomic `{ok: false}` for the whole
   call — a failed view fails the request, no partial image sets.
 
+## Provenance (how part names resolve — spike-proven, my call)
+
+Index mapping (param-path order to geometry order) was disproven on the real
+hierarchical-car model (11 typed paths vs 13 geometry items; `body` aimed at a rear
+wheel hub), so part names resolve through auto-attached anchors instead:
+
+- The frame already serves model code anchored tree bundles
+  (`apps/jscad-web/src_frame/frameHost.js:12-16`), and the anchors library merges
+  frames across booleans (`unionAnchored`), transforms, manifold ops, and structured
+  clone — traversal needs no new work (proven empirically).
+- Attribution is param-read scoping: `params-core` tracks the most recently touched
+  part group on the build context; created primitives are stamped with a part-path
+  anchor at their creation-time bounding-box center, merged with (never clobbering)
+  model-authored anchors. Conventional part-function code attributes correctly;
+  cross-part reads can mis-attribute — failures are self-revealing (the returned
+  image shows the wrong part) and the agent falls back to `measure` centers + coords.
+- lookAt resolves a part name through `measure({anchors: true})` frame origins, not
+  indices. A name with no frame is `PartNotFoundError`; suffix-ambiguous names are
+  `AmbiguousPartError` (Task 2 matching rules stand, backend repointed to anchors).
+
 ## What's left to the builder
 
 - Exact JSON schema names and the per-provider wire format in `src/loop.js` /
@@ -117,12 +131,9 @@ target, fov, aspect}}` plus `ok: true`. The camera returned is the final one use
 - Off-screen renderer choice: headless three.jsframingshared with `eval/views.js` versus
   a hidden canvas; framing math for 640x480 (non-square) from the eval's 768x768
   orthographic box framing (`eval/render/page.html:78`).
-- Part-name to centroid resolution: mapping a dotted param path to measured geometry
-  (`packages/model-tools/src/measure.js` `measureCenter`) when `main()` returns a plain
-  array with no names; ambiguous match detection and error names. **Ruled out as
-  unanswerable with today's provenance (Task 6 fix round 1):** the app refuses the aim
-  with `PartLookAtUnsupportedError` and points at `measure` coordinates instead — see
-  the note under the `lookAt` bullet above.
+- Part-name resolution: dotted param path to auto-attached anchor frame
+  (`measure({anchors: true})` frame origins) — see Provenance. Ambiguous match detection
+  and error names per Task 2 matching rules, backend repointed from indices to anchors.
 - Preset direction vectors and up vectors for front/back/left/right/bottom (eval defines
   iso-front, iso-back, side, top only); perspective versus orthographic for agent views.
 - Vision gating table values and `eval/models.json` flags.
