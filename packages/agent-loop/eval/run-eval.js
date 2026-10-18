@@ -32,6 +32,11 @@ export const modelMaxTurns = (env, model, models = MODELS) => {
   return models[model]?.maxTurns ?? null
 }
 
+// Whether the model reads images, so the eval offers it the `view` tool the
+// same way the app gates it. Strictly boolean: a missing or non-true flag is
+// not vision.
+export const modelVision = (model, models = MODELS) => models[model]?.vision === true
+
 export const promptHash = (prompt) => createHash('sha256').update(prompt).digest('hex')
 
 export const evalApi = (env) => checkApi(env.EVAL_API || DEFAULT_API)
@@ -197,6 +202,7 @@ export async function runConversation(
     systemPrompt = buildSystemPrompt(api),
     now,
     maxTurns = fixture.maxTurns,
+    vision,
     toolTimeoutMs,
     gradeTimeoutMs,
     signal,
@@ -255,6 +261,7 @@ export async function runConversation(
           api,
           maxRounds: maxTurns,
           capFinalAnswer,
+          vision,
           requestTool: async (name, input) => {
             onToolCall?.(name, input)
             const result = await backend.requestTool(name, input)
@@ -350,7 +357,7 @@ export const RUN_TIMEOUT_MS = 20 * 60_000
 // (eval/sandbox.js) behind eval/sandboxed-backend.js. `runTimeoutMs` caps the
 // conversation from the first reset; grading still follows.
 export async function runJob(
-  { fixture, run, runs, maxTurns },
+  { fixture, run, runs, maxTurns, vision },
   { provider, api, startExecutor: start, runTimeoutMs = RUN_TIMEOUT_MS, maxRestarts, callTimeoutMs, runToolTimeoutMs, render },
   onLog,
 ) {
@@ -369,6 +376,7 @@ export async function runJob(
       backend,
       api,
       maxTurns,
+      vision,
       toolTimeoutMs,
       runTimeoutMs,
       render,
@@ -662,6 +670,7 @@ const main = async (argv, env) => {
   if (concurrency < asked) console.error(`run-eval: EVAL_CONCURRENCY ${asked} lowered to ${concurrency} so executors x ${sandbox.memory} fit in this host's memory`)
   const runTimeoutMs = runTimeoutFrom(env)
   const maxTurns = modelMaxTurns(env, EVAL_MODEL)
+  const vision = modelVision(EVAL_MODEL)
   const promptSha256 = promptHash(buildSystemPrompt(api))
   mkdirSync(resultsDir, { recursive: true })
   const suite = complexPass ? 'complex' : undefined
@@ -715,7 +724,7 @@ const main = async (argv, env) => {
 
   let results
   try {
-    results = await runSuiteParallel(fixtures, { runs, concurrency, maxTurns, api, runJob: runSandboxedJob, onLog, onRun })
+    results = await runSuiteParallel(fixtures, { runs, concurrency, maxTurns, api, vision, runJob: runSandboxedJob, onLog, onRun })
   } finally {
     await renders?.close()
   }

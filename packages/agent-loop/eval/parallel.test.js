@@ -105,6 +105,16 @@ describe('runSuiteParallel', () => {
     expect(seen).toEqual([8, 4])
   })
 
+  it('puts the vision flag on every job', async () => {
+    const seen = []
+    const runJob = async (job) => {
+      seen.push(job.vision)
+      return fakeResult(job)
+    }
+    await runSuiteParallel([fixture('a')], { runs: 1, concurrency: 1, runJob, vision: true })
+    expect(seen).toEqual([true])
+  })
+
   it('records the turn cap on a crashed run', async () => {
     const [result] = await runSuiteParallel([fixture('a')], {
       runs: 1,

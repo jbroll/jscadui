@@ -47,6 +47,8 @@ import { showPartsBrowser, partsBrowserStyles } from './src/partsBrowser.js'
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
 import { capGeometry, DEFAULT_CAPS } from './src/caps.js'
 import { createProjectTools } from './src/aiDeps.js'
+import { createViewHandler, partPathsOf } from './src/aiView.js'
+import { renderViews } from './src/aiViewRender.js'
 import { createProjectBuilds, projectEntry } from './src/projectBuild.js'
 import { createExport } from './src/aiExport.js'
 // Nothing here may import ./src/storage/schema.js: its zod 4 types are more
@@ -1081,13 +1083,16 @@ editor.setFileActions({
 
 const aiDeps = {
   ...chatTools,
-  view: async (input) => {
-    if (input?.camera) viewState.setCamera(input.camera)
-    const canvas = document.querySelector('#viewer canvas')
-    const image = canvas ? canvas.toDataURL('image/png') : null
-    if (!image) throw new Error('no rendered canvas to capture')
-    return { ok: true, image, camera: viewState.viewer.getCamera() }
-  },
+  // The off-screen multi-view render: the live viewer's canvas is never read,
+  // so a view call leaves the user's own camera and view exactly as they were.
+  view: createViewHandler({
+    getMesh: () => viewState.model,
+    getPartPaths: () => partPathsOf(paramsCtrl.proxyState),
+    measure: (options) => workerApi.jscadMeasure({ options }),
+    noGeometry: projectBuilds.noGeometry,
+    render: renderViews,
+    env: () => ({ THREE: globalThis.THREE, smooth: viewState.smoothRender, bg: viewState.theme.bg }),
+  }),
   docs: createDocs(loadApiIndex, getChatApi),
   skill: (args) => skillTool(SKILLS, args.name ?? args.id),
   // The question tool is served by the chat card; it can only arrive mid-turn,

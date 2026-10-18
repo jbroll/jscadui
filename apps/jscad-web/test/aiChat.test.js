@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildSystemPrompt, dispatchTool, SUMMARY_PREFIX } from '@jscadui/agent-loop'
 import { TOS_VERSION } from '../src/aiConsent.js'
-import { initChat, relayBaseUrl } from '../src/aiChat.js'
+import { initChat, relayBaseUrl, visionCapable } from '../src/aiChat.js'
 
 // Every turn is gated on the accepted terms version, so each test here starts
 // past the gate; the gate itself is covered in aiConsent.test.js.
@@ -1284,6 +1284,58 @@ describe('free quota error', () => {
     container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
     await vi.waitFor(() => expect(container.querySelector('.chat-msg.error')).toBeTruthy())
     expect(container.querySelector('.chat-msg.error').textContent).toMatch(/Add your own key/)
+  })
+})
+
+describe('view tool', () => {
+  const viewResult = {
+    ok: true,
+    shots: [{ image: { dataUrl: 'data:image/png;base64,AAA', mime: 'image/png' }, camera: { position: [1, 2, 3], target: [0, 0, 0] } }],
+  }
+
+  it('hands a view result to the loop whole and shows only its cameras', async () => {
+    let handedBack
+    const runTurnFn = vi.fn(async ({ requestTool }) => {
+      handedBack = await requestTool('view', { views: [{ preset: 'top' }] })
+      return { messages: [] }
+    })
+    const { q, type } = openChat({ runTurnFn, requestTool: async () => viewResult, getProvider: () => ({ kind: 'openai', model: 'gpt-4o', apiKey: 'k', baseUrl: 'https://relay.test' }) })
+    type('look at it')
+    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
+    // The object survives so the loop's image parts are built from it.
+    expect(handedBack).toEqual(viewResult)
+    // The transcript shows the cameras, never the data URL.
+    const shown = q('.chat-tool-result').textContent
+    expect(JSON.parse(shown)).toEqual({ ok: true, cameras: [{ position: [1, 2, 3], target: [0, 0, 0] }] })
+    expect(shown).not.toContain('base64')
+  })
+
+  it('tells the loop a vision model reads images, and withholds it otherwise', async () => {
+    const vision = vi.fn(async () => ({ messages: [] }))
+    const text = vi.fn(async () => ({ messages: [] }))
+    const { type } = openChat({ runTurnFn: vision, getProvider: () => ({ kind: 'openai', model: 'gpt-4o', apiKey: 'k', baseUrl: 'https://relay.test' }) })
+    type('hi')
+    await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
+    expect(vision.mock.calls[0][0].vision).toBe(true)
+
+    const second = openChat({ runTurnFn: text })
+    second.type('hi')
+    await vi.waitFor(() => expect(text).toHaveBeenCalledTimes(1))
+    expect(text.mock.calls[0][0].vision).toBe(false)
+  })
+})
+
+describe('visionCapable', () => {
+  it('reads the known-vision table first', () => {
+    expect(visionCapable({ model: 'gpt-4o' })).toBe(true)
+    expect(visionCapable({ model: 'deepseek-v4.1-flash' })).toBe(false)
+  })
+
+  it('falls back to the provider capability metadata, and is false without it', () => {
+    expect(visionCapable({ model: 'some-model', capabilities: { vision: true } })).toBe(true)
+    expect(visionCapable({ model: 'some-model', capabilities: { vision: false } })).toBe(false)
+    expect(visionCapable({ model: 'some-model' })).toBe(false)
+    expect(visionCapable(null)).toBe(false)
   })
 })
 

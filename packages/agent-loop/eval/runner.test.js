@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_PROJECT } from '../src/context.js'
 import { createEvalBackend } from './backend.js'
-import { modelMaxTurns, promptHash, resultFileName, runSuite, saveResults, selectFixtures } from './run-eval.js'
+import { modelMaxTurns, modelVision, promptHash, resultFileName, runSuite, saveResults, selectFixtures } from './run-eval.js'
 
 const scripted = (rounds) => ({
   async *send() {
@@ -604,6 +604,42 @@ describe('modelMaxTurns', () => {
 
   it('ignores an EVAL_MAX_TURNS that is not a positive integer', () => {
     expect(modelMaxTurns({ EVAL_MAX_TURNS: 'x' }, 'slow-model', models)).toBe(8)
+  })
+})
+
+describe('modelVision', () => {
+  it('reads the vision flag from models.json', () => {
+    expect(modelVision('muse-spark-1.3-contributor')).toBe(true)
+    expect(modelVision('deepseek-v4.1-flash')).toBe(false)
+  })
+
+  it('is false for a model with no entry', () => {
+    expect(modelVision('other')).toBe(false)
+    expect(modelVision('other', {})).toBe(false)
+  })
+
+  it('is false for a truthy non-boolean flag', () => {
+    expect(modelVision('x', { x: { vision: 'yes' } })).toBe(false)
+    expect(modelVision('x', { x: { vision: {} } })).toBe(false)
+  })
+})
+
+describe('runSuite vision', () => {
+  const toolsProvider = (seen) => ({
+    async *send(_messages, tools) {
+      seen.push(tools.map((tool) => tool.name))
+      yield { type: 'text', text: 'done' }
+      yield { type: 'done', stopReason: 'end_turn' }
+    },
+  })
+
+  it('offers the view tool only when the run opts into vision', async () => {
+    const seen = []
+    const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    await runSuite([fixture], { provider: toolsProvider(seen), backend: createEvalBackend() })
+    await runSuite([fixture], { provider: toolsProvider(seen), backend: createEvalBackend(), vision: true })
+    expect(seen[0]).not.toContain('view')
+    expect(seen[1]).toContain('view')
   })
 })
 

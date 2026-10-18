@@ -56,6 +56,29 @@ export const capToolResult = (content) =>
     ? `${content.slice(0, TOOL_RESULT_CHARS)}\n… [tool result truncated: ${TOOL_RESULT_CHARS} of ${content.length} characters shown]`
     : content
 
+// The relay fronts the provider with a 1MB JSON body limit, and past it answers
+// 413 (apps/jscad-web/server/src/relay/body.ts). Only the newest view keeps its
+// pixels (see pruneViewImages), but one call may still ask for four renders, so
+// their data URLs are summed and the oldest dropped until they fit this budget;
+// the newest is always kept. Every shot's camera stub survives as text, so the
+// model still learns which views it took and can re-ask for a dropped one.
+export const MAX_VIEW_IMAGE_CHARS = 700_000
+
+// The newest images that fit `MAX_VIEW_IMAGE_CHARS`, in their original order.
+const imagesWithinBudget = (images) => {
+  const kept = []
+  let chars = 0
+  for (let i = images.length - 1; i >= 0; i -= 1) {
+    const image = images[i]
+    const size = typeof image?.dataUrl === 'string' ? image.dataUrl.length : 0
+    // Always keep at least the newest image, even alone over budget.
+    if (kept.length > 0 && chars + size > MAX_VIEW_IMAGE_CHARS) break
+    kept.push(image)
+    chars += size
+  }
+  return kept.reverse()
+}
+
 // A `view` tool result carries its renders as provider-native image parts
 // beside a small text stub of the cameras actually used. The stub stays text
 // so camera history survives pruning and counts toward the turn's text budget;
@@ -64,7 +87,7 @@ const viewPartsOf = (result) =>
   result !== null && typeof result === 'object' && Array.isArray(result.shots)
     ? {
         content: JSON.stringify({ ok: result.ok ?? true, cameras: result.shots.map((shot) => shot.camera) }),
-        images: result.shots.map((shot) => shot.image),
+        images: imagesWithinBudget(result.shots.map((shot) => shot.image)),
       }
     : null
 
@@ -219,7 +242,7 @@ export const toolDetail = (input) => {
  * `false` removes the tool from `buildTools` output). `afterToolCall(name, input, result)` may replace the result
  * (`{result}` or a string); a throw becomes a tool error. Denials, rewrites
  * and hook failures are results the model sees, never turn failures.
- * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,onReasoning?:Function,onUsage?:Function,onStatus?:Function,beforeToolCall?:Function,afterToolCall?:Function,signal?:AbortSignal,toolTimeoutMs?:number,maxRounds?:number,capFinalAnswer?:boolean,toolChoice?:'none'|'auto'|'any',api?:'fluent'|'modeling'}} options
+ * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,onReasoning?:Function,onUsage?:Function,onStatus?:Function,beforeToolCall?:Function,afterToolCall?:Function,signal?:AbortSignal,toolTimeoutMs?:number,maxRounds?:number,capFinalAnswer?:boolean,toolChoice?:'none'|'auto'|'any',api?:'fluent'|'modeling',vision?:boolean}} options
  * @returns {Promise<{messages:Array<object>,rounds:number,stopped:string|undefined}>} a NEW conversation; the input is never mutated. `stopped` is `'max_rounds'` at the round cap or `'doom_loop'` on a triple repeat. A rejection carries the messages so far as `error.messages`.
  */
 export const runTurn = (options) => {
@@ -229,7 +252,7 @@ export const runTurn = (options) => {
   // The eval harness counts every provider send as a round, so it opts out;
   // the app leaves this on so a capped turn still answers.
   const capFinalAnswer = options.capFinalAnswer ?? true
-  const tools = typeof options.toolFilter === 'function' ? buildTools(options.api ?? DEFAULT_API).filter((tool) => options.toolFilter(tool.name)) : buildTools(options.api ?? DEFAULT_API)
+  const tools = typeof options.toolFilter === 'function' ? buildTools(options.api ?? DEFAULT_API, { vision: options.vision }).filter((tool) => options.toolFilter(tool.name)) : buildTools(options.api ?? DEFAULT_API, { vision: options.vision })
   const messages = [...conversation.messages]
   let rounds = 0
   let resultChars = 0

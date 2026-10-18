@@ -399,11 +399,10 @@ explicit direct-vs-relay routing proof:
    (JSON-RPC `tools/call`) with zero `/api/search` traffic; direct-pool
    exhaustion falls back to `POST /api/search {query, count}` retagged
    `provider: 'tavily'`; pinned `off` fails closed with no network.
-4. **View** (2): `view` captures the canvas as a PNG data URL + camera
-   (served though unoffered); missing canvas fails the row without hanging.
-   Known tripwire: the ~340 KB result always exceeds the loop's 24 k
-   tool-result cap, so the model gets a truncated prefix, no camera —
-   payload redesign tracked in `docs/backlog.md`.
+4. **View** (2): `view` renders the model off-screen and the PNG reaches the
+   model as a native image part while the transcript shows only the cameras
+   (served though unoffered to the text stub model); an unresolvable part name
+   fails the row without hanging.
 5. **Question** (2): option click resolves the raw answer string to the
    model; typed custom answer via fill + Send (hybrid); abort/switch/turn-end
    settle; second-while-open rejected.

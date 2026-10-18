@@ -151,14 +151,6 @@ Deferred from the jscad-web inference reframe reviews (`feat/jscad-inference-rel
 
 Found by `e2e/ai-chat-tools.spec.js` (plan `docs/superpowers/plans/2026-10-17-chat-tools-e2e.md`); tests pin current behavior, fixes owned here.
 
-- **`view` never delivers a usable image to the model.** `main.js:982-988`
-  returns `{ ok, image, camera }` with a ~340 KB `canvas.toDataURL`, but the
-  loop caps every tool result at 24,000 chars (`packages/agent-loop/src/loop.js:370-374`,
-  marker `loop.js:53`), and `camera` serializes after `image`, so the model
-  always gets an invalid-JSON base64 prefix with no camera. Raising the cap
-  cannot fix a 340 KB string channel; the fix is a payload redesign (small
-  thumbnail and/or camera-first, or an image content part). The e2e test pins
-  the truncated contract as a tripwire until then.
 - **Session-custody Tavily key never reaches the search handler.**
   `main.js:991` builds a second `createSearchStores` instance while
   `aiAccount.js:61` owns the dialog's; `session` custody lives in per-instance
@@ -638,20 +630,6 @@ from the 2026-10-01 review.
 - **Eval cannot load `@jbroll/jscad-anchors` (agent-loop).** It is not
   installed, so model code requiring it fails in `eval/backend.js` while the
   frame serves its local `bundle.jscad-anchors.js` build.
-- **Image tool results for `view` (agent-loop, jscad-web).** Send renders as
-  image blocks (Anthropic `tool_result` image content, Responses
-  `input_image`; chat completions put the images in a `user` message after
-  the `tool` message) and offer `view` only to a model known to read images:
-  `vision: true` in `eval/models.json`, or in the app the provider's model
-  metadata, else a `VISION_MODELS` table beside `RESPONSES_MODELS`
-  (`src/providers.js`). Draw from the mesh with the complex grader's views
-  (`eval/views.js`, `eval/render/page.html`) as one shared module, not from
-  the live canvas, so the user's camera does not change what the model sees.
-  Each image is roughly width×height/750 tokens on Anthropic and is resent
-  every later round, so `runTurn` keeps only the latest `view` result's
-  images. Gate: with a vision model in the eval, `complex` `verdictRate`
-  rises past the run-to-run spread and `harder` totals do not fall, which
-  waits on the complex grader's calibration.
 - **Simulated-user dialogue suite (agent-loop eval).** A run sends the prompt
   and scripted `followUps` only (`runConversation`, `eval/run-eval.js`), so
   the eval cannot tell a needed question from a wasted one and scores any

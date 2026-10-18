@@ -150,7 +150,7 @@ export const buildTools = (api = DEFAULT_API, { vision = false } = {}) => [
     },
   },
   // Only a vision-capable model is offered the image-rendering tool.
-  ...(vision ? [VIEW_TOOL] : []),
+  ...(vision === true ? [VIEW_TOOL] : []),
   {
     name: 'export',
     description: 'Export the current model in the given format; the result gives its size, not the file. The user downloads it from the app.',

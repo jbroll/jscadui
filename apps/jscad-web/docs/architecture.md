@@ -38,7 +38,7 @@ code, including `require` from a CDN and transpiled OpenSCAD, so it belongs in
 the frame. What comes back is plain data: vertex and normal arrays, colors,
 transforms and JSON, none of which can execute. Drawing that data, and every
 control around it, stays on the app origin, which is why the canvas is never
-tainted and a view capture is a local operation.
+tainted and the agent's off-screen `view` render is a local operation.
 
 `src/frameSetup.js` builds the frame and hands back a `workerApi` with the
 shape the local worker's proxy had, so the params UI and the exporter drive it
@@ -1113,10 +1113,17 @@ With no service worker the file cache is an in-memory map in
 `src/fileSystem.js` (`projectFiles`), so a project switch, an editor run and
 the chat's builds still run.
 
-`view` (page, from the live canvas) is not offered to the model: its PNG data
-URL gets JSON-encoded into a text tool result that no provider adapter turns
-back into an image block, so the model never sees a picture, only hundreds of
-KB of base64 text. The handler stays for other callers.
+`view` (page) renders the current model off-screen, never the live canvas, so
+the user's own camera and view are undisturbed. It hands the loop the raw
+result (`{ ok, shots }`), each shot a PNG data URL as a provider-native image
+part beside the camera used; the chat transcript shows only the cameras, so no
+data URL reaches the DOM, and the loop drops the oldest images when one call's
+renders would push the relay past its 1MB body limit. The tool is offered to a
+vision-capable model alone — `VISION_MODELS`, or the provider's model metadata
+(`vision: true` in `eval/models.json` for the eval). A part-name look-at
+resolves through the params controller's typed paths and the frame's measurement
+of the build's geometry, and one unresolvable aim fails the whole call before
+anything renders.
 
 `export` answers `{ ok, format, size }` (`src/aiExport.js`): the model learns
 the export worked and how big it is, and the bytes stay out of its context.

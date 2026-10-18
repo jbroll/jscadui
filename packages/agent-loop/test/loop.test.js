@@ -51,6 +51,22 @@ describe('runTurn', () => {
     expect(seen).toEqual([buildTools('fluent'), buildTools('modeling')])
   })
 
+  it('offers the view tool only when the turn opts into vision', async () => {
+    const seen = []
+    const provider = {
+      async *send(_messages, tools) {
+        seen.push(tools.map((t) => t.name))
+        yield { type: 'text', text: 'ok' }
+        yield { type: 'done', stopReason: 'end_turn' }
+      },
+    }
+    const conversation = { messages: [{ role: 'user', content: 'hi' }] }
+    await runTurn({ conversation, provider, requestTool: vi.fn() })
+    await runTurn({ conversation, provider, requestTool: vi.fn(), vision: true })
+    expect(seen[0]).not.toContain('view')
+    expect(seen[1]).toContain('view')
+  })
+
   it('answers a call whose arguments were not JSON with a tool error the model can retry, and goes on', async () => {
     const provider = roundsProvider([
       [{ type: 'tool_use', id: 't1', name: 'measure', input: {}, badArguments: '{"parts":["0"]}{"x', finishReason: 'length' }, { type: 'done', stopReason: 'length' }],

@@ -4,7 +4,7 @@
 // cap, prune to the latest view, and map to each provider's native image shape.
 import { describe, expect, it } from 'vitest'
 import { partitionTranscript, PRUNED_TOOL_RESULT } from '../src/context.js'
-import { runTurn, TOOL_RESULT_CHARS, TOOL_RESULTS_PER_TURN_CHARS } from '../src/loop.js'
+import { runTurn, MAX_VIEW_IMAGE_CHARS, TOOL_RESULT_CHARS, TOOL_RESULTS_PER_TURN_CHARS } from '../src/loop.js'
 import { toAnthropicMessages, toOpenAIMessages } from '../src/providers.js'
 import { toResponsesInput } from '../src/responses.js'
 
@@ -78,6 +78,24 @@ describe('view images in the loop', () => {
     expect(sentImages(run)).toHaveLength(1)
     expect(sentImages(run)[0].dataUrl).toBe(secondPng)
     expect(sentCameras(run)).toHaveLength(2)
+  })
+
+  it('keeps only the newest images a single view fits under the relay budget, cameras intact', async () => {
+    // Four detail-heavy renders in one call would blow the relay's 1MB JSON
+    // body limit once resent, so the oldest are dropped; the camera stub still
+    // names every view taken, so the model knows what it asked for.
+    const big = (n) => png(`${'A'.repeat(250_000)}${n}`)
+    const result = { ok: true, shots: [1, 2, 3, 4].map((n) => shot(big(n), camera(n))) }
+    const run = await runTurnWithView([result])
+    const images = sentImages(run)
+    expect(images.length).toBeGreaterThan(0)
+    expect(images.length).toBeLessThan(4)
+    // The newest render is always kept; the oldest is dropped first.
+    expect(images.at(-1).dataUrl).toBe(big(4))
+    expect(images.map((image) => image.dataUrl)).not.toContain(big(1))
+    expect(images.reduce((n, image) => n + image.dataUrl.length, 0)).toBeLessThanOrEqual(MAX_VIEW_IMAGE_CHARS)
+    // Every camera survives in the text stub.
+    expect(sentCameras(run)).toEqual([camera(1), camera(2), camera(3), camera(4)])
   })
 
   it('keeps one view image past the text cap as an image part, not truncated JSON', async () => {

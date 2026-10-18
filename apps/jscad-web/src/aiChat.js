@@ -3,6 +3,7 @@
 // through requestTool, and renders streamed text. Provider HTTP targets the
 // relay, which proxies path-preserving to the provider and stores nothing.
 import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, effectiveHistoryBudget, partitionTranscript, runTurn as defaultRunTurn, SUMMARY_PREFIX, summarizeTranscript, summarizeWithProvider, toolDetail, turnsOf } from '@jscadui/agent-loop'
+import { VISION_MODELS } from '@jscadui/agent-loop/src/providers.js'
 import { checkTurn, FREE_NOTICE_MESSAGE, getRecordOwnChats, isFreeSelection, openConsentGate, TOS_REQUIRED_MESSAGE } from './aiConsent.js'
 
 /* global __RELAY_ORIGIN__ */
@@ -24,6 +25,27 @@ export const relayBaseUrl = (selection) => {
 
 // The free option catalog the relay serves beside the per-id turn routes.
 export const inferenceListUrl = () => `${relayRoot()}/api/relay/jscad-web/v1/models`
+
+// Whether the selected model reads images, so the loop may offer it `view`. The
+// known-vision table answers first; a provider that reports its own model
+// metadata may carry `capabilities.vision` instead. Strictly boolean: anything
+// else leaves the image tool off, so a text-only model is never handed pixels
+// it cannot read.
+export const visionCapable = (selection) =>
+  selection != null && (VISION_MODELS.has(selection.model) || selection.capabilities?.vision === true)
+
+// The loop needs a `view` result whole: its renders ride beside the text as
+// image parts, which only an object survives. Every other result travels as
+// JSON text.
+const forLoop = (result) =>
+  result !== null && typeof result === 'object' && Array.isArray(result.shots) ? result : typeof result === 'string' ? result : JSON.stringify(result ?? null)
+
+// The transcript shows a `view` result's cameras, never its pixels: the data
+// URLs would swamp the tool row and never belong in the DOM.
+const forDisplay = (result) =>
+  result !== null && typeof result === 'object' && Array.isArray(result.shots)
+    ? JSON.stringify({ ok: result.ok ?? true, cameras: result.shots.map((shot) => shot.camera) })
+    : result
 
 // One line above the input while our recording is on, and the free-model
 // variant while a free selection is active (free turns cannot be opted out).
@@ -527,7 +549,8 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     aborter?.abort()
   })
 
-  // Renders the tool line, then hands the result back to the loop as JSON.
+  // Renders the tool line, then hands the result back to the loop: JSON text,
+  // except a `view` result, which travels whole so its image parts survive.
   // Never throws: a rejection becomes an {ok:false} result so the turn
   // always has content to feed back.
   const handleTool = async (name, input) => {
@@ -536,8 +559,8 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     const finish = live() ? addToolLine(name, input) : () => {}
     try {
       const result = await requestTool(name, input)
-      finish(result, toolFailed(result))
-      return typeof result === 'string' ? result : JSON.stringify(result ?? null)
+      finish(forDisplay(result), toolFailed(result))
+      return forLoop(result)
     } catch (err) {
       const errorResult = { ok: false, error: { name: err.name, message: err.message } }
       finish(errorResult, true)
@@ -646,6 +669,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         conversation: { messages: buildMessages({ systemPrompt: buildSystemPrompt(api), transcript: local.slice(0, -1).map(forModel), files, build, message, summary: local.find(isSummaryMsg)?.text }) },
         provider,
         api,
+        vision: visionCapable(selection),
         requestTool: handleTool,
         beforeToolCall: gatedBeforeToolCall,
         afterToolCall: gatedAfterToolCall,

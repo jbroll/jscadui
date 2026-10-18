@@ -25,6 +25,14 @@ describe('agent tools', () => {
     expect(buildTools('fluent').map((t) => t.name)).not.toContain('view')
   })
 
+  it('gates view on the boolean true, not on any truthy value', () => {
+    // A provider capability that arrives as a non-boolean (a record, a count)
+    // must not silently offer the image tool to a model that cannot read images.
+    for (const notTrue of [1, 'yes', {}, []]) {
+      expect(buildTools('modeling', { vision: notTrue }).map((t) => t.name)).not.toContain('view')
+    }
+  })
+
   it('offers the view tool with the shared request schema and an undisturbed-user-view description', () => {
     const view = buildTools('fluent', { vision: true }).find((t) => t.name === 'view')
     // The offered schema is the one the spec validates with, not a copy.

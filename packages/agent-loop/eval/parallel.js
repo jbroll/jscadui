@@ -35,9 +35,9 @@ const crashResult = ({ fixture, run, maxTurns }, api, error) => ({
 // with its own sandboxed executor). onRun gets each result as it finishes plus every finished result so
 // far, ordered by fixture then run. `maxTurns` is the model's turn cap; null
 // leaves each fixture its own. `api` labels a run that crashed.
-export async function runSuiteParallel(fixtures, { runs = 1, concurrency = DEFAULT_CONCURRENCY, maxTurns = null, api, runJob, onLog, onRun }) {
+export async function runSuiteParallel(fixtures, { runs = 1, concurrency = DEFAULT_CONCURRENCY, maxTurns = null, api, vision, runJob, onLog, onRun }) {
   const jobs = fixtures.flatMap((fixture) =>
-    Array.from({ length: runs }, (_, i) => ({ fixture, run: i + 1, runs, maxTurns: maxTurns ?? fixture.maxTurns })),
+    Array.from({ length: runs }, (_, i) => ({ fixture, run: i + 1, runs, maxTurns: maxTurns ?? fixture.maxTurns, vision })),
   )
   const finished = new Array(jobs.length)
   return runPool(jobs, concurrency, async (job, index) => {
