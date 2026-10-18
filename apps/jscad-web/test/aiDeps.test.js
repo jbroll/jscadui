@@ -4,6 +4,7 @@ import { dispatchTool, runTimeoutError, SKILLS, skillTool } from '@jscadui/agent
 import { createProjectTools } from '../src/aiDeps.js'
 import { createLocalStorage } from '../src/storage/local.js'
 import { createSession } from '../src/storage/session.js'
+import { chatVersionMessage, excerptOf } from '../src/storage/versioning.js'
 
 // The open project as main.js sees it: the file cache every run sends the
 // frame. `open` is a project switch.
@@ -245,7 +246,9 @@ describe('storage', () => {
       local,
       session,
       storeFile: vi.fn((projectId, path, content) => session.writeThrough(projectId, path, content, { message: 'chat', version: false })),
-      snapshot: vi.fn((projectId) => session.snapshot(projectId, { message: 'chat' })),
+      // Mirrors main.js: the snapshot dep owns the message, `chat: <excerpt>`
+      // for a turn with text and a bare `chat` without one.
+      snapshot: vi.fn((projectId, excerpt) => session.snapshot(projectId, { message: chatVersionMessage(excerptOf(excerpt ?? '')) })),
     }
   }
   const messages = async (local, id = 'p1') => (await local.listVersions(id)).map((v) => v.message)
@@ -297,6 +300,17 @@ describe('storage', () => {
     expect(snapshot).toHaveBeenCalledTimes(1)
   })
 
+  it("names the turn's version with its excerpt, and stays bare `chat` without one", async () => {
+    const { local, storeFile, snapshot } = await stored()
+    const { tools: t } = tools({ project: fakeProject({ 'main.js': 'v0' }), storeFile, snapshot })
+    await t.write({ path: 'main.js', content: 'v1' })
+    await t.endTurn('exhaust pipes at the rear')
+    expect((await local.listVersions('p1')).map((v) => v.message)).toEqual(['chat: exhaust pipes at the rear', 'create'])
+    await t.write({ path: 'main.js', content: 'v2' })
+    await t.endTurn()
+    expect((await local.listVersions('p1'))[0].message).toBe('chat')
+  })
+
   it("keeps the user's editor edit of a file the chat wrote earlier in the turn", async () => {
     const { local, session, storeFile, snapshot } = await stored()
     const { tools: t } = tools({ project: fakeProject({ 'main.js': 'v0' }), storeFile, snapshot })
@@ -328,7 +342,7 @@ describe('storage', () => {
     expect(deps.showFile).toHaveBeenCalledTimes(1)
     expect(deps.build).toHaveBeenCalledTimes(1)
     await t.endTurn()
-    expect(deps.snapshot.mock.calls).toEqual([['p1']])
+    expect(deps.snapshot.mock.calls).toEqual([['p1', '']])
   })
 
   it('refuses a write whose project changed while its files were being read', async () => {

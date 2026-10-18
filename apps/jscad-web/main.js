@@ -55,6 +55,7 @@ import { createLocalStorage } from './src/storage/local.js'
 import { assembleFileMap } from './src/storage/map.js'
 import { createProjectManager } from './src/storage/projects.js'
 import { createSession } from './src/storage/session.js'
+import { chatVersionMessage, EDIT_COALESCE_MS, excerptOf } from './src/storage/versioning.js'
 import { initProjects } from './src/projects.js'
 import { extractEntries, readAsText, readDir } from '@jscadui/fs-provider'
 import { createFrame, createJobTracker } from './src/frameSetup.js'
@@ -408,9 +409,11 @@ const projectManager = createProjectManager({ local: localStore, disk: diskStore
 const storageSession = createSession({ local: localStore, disk: diskStore, getRowboat: () => rowboatStore, getBackend: (projectId) => projectManager.peekMode(projectId) })
 
 // Editing a helper leaves the entry as it is; `entry` names a model the user ran on its own.
+// A burst of compiles folds into one `edit` row (five idle minutes):
+// `coalesceKey` names the run and `coalesceMs` its window.
 const recordEdit = async (script, path, { entry } = {}) => {
   if (!isRecordablePath(path)) return
-  await storageSession.writeThrough(currentProjectId, path, script, { message: 'edit', ...(entry ? { entry } : {}) }).catch((err) => console.warn('storage write failed:', err))
+  await storageSession.writeThrough(currentProjectId, path, script, { message: 'edit', coalesceKey: 'edit', coalesceMs: EDIT_COALESCE_MS, ...(entry ? { entry } : {}) }).catch((err) => console.warn('storage write failed:', err))
 }
 
 let currentProjectId = 'default'
@@ -428,6 +431,15 @@ const switchProject = createProjectSwitch({
   clearTempCache: () => workerApi.jscadClearTempCache(),
   build: (entry) => buildProject(entry),
   onOpen: (id, entry, name) => {
+    // Leaving a stored project: mint one `edit` row for whatever it holds, but
+    // only when that differs from its latest version, so a switch that changed
+    // nothing adds no history. A disk project keeps none (no-op).
+    const previous = currentProjectId
+    if (previous !== id) {
+      storageSession.snapshotUnique(previous, { message: 'edit' }).catch((err) => {
+        if (err?.name !== 'NotFoundError') console.warn('snapshot on switch failed:', err)
+      })
+    }
     currentProjectId = id
     currentEntry = entry
     if (typeof name === 'string' && name) exporter.exportConfig.projectName = name
@@ -972,7 +984,7 @@ const chatTools = createProjectTools({
   storeFile: (projectId, path, content) =>
     storageSession.writeThrough(projectId, path, content, { message: 'chat', version: false }),
   removeFile: (projectId, path) => storageSession.removeThrough(projectId, path),
-  snapshot: (projectId) => storageSession.snapshot(projectId, { message: 'chat' }),
+  snapshot: (projectId, excerpt) => storageSession.snapshot(projectId, { message: chatVersionMessage(excerptOf(excerpt ?? '')) }),
   getApi: getChatApi,
   loadIndex: loadApiIndex,
 })

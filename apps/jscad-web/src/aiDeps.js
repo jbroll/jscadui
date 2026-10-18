@@ -26,9 +26,9 @@ const mergeStatic = (result, diagnostics) => {
  * storage and the editor, so a reload mid-turn keeps it deleted; a delete of a
  * file that is not there answers ok and changes nothing. `storeFile` writes
  * with no version row; `endTurn` snapshots each project the turn wrote to,
- * deletes included, as one version. After `startTurn`, a write, edit or delete
- * is refused once another project is open: the turn's context came from the
- * project open when it started.
+ * deletes included, as one version, naming it with the turn's excerpt. After
+ * `startTurn`, a write, edit or delete is refused once another project is
+ * open: the turn's context came from the project open when it started.
  * @param {{
  *   getProjectFiles: () => Promise<Record<string, string|ArrayBuffer>>,
  *   writeProjectFile: (path:string, content:string) => Promise<void>,
@@ -42,7 +42,7 @@ const mergeStatic = (result, diagnostics) => {
  *   getProjectId: () => string,
  *   storeFile: (projectId:string, path:string, content:string) => Promise<unknown>,
  *   removeFile: (projectId:string, path:string) => Promise<unknown>,
- *   snapshot: (projectId:string) => Promise<unknown>,
+ *   snapshot: (projectId:string, excerpt:string) => Promise<unknown>,
  *   getApi?: () => string,
  *   loadIndex?: () => Promise<Array<object>|undefined>,
  *   createTestWorker?: () => Worker,
@@ -163,10 +163,10 @@ export const createProjectTools = ({
     startTurn: () => {
       turnProject = getProjectId()
     },
-    endTurn: async () => {
+    endTurn: async (excerpt = '') => {
       for (const projectId of [...written]) {
         written.delete(projectId)
-        await snapshot(projectId)
+        await snapshot(projectId, excerpt)
       }
     },
   }

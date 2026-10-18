@@ -1063,6 +1063,24 @@ describe('conversation context', () => {
     expect(endTurn).toHaveBeenCalledTimes(2)
   })
 
+  it("ends the turn with the user's message so its version carries an excerpt", async () => {
+    document.body.innerHTML = '<div id="chat"></div>'
+    const container = document.getElementById('chat')
+    const endTurn = vi.fn(async () => {})
+    const runTurnFn = vi.fn(async () => ({ messages: [] }))
+    initChat({
+      container,
+      requestTool: async () => ({ ok: true }),
+      getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
+      runTurnFn,
+      endTurn,
+    })
+    container.querySelector('.chat-input').value = 'exhaust pipes at the rear'
+    container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    await vi.waitFor(() => expect(endTurn).toHaveBeenCalledTimes(1))
+    expect(endTurn).toHaveBeenCalledWith('exhaust pipes at the rear')
+  })
+
   it('sends the chosen API prompt and passes the API to the loop, fluent by default', async () => {
     const run = async (getApi) => {
       document.body.innerHTML = '<div id="chat"></div>'

@@ -158,11 +158,12 @@ const CHARS_PER_TOKEN = 4
 /**
  * `getBuild` answers the open project's last build report, whichever run made
  * it; `startTurn` runs before a turn reads the project for its context, and
- * `endTurn` once after every turn, when its writes are final.
+ * `endTurn` once after every turn, when its writes are final, with the turn's
+ * user text so its chat version can carry a short excerpt.
  * `getSummarizer` picks the model that summarizes evicted turns; it defaults
  * to `getProvider`, so wiring a cheaper model is a selection swap, not a
  * change here.
- * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getSummarizer?:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,beforeToolCall?:Function,afterToolCall?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>,getBuild?:()=>Promise<object|null>,startTurn?:()=>void,endTurn?:()=>Promise<void>}} options
+ * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getSummarizer?:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,beforeToolCall?:Function,afterToolCall?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>,getBuild?:()=>Promise<object|null>,startTurn?:()=>void,endTurn?:(excerpt?:string)=>Promise<void>}} options
  */
 export const initChat = ({ container, requestTool, getProvider, getSummarizer = getProvider, getApi = () => DEFAULT_API, runTurnFn = defaultRunTurn, beforeToolCall, afterToolCall, websearchGranted = false, websearchLog = () => {}, websearchProvider, storage, projectId, getProjectFiles = async () => ({}), getBuild = async () => null, startTurn = () => {}, endTurn = async () => {} }) => {
   const header = el('div', 'chat-header')
@@ -214,6 +215,9 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   let reasoning = null
   let turnReasoning = []
   let turnMentions = []
+  // The running turn's user text, handed to `endTurn` so its chat version
+  // carries a short excerpt; empty while no turn runs.
+  let turnExcerpt = ''
   let transcript = []
   const pid = () => (typeof projectId === 'function' ? projectId() : projectId)
   // Blanket web-search grant for this chat panel: the gear dialog toggles the
@@ -290,8 +294,12 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   }
 
   const finishTurn = async () => {
+    // The turn is over: hand its excerpt to the snapshot once, then clear it so
+    // a later no-text turn cannot reuse this one's.
+    const excerpt = turnExcerpt
+    turnExcerpt = ''
     try {
-      await endTurn()
+      await endTurn(excerpt)
     } catch (err) {
       console.warn('chat: saving the turn failed:', err)
     }
@@ -563,6 +571,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     }
     input.value = ''
     turnProject = pid()
+    turnExcerpt = message
     renderNotice()
     let local = [...transcript, { role: 'user', content: message }]
     const persist = (messages) => {
