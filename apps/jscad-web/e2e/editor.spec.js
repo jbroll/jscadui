@@ -77,7 +77,7 @@ test.describe('Code editor', () => {
     await expect(page.locator('#error-bar')).toBeVisible({ timeout: 15_000 })
   })
 
-  test('dark mode restyles the form controls and the project drawer', async ({ page }) => {
+  test('dark mode restyles the form controls and the editor header', async ({ page }) => {
     await page.locator('#menu-button').click()
     await page.locator('#dark-mode').check()
     await expect(page.locator('body')).toHaveClass(/dark/)
@@ -90,11 +90,13 @@ test.describe('Code editor', () => {
     const linkBg = await page.locator('#ai-chat-btn').evaluate((el) => getComputedStyle(el).backgroundColor)
     expect(linkBg).toBe('rgba(0, 0, 0, 0)')
 
-    await page.locator('#project-toggle').click()
-    const headerBorder = await page.locator('.project-header').evaluate((el) => getComputedStyle(el).borderBottomColor)
-    const rowBorder = await page.locator('.project-row').first().evaluate((el) => getComputedStyle(el).borderBottomColor)
+    const headerBorder = await page.locator('#editor-header .project-header').evaluate((el) => getComputedStyle(el).borderBottomColor)
     expect(headerBorder).toBe('rgb(85, 85, 85)')
-    expect(rowBorder).toBe('rgb(68, 68, 68)')
+
+    // The versions dropdown in the same header follows the global dark
+    // control rule, the way the removed project rows did.
+    const versionBg = await page.locator('#editor-header .version-select').evaluate((el) => getComputedStyle(el).backgroundColor)
+    expect(versionBg).toBe('rgb(44, 44, 44)')
   })
 
   test('the error bar can be dismissed', async ({ page }) => {
