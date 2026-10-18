@@ -101,6 +101,9 @@ try {
     ['/examples/openscad/mcad/examples/hardware_test.scad', 'hardware_test.scad (include resolution)', 30000],
     ['/examples/openscad/01-basics/ALL.js', '01-basics/ALL.js (grid)', 90000],
     ['/examples/jscad/lego/brick.example.js', 'lego/brick.example.js (LEGO require from /libs/)', 30000],
+    ['/examples/jscad/jscad-examples/ALL.js', 'jscad-examples/ALL.js (grid, 16 cells)', 120000],
+    ['/examples/jscad/jscad-examples/04-primitives.example.js', 'moved jscad example (new subdir)', 30000],
+    ['/examples/jscad/jscad-examples/14-AMFImport/index.js', 'folder-project import (index-only)', 60000],
   ]) {
     const ctx = await browser.newContext()
     const pg = await ctx.newPage()
@@ -138,6 +141,14 @@ try {
   const ex = await acao('/examples/openscad/01-basics/cube.scad')
   check('examples send Access-Control-Allow-Origin: *', ex.status === 200 && ex.header === '*',
     `${ex.status}, ACAO ${ex.header ?? 'absent'}`)
+  // Examples are mutable, unhashed content: a year-long immutable cache once
+  // froze a mid-deploy truncated grid in browsers while its siblings served
+  // fine (see the hook block in deploy/hooks/apache.configure.post.sh). The
+  // deploy gate fails if /examples/ is ever immutable-cached again.
+  const moved = await page.request.get(url + '/examples/jscad/jscad-examples/04-primitives.example.js', { failOnStatusCode: false })
+  const cc = moved.headers()['cache-control'] ?? null
+  check('examples are revalidated, not immutable-cached', moved.status() === 200 && !!cc && !/max-age=31536000/.test(cc),
+    `${moved.status()}, Cache-Control ${cc ?? 'absent'}`)
   const lib = await acao('/libs/NopSCADlib/vitamins/nuts.scad')
   check('libs send Access-Control-Allow-Origin: *', lib.status === 200 && lib.header === '*',
     `${lib.status}, ACAO ${lib.header ?? 'absent'}`)

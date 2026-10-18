@@ -49,6 +49,15 @@ elif [[ "$APP_NAME" == "jscad-web" ]]; then
     <LocationMatch "^/(examples|libs)/">
         Header always set Access-Control-Allow-Origin "*"
     </LocationMatch>
+    # Examples and library sources are mutable, unhashed content, but the
+    # stock vhost year-caches every .js/.svg (FilesMatch). A fetch that lands
+    # mid-deploy then lodges a truncated file in the browser for a year while
+    # sibling files serve fine. <Location> merges after <Files>, so this set
+    # wins for these paths: revalidate every load instead. Apache's ETag and
+    # Last-Modified make the steady state a cheap 304.
+    <LocationMatch "^/(examples|libs)/">
+        Header set Cache-Control "no-cache"
+    </LocationMatch>
     # OpenSCAD sources are plain text, but stock Apache has no .scad mapping
     # and serves them with no Content-Type, which makes Firefox XML-sniff
     # every dependency fetch into a console error. Match the dev servers
