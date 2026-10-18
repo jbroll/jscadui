@@ -8,6 +8,7 @@ import { createIndexLoader } from './apiIndex.js'
 import * as drawer from './drawer.js'
 import { apiExtensions } from './editorApi.js'
 import { createEditorBuffer } from './editorBuffer.js'
+import { renderFileTree } from './fileTree.js'
 
 /** 
  * @typedef {import('@jscadui/fs-provider').FSFileEntry} FSFileEntry
@@ -252,6 +253,92 @@ let editorFilesArr = []
 
 export const getEditorFiles = () => editorFilesArr
 
+// The file tree's render state, pushed by the app: the project's entry and the
+// paths the current turn touched. Actions (delete/rename) come from main.js,
+// which owns storage.
+let fileMeta = { entry: '', touched: [] }
+let fileActions = {}
+let fileMessage = ''
+
+// The tree's file map: the editor's entries, keyed by their leading-slash path.
+const treeFiles = () => Object.fromEntries(editorFilesArr.map((file) => [file.fullPath, file]))
+
+// A path is dirty under either spelling: the flat list and setSource disagree
+// about the leading slash, and the buffer follows whichever set it.
+const dirtyFromFiles = () => editorFilesArr
+  .map((file) => file.fullPath)
+  .filter((path) => buffer.isDirtyPath(path) || buffer.isDirtyPath(String(path).replace(/^\//, '')))
+
+// The tree's delete confirm reuses the editor's injected dialog, so the tree
+// asks in the app's own chrome; without one nothing is deleted.
+const treeConfirm = (message) => confirmFn
+  ? confirmFn({ title: 'Delete file?', message, confirmLabel: 'Delete', cancelLabel: 'Cancel' })
+  : Promise.resolve(false)
+
+const openTreeFile = async (path) => {
+  // The buffer follows whichever spelling set it (setSource is called with the
+  // bare entry path, tree rows carry the leading slash).
+  if (path.replace(/^\//, '') === currentFile.replace(/^\//, '')) return
+  // Navigating away from a dirty buffer reuses the whole-project discard gate.
+  if (!(await confirmDiscard())) return
+  currentFile = path
+  if (editorFile) editorFile.textContent = path
+  const buffered = buffer.isDirtyPath(path) ? path : buffer.isDirtyPath(String(path).replace(/^\//, '')) ? String(path).replace(/^\//, '') : null
+  if (buffered !== null) {
+    setSource(buffer.get(buffered), path, { clean: false })
+    return
+  }
+  const file = editorFilesArr.find((entry) => entry.fullPath === path)
+  if (file) await readSource(file, path)
+}
+
+const renderTree = () => {
+  const container = document.getElementById('editor-files')
+  if (!container) return
+  renderFileTree(container, {
+    files: treeFiles(),
+    entry: fileMeta.entry,
+    dirtyPaths: dirtyFromFiles(),
+    touchedPaths: fileMeta.touched,
+    message: fileMessage,
+    confirm: treeConfirm,
+    onOpen: openTreeFile,
+    onDelete: fileActions.onDelete,
+    onRename: fileActions.onRename,
+  })
+}
+
+/**
+ * Wire the tree's per-file actions to the app, which owns storage: deleting a
+ * project file and renaming one both go through it.
+ * @param {{onDelete?: (path:string) => void, onRename?: (path:string, name:string) => void}} [actions]
+ */
+export const setFileActions = ({ onDelete, onRename } = {}) => {
+  fileActions = { onDelete, onRename }
+  renderTree()
+}
+
+/**
+ * Push the tree's render state: the project's entry file and the paths the
+ * current turn touched, both marked on the nodes.
+ * @param {{entry?: string, touched?: string[]}} [meta]
+ */
+export const setFileMeta = ({ entry, touched } = {}) => {
+  fileMeta = { entry: entry ?? '', touched: touched ?? [] }
+  fileMessage = ''
+  renderTree()
+}
+
+/**
+ * Show a one-line notice above the tree (a blocked rename, say); cleared by
+ * the next setFiles/setFileMeta.
+ * @param {string} [text]
+ */
+export const showFileMessage = (text) => {
+  fileMessage = text ?? ''
+  renderTree()
+}
+
 // Track document-level click handler for cleanup
 let documentClickHandler
 
@@ -273,35 +360,20 @@ const openReplacement = (files) => {
 }
 
 /**
+ * The tree shows every project file, so the nav is never hidden — a
+ * single-file project renders one node.
  * @param {FSFileEntry[]} files
  * @param {{keepBuffers?: boolean, resetMissing?: boolean}} [options]
  */
 export const setFiles = (files, { keepBuffers = false, resetMissing = false } = {}) => {
-  const editorFiles = document.getElementById('editor-files')
   editorFilesArr = files
   if (keepBuffers) buffer.prune(new Set(files.map((f) => f.fullPath)))
   else buffer.clear()
   if (resetMissing) openReplacement(files)
-  if (files.length < 2) {
-    editorNav.classList.remove('visible')
-  } else {
-    editorFile.textContent = currentFile
-    editorFiles.innerHTML = ''
-    files.forEach((file) => {
-      const item = document.createElement('li')
-      const button = document.createElement('button')
-      button.innerText = file.fullPath
-      button.addEventListener('click', () => {
-        currentFile = file.fullPath
-        editorFile.textContent = currentFile
-        if (buffer.isDirtyPath(currentFile)) setSource(buffer.get(currentFile), currentFile, { clean: false })
-        else readSource(file, currentFile)
-      })
-      item.appendChild(button)
-      editorFiles.appendChild(item)
-    })
-    editorNav.classList.add('visible')
-  }
+  editorNav?.classList.add('visible')
+  if (editorFile) editorFile.textContent = currentFile
+  fileMessage = ''
+  renderTree()
 }
 
 /**

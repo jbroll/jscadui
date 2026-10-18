@@ -380,7 +380,10 @@ const dropModal = byId('dropModal')
 /** @type {import('./src/fileSystem.js').FileSystemDeps} */
 const fsDeps = {
   onFilesChange: () => reloadProject().catch(err => setError(err)), // Handle floating promise
-  setEditorFiles: files => editor.setFiles(files, { keepBuffers: true }),
+  setEditorFiles: files => {
+    editor.setFiles(files, { keepBuffers: true })
+    refreshFileMeta()
+  },
   onFilesChanged: files => editor.filesChanged(files),
   setError,
   onAliasFound: alias => workerApi.jscadInit({ alias }),
@@ -421,6 +424,11 @@ let currentProjectId = 'default'
 // The entry of whatever was opened last: a stored project or a dropped folder.
 let currentEntry
 
+// The paths the current agent turn wrote (collected as showFile runs, cleared
+// when the next turn starts) and the tree's entry/touched marks.
+const turnTouched = new Set()
+const refreshFileMeta = () => editor.setFileMeta({ entry: currentEntry, touched: [...turnTouched] })
+
 // Assigned below, after the switch callback is defined; null until the chat
 // mounts, so an early switch (a launcher model hash) skips it.
 let chatControls = null
@@ -459,6 +467,7 @@ const switchProject = createProjectSwitch({
     currentProjectId = id
     currentEntry = entry
     if (typeof name === 'string' && name) exporter.exportConfig.projectName = name
+    refreshFileMeta()
     chatControls?.switchTo(id)
   },
   onError: setError,
@@ -966,26 +975,37 @@ if (diskEntry !== null) {
 // The agent loop runs in the page; each tool request is served against the
 // open project's files (the file cache every run sends the frame), the
 // editor, the viewer and the frame. See aiDeps.js.
+// The agent's writes and deletes against the frame's file cache; the tree's
+// own delete/rename go through the same pair.
+const writeProjectFile = async (path, content) => {
+  await fileSystem.addToCacheWrapper(path, content)
+  await workerApi.jscadClearFileCache({ files: [path], root: PROJECT_BASE })
+}
+const removeProjectFile = async (path) => {
+  await fileSystem.removeFromCache(path)
+  await workerApi.jscadClearFileCache({ files: [path], root: PROJECT_BASE })
+}
+const showFiles = (files) => {
+  editor.setFiles(toEditorFiles(files), { keepBuffers: true, resetMissing: true })
+  refreshFileMeta()
+}
+
 const chatTools = createProjectTools({
   getProjectFiles: () => fileSystem.projectFiles(),
-  writeProjectFile: async (path, content) => {
-    await fileSystem.addToCacheWrapper(path, content)
-    await workerApi.jscadClearFileCache({ files: [path], root: PROJECT_BASE })
-  },
-  removeProjectFile: async (path) => {
-    await fileSystem.removeFromCache(path)
-    await workerApi.jscadClearFileCache({ files: [path], root: PROJECT_BASE })
-  },
+  writeProjectFile,
+  removeProjectFile,
   showFile: (path, content, files) => {
+    // A chat save is the turn's touch: mark the file for the tree.
+    const touched = projectPathOf(path)
+    if (touched) turnTouched.add(touched)
     editor.confirmDiscard().then((ok) => {
       if (!ok) return
       editor.setSource(content, path)
       editor.setFiles(toEditorFiles(files), { keepBuffers: true })
+      refreshFileMeta()
     })
   },
-  showFiles: (files) => {
-    editor.setFiles(toEditorFiles(files), { keepBuffers: true, resetMissing: true })
-  },
+  showFiles,
   build: async () => {
     const outcome = await buildProject()
     if (outcome.stale) return { ok: false, error: { name: 'SupersededError', message: 'a newer run replaced this build before it finished; write or edit again to build' } }
@@ -1004,6 +1024,51 @@ const chatTools = createProjectTools({
   snapshot: (projectId, excerpt) => storageSession.snapshot(projectId, { message: chatVersionMessage(excerptOf(excerpt ?? '')) }),
   getApi: getChatApi,
   loadIndex: loadApiIndex,
+})
+
+// The tree's row actions act on the current project only, through the same
+// cache/storage pair the agent's tools use.
+editor.setFileActions({
+  onDelete: async (path) => {
+    // Tree keys carry the editor's leading slash; storage and the frame cache
+    // key project files by their bare path.
+    const target = projectPathOf(path)
+    if (!target) return
+    await removeProjectFile(target)
+    await storageSession.removeThrough(currentProjectId, target)
+    showFiles(await fileSystem.projectFiles())
+    buildProject().catch(setError)
+  },
+  onRename: async (path, name) => {
+    const from = projectPathOf(path)
+    if (!from || !name) return
+    const dir = from.includes('/') ? from.slice(0, from.lastIndexOf('/') + 1) : ''
+    const to = `${dir}${name}`.replace(/^\/+/, '')
+    if (!to || to === from) return
+    // Renaming the open file with unsaved edits reuses the discard gate: the
+    // refresh below drops the old path's buffer.
+    if (projectPathOf(editor.getPath()) === from && editor.isDirty() && !(await editor.confirmDiscard())) return
+    const files = await fileSystem.projectFiles()
+    if (Object.hasOwn(files, to)) {
+      editor.showFileMessage(`“${to}” already exists`)
+      return
+    }
+    const content = files[from]
+    // Renaming the entry file moves the project's entry with it, or the next
+    // build would look for a path that no longer exists.
+    const renamingEntry = projectPathOf(currentEntry) === from
+    if (renamingEntry) currentEntry = to
+    await writeProjectFile(to, content)
+    await storageSession.writeThrough(currentProjectId, to, content, { message: 'edit', coalesceKey: 'edit', coalesceMs: EDIT_COALESCE_MS, ...(renamingEntry ? { entry: to } : {}) })
+    await removeProjectFile(from)
+    await storageSession.removeThrough(currentProjectId, from)
+    // The open file moved: point the editor at its new path so the refresh
+    // below keeps it open instead of replacing it. Binary content never loads
+    // into the text view, so only a string moves the cursor.
+    if (typeof content === 'string' && projectPathOf(editor.getPath()) === from) editor.setSource(content, to)
+    showFiles(await fileSystem.projectFiles())
+    buildProject().catch(setError)
+  },
 })
 
 const aiDeps = {
@@ -1074,7 +1139,7 @@ if (byId('ai-chat')) {
     projectId: () => currentProjectId,
     getProjectFiles: () => fileSystem.projectFiles(),
     getBuild: projectBuilds.report,
-    startTurn: chatTools.startTurn,
+    startTurn: () => { turnTouched.clear(); refreshFileMeta(); chatTools.startTurn() },
     endTurn: chatTools.endTurn,
   })
 }
