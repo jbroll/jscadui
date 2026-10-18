@@ -1,0 +1,15 @@
+--- a/apps/jscad-web/examples/jscad/z3dev-designs/raspberry-pi-2-case.example.js
++++ b/apps/jscad-web/examples/jscad/z3dev-designs/raspberry-pi-2-case.example.js
+@@ -77,8 +77,10 @@
+     const row = makeRow(h, p)
+     const rowa = translate([x, 0], row)
+     const rowb = translate([-x, 0], row)
+-    rows.push(...rowa)
+-    rows.push(...rowb)
++    // translate-of-array returns an Array on classic modeling but a single
++    // merged geom on manifold; concat normalizes both to elements.
++    rows.push(...[].concat(rowa))
++    rows.push(...[].concat(rowb))
+     h = h - 1
+     if (h === 0) break // for safety
+     x = x + p.case_b_v_h + p.case_b_v_g

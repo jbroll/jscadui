@@ -106,6 +106,7 @@ try {
     ['/examples/jscad/jscad-examples/14-AMFImport/index.js', 'folder-project import (index-only)', 60000],
     ['/examples/jscad/tspspi/models/mechanics/mounting/simplescrewedplates/ALL.js', 'V1 include past rewritten roots (deep leaf)', 150000],
     ['/examples/jscad/tspspi/ALL.js', 'tspspi/ALL.js (nested V1 grids)', 240000],
+    ['/examples/jscad/z3dev-designs/raspberry-pi-2-case.example.js', 'raspberry vent holes (translate-of-array compat)', 120000],
   ]) {
     const ctx = await browser.newContext()
     const pg = await ctx.newPage()

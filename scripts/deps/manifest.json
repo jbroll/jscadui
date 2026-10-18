@@ -627,7 +627,12 @@
           "asExample": true
         }
       ],
-      "patches": []
+      "patches": [
+        {
+          "patchFile": "scripts/deps/patches/z3dev-raspberry-vent-spread.patch",
+          "description": "Normalize translate-of-array spread in vent holes — classic returns an Array, manifold a single merged geom; concat covers both"
+        }
+      ]
     },
     {
       "name": "jscad-tspspi-models",
