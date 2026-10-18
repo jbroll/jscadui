@@ -27,10 +27,11 @@ export const relayBaseUrl = (selection) => {
 export const inferenceListUrl = () => `${relayRoot()}/api/relay/jscad-web/v1/models`
 
 // Whether the selected model reads images, so the loop may offer it `view`. The
-// known-vision table answers first; a provider that reports its own model
-// metadata may carry `capabilities.vision` instead. Strictly boolean: anything
-// else leaves the image tool off, so a text-only model is never handed pixels
-// it cannot read.
+// known-vision table answers first; a model it does not know is offered the tool
+// only when the provider's own metadata says so — `capabilities.vision`, put on
+// the selection by `getProviderConfig` (src/aiAccount.js) from the model list the
+// account dialog loaded. Strictly boolean: anything else leaves the image tool
+// off, so a text-only model is never handed pixels it cannot read.
 export const visionCapable = (selection) =>
   selection != null && (VISION_MODELS.has(selection.model) || selection.capabilities?.vision === true)
 

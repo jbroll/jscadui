@@ -478,7 +478,7 @@ test.describe('AI chat tools', () => {
   // app still serves it through `aiDeps.view` when a turn asks for it. These two
   // tests pin the off-screen pipeline end to end: a real PNG data URL reaches
   // the model as a native image part, the transcript shows only the cameras, and
-  // an unresolvable view fails the tool line without hanging the turn.
+  // a part-name aim is refused without hanging the turn.
   test('view captures the model off-screen and the images reach the model', async ({ page }) => {
     test.setTimeout(60_000)
     stub = await startStubRelay([
@@ -528,7 +528,7 @@ test.describe('AI chat tools', () => {
     await expect(page.locator('#viewer canvas')).toBeVisible()
   })
 
-  test('view of a missing part fails the tool line without hanging', async ({ page }) => {
+  test('view aimed at a part name fails the tool line without hanging', async ({ page }) => {
     test.setTimeout(60_000)
     stub = await startStubRelay([
       { name: 'view', args: { views: [{ lookAt: 'nope' }] } },
@@ -538,13 +538,18 @@ test.describe('AI chat tools', () => {
 
     await page.locator('.chat-input').fill('what do you see?')
     await page.locator('.chat-send').click()
-    // The turn still closes with the model's text: a bad view is a tool result,
-    // never a hang or a turn failure.
+    // The turn still closes with the model's text: a refused view is a tool
+    // result, never a hang or a turn failure.
     await expect(page.locator('.chat-messages')).toContainText('No view.', { timeout: 30_000 })
 
-    // The model saw the failure, not merely a failed-looking row.
+    // No build reports which geometry item belongs to which part, so the aim is
+    // refused with the coordinate route named — the model saw the failure, not
+    // merely a failed-looking row.
     const tool = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').at(-1)
-    expect(JSON.parse(tool.content)).toMatchObject({ ok: false, error: { name: 'PartNotFoundError', message: expect.stringContaining('nope') } })
+    expect(JSON.parse(tool.content)).toMatchObject({
+      ok: false,
+      error: { name: 'PartLookAtUnsupportedError', message: expect.stringContaining('nope') },
+    })
 
     await expect(page.locator('.chat-tool.failed')).toBeVisible()
     await expect(page.locator('.chat-tool-mark')).toHaveText('failed')

@@ -72,6 +72,15 @@ Camera spec element (one per requested view), exactly one aim form each:
   e.g. `packages/params-core/src/createParamsProxy.js`, example
   `apps/jscad-web/examples/jscad/jscad-examples/02-hierarchical-car.example.js`).
   A part name resolves to that part's centroid for framing.
+  **Unresolved at implementation (Task 6 fix round 1):** no honest name→index
+  mapping exists. `proxyState.types` is keyed in `_type`-assignment order while
+  `measure` numbers the array `main()` returns; on
+  `02-hierarchical-car.example.js` that is 11 typed paths against 13 geometry
+  items and `body` lands on a rear wheel hub
+  (`apps/jscad-web/test/aiViewProvenance.test.js`). The app therefore refuses a
+  part-name aim with `PartLookAtUnsupportedError` and names the
+  `measure`-then-`[x, y, z]` route instead. Restoring a name aim needs a build
+  that reports which geometry item belongs to which part.
 - `position` plus `offset`: explicit camera position plus a world-coords offset that
   shifts the camera for that render.
 
@@ -110,7 +119,10 @@ target, fov, aspect}}` plus `ok: true`. The camera returned is the final one use
   orthographic box framing (`eval/render/page.html:78`).
 - Part-name to centroid resolution: mapping a dotted param path to measured geometry
   (`packages/model-tools/src/measure.js` `measureCenter`) when `main()` returns a plain
-  array with no names; ambiguous match detection and error names.
+  array with no names; ambiguous match detection and error names. **Ruled out as
+  unanswerable with today's provenance (Task 6 fix round 1):** the app refuses the aim
+  with `PartLookAtUnsupportedError` and points at `measure` coordinates instead — see
+  the note under the `lookAt` bullet above.
 - Preset direction vectors and up vectors for front/back/left/right/bottom (eval defines
   iso-front, iso-back, side, top only); perspective versus orthographic for agent views.
 - Vision gating table values and `eval/models.json` flags.

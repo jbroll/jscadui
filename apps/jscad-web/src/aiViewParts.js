@@ -5,6 +5,12 @@
 // builds `partPaths` from `proxyState` plus the build's geometry order and
 // supplies `measurePart(index) -> [x, y, z]`.
 //
+// No caller supplies that provenance today: a build reports neither which
+// geometry item belongs to which typed part path nor any name for its items, so
+// the app refuses a part-name aim outright (`src/aiView.js`) and drives only the
+// point form. The part branch stays the agreed resolution contract, ready for a
+// build that names its own geometry.
+//
 // Matching never guesses. An exact dotted-path match wins; failing that, only
 // whole dot-separated segment suffixes match (`left` for `front.left`), and
 // more than one of those is ambiguous. Character-level substring matching is

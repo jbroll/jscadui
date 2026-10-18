@@ -74,6 +74,14 @@ export const getSelection = () => {
   }
 }
 
+// The provider's own metadata for the models the dialog last listed, keyed by
+// model id. Catalog data, not a user setting: it is never persisted, and
+// `getProviderConfig` reads it so the chat can offer the image tool to a model
+// its provider reports as vision-capable even when the id is in no known-vision
+// table (`src/aiChat.js`). Empty until a model list loads, which leaves the
+// table as the answer.
+const modelCapabilities = new Map()
+
 const setSelection = (selection) => {
   localStorage.setItem(SELECTION_KEY, JSON.stringify(selection))
 }
@@ -92,14 +100,19 @@ export const getProviderConfig = () => {
   const selection = getSelection()
   const { kind = 'anthropic', model = '', baseUrl = '', effort = '' } = selection
   if (!model) return null
+  // The provider's own metadata for the chosen model rides with the config: the
+  // chat reads `capabilities.vision` for the image tool (adapters ignore the
+  // field), so a provider's answer beats the known-vision table.
+  const capabilities = modelCapabilities.get(model)
+  const withCapabilities = (config) => (capabilities ? { ...config, capabilities } : config)
   if (isFreeSelection(selection)) {
     const inference = selection.inference ?? ''
     if (!inference) return null
-    return { kind, model, ...(effort ? { effort } : {}), apiKey: FREE_API_KEY, inference, free: true }
+    return withCapabilities({ kind, model, ...(effort ? { effort } : {}), apiKey: FREE_API_KEY, inference, free: true })
   }
   const apiKey = keyStore.get()
   if (!apiKey) return null
-  return { kind, model, ...(baseUrl ? { baseUrl } : {}), ...(effort ? { effort } : {}), apiKey }
+  return withCapabilities({ kind, model, ...(baseUrl ? { baseUrl } : {}), ...(effort ? { effort } : {}), apiKey })
 }
 
 const modelPlaceholders = { anthropic: 'claude-sonnet-4-5', openai: 'gpt-4o', 'opencode-go': 'deepseek-v4.1-flash', meta: 'muse-spark-1.3', 'jscad-web': 'deepseek-v4.1-flash' }
@@ -134,10 +147,12 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     // restore them on load instead of always reopening on session.
     keyMode: ['session', 'device', 'synced'].includes(selection.keyMode) ? selection.keyMode : 'session',
     searchKeyMode: ['session', 'device', 'synced'].includes(selection.searchKeyMode) ? selection.searchKeyMode : 'session',
-    capabilities: new Map(),
     websearchAllow: websearch.allow,
     websearchProvider: websearch.provider,
   }
+  // A fresh dialog starts with no catalog metadata, exactly as the per-dialog
+  // map did before it moved beside `getProviderConfig`.
+  modelCapabilities.clear()
   // A free selection stores `{inference, free:true}` and never a base URL;
   // switching back to an own-key provider drops both.
   const persistSelection = () => {
@@ -247,7 +262,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   effortSelect.classList.add('ai-effort-select')
   const effortWrap = effortField
   const refreshEffort = () => {
-    const caps = state.capabilities.get(state.model) ?? null
+    const caps = modelCapabilities.get(state.model) ?? null
     const options = effortOptionsForModel({ kind: state.kind, modelId: state.model, capabilities: caps })
     effortSelect.innerHTML = ''
     for (const level of options) {
@@ -489,7 +504,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
           return
         }
         inferenceOptions = catalog
-        state.capabilities = new Map()
+        modelCapabilities.clear()
         syncModelControls(catalog.map((o) => ({ id: o.model, available: o.available })))
         syncFreeModelSelection()
         modelStatus.textContent = ''
@@ -520,7 +535,8 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
         modelStatus.textContent = 'No models listed. Enter a model id below.'
         return
       }
-      state.capabilities = new Map(models.map((m) => [m.id, m.capabilities ?? null]))
+      modelCapabilities.clear()
+      for (const m of models) modelCapabilities.set(m.id, m.capabilities ?? null)
       syncModelControls(models)
       modelStatus.textContent = ''
       refreshEffort()
@@ -565,7 +581,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
       modelSelect.innerHTML = ''
       state.baseUrl = ''
       baseUrl.value = ''
-      state.capabilities = new Map()
+      modelCapabilities.clear()
       applyFreeState()
       loadModels()
       return
@@ -577,7 +593,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     modelInput.value = ''
     modelInput.placeholder = modelPlaceholders[state.kind] ?? ''
     modelSelect.innerHTML = ''
-    state.capabilities = new Map()
+    modelCapabilities.clear()
     applyFreeState()
     loadModels()
   })

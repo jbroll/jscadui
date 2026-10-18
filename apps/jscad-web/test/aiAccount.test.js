@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createProvider } from '@jscadui/agent-loop'
+import { VISION_MODELS } from '@jscadui/agent-loop/src/providers.js'
 import { TOS_VERSION } from '../src/aiConsent.js'
-import { relayBaseUrl } from '../src/aiChat.js'
+import { relayBaseUrl, visionCapable } from '../src/aiChat.js'
 
 vi.mock('@jscadui/key-store', () => {
   const byKey = new Map()
@@ -113,6 +114,29 @@ describe('account header', () => {
     document.querySelector('.ai-gear').click()
     await vi.waitFor(() => expect(document.querySelector('.ai-model-select').options.length).toBe(2))
     expect(String(globalThis.fetch.mock.calls.find(([u]) => String(u).includes('/v1/models'))[0])).toMatch(/\/api\/relay\/openai\/v1\/models/)
+  })
+
+  it('carries a listed model capabilities on the provider config, so its own vision flag offers view', async () => {
+    const { initAccount, getProviderConfig, keyStore } = await loadAccount()
+    await keyStore.set('sk-x', 'session')
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'meta', model: 'muse-vision-x' }))
+    globalThis.fetch = vi.fn(async (url) => {
+      if (String(url).includes('/api/auth/')) return new Response(JSON.stringify({}), { status: 401 })
+      return new Response(
+        JSON.stringify({ data: [{ id: 'muse-vision-x', capabilities: { vision: true } }] }),
+        { headers: { 'content-type': 'application/json' } },
+      )
+    })
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    document.querySelector('.ai-gear').click()
+    await vi.waitFor(() => expect(document.querySelector('.ai-model-select').options.length).toBe(1))
+
+    // The id is in no vision table: only the provider's own metadata says so,
+    // and it must reach the chat's gate through the provider config.
+    expect(VISION_MODELS.has('muse-vision-x')).toBe(false)
+    expect(getProviderConfig().capabilities).toEqual({ vision: true })
+    expect(visionCapable(getProviderConfig())).toBe(true)
   })
 
   it('keeps the saved model in free text when the model fetch fails', async () => {

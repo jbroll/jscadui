@@ -47,7 +47,7 @@ import { showPartsBrowser, partsBrowserStyles } from './src/partsBrowser.js'
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
 import { capGeometry, DEFAULT_CAPS } from './src/caps.js'
 import { createProjectTools } from './src/aiDeps.js'
-import { createViewHandler, partPathsOf } from './src/aiView.js'
+import { createViewHandler } from './src/aiView.js'
 import { renderViews } from './src/aiViewRender.js'
 import { createProjectBuilds, projectEntry } from './src/projectBuild.js'
 import { createExport } from './src/aiExport.js'
@@ -1085,10 +1085,10 @@ const aiDeps = {
   ...chatTools,
   // The off-screen multi-view render: the live viewer's canvas is never read,
   // so a view call leaves the user's own camera and view exactly as they were.
+  // A part-name aim is refused by the handler (no build reports which geometry
+  // item belongs to which part), so no measurement or typed-path map is wired.
   view: createViewHandler({
     getMesh: () => viewState.model,
-    getPartPaths: () => partPathsOf(paramsCtrl.proxyState),
-    measure: (options) => workerApi.jscadMeasure({ options }),
     noGeometry: projectBuilds.noGeometry,
     render: renderViews,
     env: () => ({ THREE: globalThis.THREE, smooth: viewState.smoothRender, bg: viewState.theme.bg }),

@@ -20,10 +20,12 @@ export const PROVIDER_BASE_URLS = {
 export const RESPONSES_MODELS = new Set(['grok-4.6', 'gpt-5.6-luna', 'muse-spark-1.3-contributor', 'muse-spark-1.2-contributor', 'muse-spark-1.3'])
 export const MESSAGES_MODELS = new Set(['minimax-m3', 'minimax-m2.7', 'minimax-m2.5', 'qwen3.8-max', 'qwen3.8-flash', 'qwen3.7-max', 'qwen3.7-plus', 'qwen3.6-plus'])
 
-// Models known to read images, so the loop may offer them `view`. The app
-// prefers its provider's model metadata and the eval reads `vision` in
-// eval/models.json; this table is the fallback for a provider that reports no
-// such capability. A text-only model here would get images it cannot read.
+// Models known to read images, so the loop may offer them `view`. This table
+// answers first; a model it does not list is offered the tool only when its
+// provider's own model metadata reports `vision: true` (the app carries that on
+// the selection, the eval reads `vision` in eval/models.json), so metadata can
+// add the tool but never silently take it away from a known-vision model. A
+// text-only model here would get images it cannot read.
 export const VISION_MODELS = new Set([
   'grok-4.6',
   'gpt-5.6-luna',

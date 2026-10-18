@@ -1,10 +1,14 @@
 // The `view` tool's app-side pipeline: normalize the request, resolve look-ats
-// to measured centroids, render off-screen and hand the loop raw shots. The
-// renderer and the worker are injected, so this suite runs in the node env and
-// never touches WebGL; the live render itself is covered by the e2e spec.
+// and render off-screen, then hand the loop raw shots. The renderer is
+// injected, so this suite runs in the node env and never touches WebGL; the
+// live render itself is covered by the e2e spec.
+//
+// Part-name aims are refused here: nothing in a build reports which geometry
+// item belongs to which typed param path, so a name cannot be mapped to a
+// measured centre (test/aiViewProvenance.test.js pins that with a real model).
 import { describe, expect, it, vi } from 'vitest'
 import { PRESET_DIRS } from '../src/aiViewRender.js'
-import { createViewHandler, partPathsOf } from '../src/aiView.js'
+import { createViewHandler } from '../src/aiView.js'
 
 const camera = (x) => ({ position: [x, 0, 0], target: [0, 0, 0], fov: 0.6, aspect: 4 / 3 })
 
@@ -23,8 +27,6 @@ const renderOf = (spy) =>
 const handler = (over = {}) =>
   createViewHandler({
     getMesh: () => mesh,
-    getPartPaths: () => [],
-    measure: vi.fn(async () => ({ parts: [] })),
     noGeometry: async () => null,
     render: renderOf(),
     ...over,
@@ -85,35 +87,38 @@ describe('view handler', () => {
     await expect(view({ views: [{ preset: 'top' }] })).rejects.toThrowError(/the last build failed/)
   })
 
-  it('fails the whole request atomically on one bad view, rendering nothing', async () => {
-    const render = renderOf()
-    const view = handler({ getPartPaths: () => [{ path: 'front.left', index: 0 }], render })
-    await expect(view({ views: [{ preset: 'top' }, { lookAt: 'nope' }] })).rejects.toThrowError(/PartNotFound/)
-    expect(render).not.toHaveBeenCalled()
-  })
-
-  it('aims a part look-at at its measured center and frames that part box', async () => {
-    const measure = vi.fn(async () => ({
-      parts: [{ part: '0', center: [7, 0, 2.5], boundingBox: [[6, -1, 0], [8, 1, 5]] }],
-    }))
+  it('aims a lookAt point at that point', async () => {
     const plans = []
-    const view = handler({ getPartPaths: () => [{ path: 'front.left', index: 0 }], measure, render: renderOf(plans) })
+    await handler({ render: renderOf(plans) })({ views: [{ lookAt: [3, -4, 5] }] })
 
-    await view({ views: [{ lookAt: 'front.left' }] })
-
-    expect(measure).toHaveBeenCalledWith({ parts: 'all' })
     expect(plans[0].shots[0]).toEqual({
       dir: PRESET_DIRS['iso-front'].dir,
       up: PRESET_DIRS['iso-front'].up,
-      target: [7, 0, 2.5],
-      bbox: { min: [6, -1, 0], max: [8, 1, 5] },
+      target: [3, -4, 5],
     })
   })
 
-  it('does not measure the model for preset-only requests', async () => {
-    const measure = vi.fn(async () => ({ parts: [] }))
-    await handler({ measure })({ views: [{ preset: 'top' }] })
-    expect(measure).not.toHaveBeenCalled()
+  it('refuses a part-name lookAt and renders nothing', async () => {
+    const render = renderOf()
+    const view = handler({ render })
+
+    await expect(view({ views: [{ lookAt: 'front.left' }] })).rejects.toThrowError(/PartLookAtUnsupportedError/)
+    expect(render).not.toHaveBeenCalled()
+  })
+
+  it('names the part and the coordinate route in the unsupported-part message', async () => {
+    // The agent must be able to act on the error: the name it asked for, why it
+    // cannot be resolved, and the measure-then-coordinates route that can.
+    await expect(handler()({ views: [{ lookAt: 'body.cabin' }] })).rejects.toThrowError(
+      /body\.cabin[\s\S]*measure[\s\S]*\[x, y, z\]/,
+    )
+  })
+
+  it('fails the whole request atomically on an unsupported part aim, rendering nothing', async () => {
+    const render = renderOf()
+    const view = handler({ render })
+    await expect(view({ views: [{ preset: 'top' }, { lookAt: 'nope' }] })).rejects.toThrowError(/PartLookAtUnsupported/)
+    expect(render).not.toHaveBeenCalled()
   })
 
   it('aims a position spec from the model centre at the requested direction', async () => {
@@ -123,8 +128,6 @@ describe('view handler', () => {
     const plans = []
     const view = createViewHandler({
       getMesh: () => cube,
-      getPartPaths: () => [],
-      measure: vi.fn(async () => ({ parts: [] })),
       noGeometry: async () => null,
       render: renderOf(plans),
     })
@@ -135,20 +138,5 @@ describe('view handler', () => {
     expect(plans[0].shots[0].dir[0]).toBeGreaterThan(0)
     expect(plans[0].shots[0].dir[1]).toBe(0)
     expect(plans[0].shots[0].dir[2]).toBe(0)
-  })
-})
-
-describe('partPathsOf', () => {
-  it('numbers the typed part paths in the order the model created them', () => {
-    expect(partPathsOf({ types: { body: 'part', 'front.left': 'part', 'rear.left': 'part' } })).toEqual([
-      { path: 'body', index: 0 },
-      { path: 'front.left', index: 1 },
-      { path: 'rear.left', index: 2 },
-    ])
-  })
-
-  it('is empty when the build reported no parts', () => {
-    expect(partPathsOf(undefined)).toEqual([])
-    expect(partPathsOf({ types: {} })).toEqual([])
   })
 })

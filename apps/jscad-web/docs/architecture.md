@@ -1119,11 +1119,16 @@ result (`{ ok, shots }`), each shot a PNG data URL as a provider-native image
 part beside the camera used; the chat transcript shows only the cameras, so no
 data URL reaches the DOM, and the loop drops the oldest images when one call's
 renders would push the relay past its 1MB body limit. The tool is offered to a
-vision-capable model alone — `VISION_MODELS`, or the provider's model metadata
-(`vision: true` in `eval/models.json` for the eval). A part-name look-at
-resolves through the params controller's typed paths and the frame's measurement
-of the build's geometry, and one unresolvable aim fails the whole call before
-anything renders.
+vision-capable model alone — the provider's own model metadata
+(`capabilities.vision`, carried on the selection from the account dialog's
+model list), else `VISION_MODELS`, or `vision: true` in `eval/models.json` for
+the eval. A part-name look-at is refused with `PartLookAtUnsupportedError`
+rather than guessed: the params controller's typed paths are keyed in
+`_type`-assignment order while `measure` numbers the items `main()` returns, and
+those orders differ on a real model (`test/aiViewProvenance.test.js`), so no
+honest mapping exists and the error names the `measure`-then-coordinates route.
+A point look-at and every preset still resolve, and one bad aim fails the whole
+call before anything renders.
 
 `export` answers `{ ok, format, size }` (`src/aiExport.js`): the model learns
 the export worked and how big it is, and the bytes stay out of its context.
