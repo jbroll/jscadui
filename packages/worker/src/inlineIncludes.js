@@ -67,6 +67,16 @@ const joinRoot = (root, includePath) =>
   includePath.startsWith('/') ? joinPosix(root, includePath.slice(1)) : joinPosix(root, includePath)
 
 /**
+ * Static hosts rewrite unknown paths to the SPA's index.html (HTTP 200), so
+ * a missing include arrives as markup rather than a failed read. Markup can
+ * never be valid inlined JS, so treat it as missing: resolution keeps trying
+ * further roots instead of splicing HTML into the module (which evals to
+ * `Unexpected token '<'`). Every readFile implementation (sync XHR in the
+ * worker, fs in Node) shares this contract.
+ */
+const isMarkup = (content) => typeof content === 'string' && /^\s*(<!doctype|<html)/i.test(content)
+
+/**
  * @param {string} source - including file's source
  * @param {string} fromFile - path of the including file (for relatives)
  * @param {{readFile: (absPath: string) => string | undefined, roots?: string[], seen?: Set<string>}} io
@@ -100,7 +110,7 @@ export function inlineIncludes(source, fromFile, { readFile, roots, seen = new S
     for (const r of searchRoots) {
       const p = joinRoot(r, includePath)
       const content = readFile(p)
-      if (content !== undefined) {
+      if (content !== undefined && !isMarkup(content)) {
         target = { path: p, content }
         break
       }

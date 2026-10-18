@@ -52,6 +52,27 @@ describe('inlineIncludes', () => {
     const src = '/*\nExample:\ninclude("./lib.jscad");\n*/\nvar y = 1;'
     expect(inlineIncludes(src, '/tmp/x.jscad', { readFile })).toBe(src)
   })
+
+  it('skips SPA-rewrite HTML and resolves a later root', () => {
+    // Production Apache answers unknown paths with index.html (HTTP 200), so
+    // the first candidate root "finds" markup. Resolution must keep going to
+    // the ancestor library root instead of inlining the HTML (which evals to
+    // `Unexpected token '<'`). Mirrors plate01.jscad's include('/mechanics/…').
+    const files = {
+      '/t/models/m.jscad': 'include("/mechanics/part.jscad");\nvar x = PART;',
+      '/t/library/mechanics/part.jscad': 'var PART = 7;',
+    }
+    const spaReadFile = (p) => (files[p] ?? '<!DOCTYPE html>\n<html><body>app</body></html>')
+    const out = inlineIncludes(files['/t/models/m.jscad'], '/t/models/m.jscad', { readFile: spaReadFile })
+    expect(out).toContain('var PART = 7;')
+    expect(out).not.toContain('<!DOCTYPE')
+  })
+
+  it('throws cannot-resolve when every root serves markup', () => {
+    const spaReadFile = () => '<!DOCTYPE html>\n<html></html>'
+    expect(() => inlineIncludes('include("/mechanics/gone.jscad");', '/t/models/m.jscad', { readFile: spaReadFile }))
+      .toThrow(/cannot resolve '\/mechanics\/gone\.jscad'/)
+  })
 })
 
 describe('defaultRoots', () => {

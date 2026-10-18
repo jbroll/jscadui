@@ -104,6 +104,8 @@ try {
     ['/examples/jscad/jscad-examples/ALL.js', 'jscad-examples/ALL.js (grid, 16 cells)', 120000],
     ['/examples/jscad/jscad-examples/04-primitives.example.js', 'moved jscad example (new subdir)', 30000],
     ['/examples/jscad/jscad-examples/14-AMFImport/index.js', 'folder-project import (index-only)', 60000],
+    ['/examples/jscad/tspspi/models/mechanics/mounting/simplescrewedplates/ALL.js', 'V1 include past rewritten roots (deep leaf)', 60000],
+    ['/examples/jscad/tspspi/ALL.js', 'tspspi/ALL.js (nested V1 grids)', 240000],
   ]) {
     const ctx = await browser.newContext()
     const pg = await ctx.newPage()
