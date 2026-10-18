@@ -12,11 +12,16 @@ const toResponsesTool = (tool) => ({
   parameters: tool.inputSchema,
 })
 
-const toResponsesInput = (messages) => {
+// Exported for tests only; not part of the package's public surface.
+export const toResponsesInput = (messages) => {
   const input = []
   for (const message of messages) {
     if (message.role === 'tool') {
       input.push({ type: 'function_call_output', call_id: message.toolCallId, output: message.content })
+      const images = Array.isArray(message.images) ? message.images : []
+      if (images.length > 0) {
+        input.push({ role: 'user', content: images.map((image) => ({ type: 'input_image', image_url: image.dataUrl })) })
+      }
     } else if (message.role === 'assistant') {
       if (message.content) input.push({ role: 'assistant', content: message.content })
       for (const call of message.toolCalls ?? []) {

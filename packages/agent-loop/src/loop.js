@@ -48,10 +48,48 @@ export const TOOL_RESULTS_PER_TURN_CHARS = 5 * TOOL_RESULT_CHARS
 
 const OVER_TURN_TOTAL = `[tool result omitted: this turn's tool results passed ${TOOL_RESULTS_PER_TURN_CHARS} characters]`
 
+// A `view` result is an object, so it passes through the text cap untouched:
+// its renders ride beside the text as image parts, never inside the capped
+// string (a PNG data URL is ~340k characters). Everything else is a string.
 export const capToolResult = (content) =>
   typeof content === 'string' && content.length > TOOL_RESULT_CHARS
     ? `${content.slice(0, TOOL_RESULT_CHARS)}\n… [tool result truncated: ${TOOL_RESULT_CHARS} of ${content.length} characters shown]`
     : content
+
+// A `view` tool result carries its renders as provider-native image parts
+// beside a small text stub of the cameras actually used. The stub stays text
+// so camera history survives pruning and counts toward the turn's text budget;
+// the image parts bypass the cap and are dropped from superseded views.
+const viewPartsOf = (result) =>
+  result !== null && typeof result === 'object' && Array.isArray(result.shots)
+    ? {
+        content: JSON.stringify({ ok: result.ok ?? true, cameras: result.shots.map((shot) => shot.camera) }),
+        images: result.shots.map((shot) => shot.image),
+      }
+    : null
+
+const asToolMessage = (call, content) => {
+  const parts = typeof content === 'string' ? null : viewPartsOf(content)
+  if (!parts) return { role: 'tool', toolCallId: call.id, content }
+  return { role: 'tool', toolCallId: call.id, content: parts.content, images: parts.images }
+}
+
+// Only the newest view result keeps its pixels: earlier views lose their
+// image parts (their camera stubs stay in `content`) so a turn never resends
+// renders it can no longer act on. Runs after each round; the tool messages
+// here are this turn's own, so dropping keys cannot touch the caller's input.
+const pruneViewImages = (messages) => {
+  let last = -1
+  for (let i = 0; i < messages.length; i += 1) {
+    if (Array.isArray(messages[i].images) && messages[i].images.length > 0) last = i
+  }
+  for (let i = 0; i < last; i += 1) {
+    if (Array.isArray(messages[i].images) && messages[i].images.length > 0) {
+      const { images: _images, ...rest } = messages[i]
+      messages[i] = rest
+    }
+  }
+}
 
 export class ToolTimeoutError extends Error {
   constructor(callId, name, timeoutMs) {
@@ -368,12 +406,19 @@ export const runTurn = (options) => {
             contents[i] = await runOneTool(i)
           }
           toolCalls.forEach((call, i) => {
-            let capped = capToolResult(contents[i])
-            const size = typeof capped === 'string' ? capped.length : 0
-            if (resultChars + size > TOOL_RESULTS_PER_TURN_CHARS) capped = OVER_TURN_TOTAL
-            else resultChars += size
-            messages.push({ role: 'tool', toolCallId: call.id, content: capped })
+            // A view result is an object: capToolResult leaves it whole, and it
+            // becomes a camera text stub (which counts toward the turn budget)
+            // plus image parts (which do not).
+            const message = asToolMessage(call, capToolResult(contents[i]))
+            const size = typeof message.content === 'string' ? message.content.length : 0
+            if (resultChars + size > TOOL_RESULTS_PER_TURN_CHARS) {
+              messages.push({ role: 'tool', toolCallId: call.id, content: OVER_TURN_TOTAL })
+            } else {
+              resultChars += size
+              messages.push(message)
+            }
           })
+          pruneViewImages(messages)
           if (doomLoop) {
             report({ phase: 'done', stopped: 'doom_loop' })
             resolve({ messages, rounds, stopped: 'doom_loop' })

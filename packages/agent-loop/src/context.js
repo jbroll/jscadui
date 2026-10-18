@@ -126,7 +126,11 @@ const pruneToolResults = (transcript, budget) => {
     const oldest = full[0]
     const at = pruned.indexOf(oldest)
     size -= oldest.content.length - PRUNED_TOOL_RESULT.length
-    pruned[at] = { ...oldest, content: PRUNED_TOOL_RESULT }
+    // A cleared result drops its image parts too: they bypass the char budget
+    // but still cost tokens, and a view the model can no longer reason about
+    // must not be resent.
+    const { images: _images, ...rest } = oldest
+    pruned[at] = { ...rest, content: PRUNED_TOOL_RESULT }
   }
 }
 

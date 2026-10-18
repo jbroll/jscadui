@@ -212,14 +212,35 @@ const isFailureContent = (content) => {
   }
 }
 
+// A data URL's base64 body, which is what both Anthropic and OpenAI accept for
+// inline image bytes. A bare base64 string (no comma) passes through.
+const imageBase64 = (dataUrl) => {
+  const comma = String(dataUrl).indexOf(',')
+  return comma === -1 ? String(dataUrl) : String(dataUrl).slice(comma + 1)
+}
+
+// A tool result carrying image parts becomes text + image content blocks; one
+// without images stays the plain string it always was.
+const anthropicToolResult = (message) => {
+  const images = Array.isArray(message.images) ? message.images : []
+  const content =
+    images.length === 0
+      ? message.content
+      : [
+          { type: 'text', text: message.content },
+          ...images.map((image) => ({
+            type: 'image',
+            source: { type: 'base64', media_type: image.mime, data: imageBase64(image.dataUrl) },
+          })),
+        ]
+  const result = { type: 'tool_result', tool_use_id: message.toolCallId, content }
+  if (isFailureContent(message.content)) result.is_error = true
+  return result
+}
+
 const toAnthropicMessage = (message) => {
   if (message.role === 'tool') {
-    const result = {
-      role: 'user',
-      content: [{ type: 'tool_result', tool_use_id: message.toolCallId, content: message.content }],
-    }
-    if (isFailureContent(message.content)) result.content[0].is_error = true
-    return result
+    return { role: 'user', content: [anthropicToolResult(message)] }
   }
   if (message.role === 'assistant') {
     const content = []
@@ -232,15 +253,15 @@ const toAnthropicMessage = (message) => {
   return { role: message.role, content: message.content }
 }
 
-const toAnthropicMessages = (messages) => {
+// Exported for tests only; not part of the package's public surface.
+export const toAnthropicMessages = (messages) => {
   // Consecutive tool results ride in one user message, results before any
   // text, or the model learns to avoid parallel tool calls.
   const out = []
   let batch = null
   for (const message of messages) {
     if (message.role === 'tool') {
-      const result = { type: 'tool_result', tool_use_id: message.toolCallId, content: message.content }
-      if (isFailureContent(message.content)) result.is_error = true
+      const result = anthropicToolResult(message)
       if (batch) batch.push(result)
       else {
         batch = [result]
@@ -335,22 +356,33 @@ const anthropicProvider = (config) => {
   }
 }
 
-const toOpenAIMessage = (message) => {
+// Chat-completions has no image content on a tool message, so a view's images
+// follow it as a user message of image_url parts. Returns an array: one source
+// message may become the tool row plus that follow-up.
+// Exported for tests only; not part of the package's public surface.
+export const toOpenAIMessages = (message) => {
   if (message.role === 'tool') {
-    return { role: 'tool', tool_call_id: message.toolCallId, content: message.content }
+    const out = [{ role: 'tool', tool_call_id: message.toolCallId, content: message.content }]
+    const images = Array.isArray(message.images) ? message.images : []
+    if (images.length > 0) {
+      out.push({ role: 'user', content: images.map((image) => ({ type: 'image_url', image_url: { url: image.dataUrl } })) })
+    }
+    return out
   }
   if (message.role === 'assistant' && (message.toolCalls ?? []).length > 0) {
-    return {
-      role: 'assistant',
-      content: message.content,
-      tool_calls: message.toolCalls.map((call) => ({
-        id: call.id,
-        type: 'function',
-        function: { name: call.name, arguments: JSON.stringify(call.input) },
-      })),
-    }
+    return [
+      {
+        role: 'assistant',
+        content: message.content,
+        tool_calls: message.toolCalls.map((call) => ({
+          id: call.id,
+          type: 'function',
+          function: { name: call.name, arguments: JSON.stringify(call.input) },
+        })),
+      },
+    ]
   }
-  return { role: message.role, content: message.content }
+  return [{ role: message.role, content: message.content }]
 }
 
 const toOpenAITool = (tool) => ({
@@ -414,7 +446,7 @@ const openaiProvider = (config) => {
       const body = {
         model: config.model,
         stream: true,
-        messages: messages.map(toOpenAIMessage),
+        messages: messages.flatMap(toOpenAIMessages),
       }
       if (tools.length > 0) body.tools = tools.map(toOpenAITool)
       if (toolChoice === 'none') body.tool_choice = 'none'
