@@ -106,16 +106,21 @@ export function createRowboatStorage(options) {
     return { id, name: row.name, entry: row.entry, kind: row.kind, mode: row.mode, created: row.created, updated: row.updated, files }
   }
 
-  const addVersion = (id, manifest, message, created) =>
-    db.create('versions', {
+  // Mint a version row and return its `versionId`, the handle the coalescing
+  // map tracks so a row minted behind its back (a snapshot) breaks the chain.
+  const addVersion = async (id, manifest, message, created) => {
+    const versionId = crypto.randomUUID()
+    await db.create('versions', {
       id: crypto.randomUUID(),
       owner_group_id: identity,
       projectId: id,
-      versionId: crypto.randomUUID(),
+      versionId,
       created,
       message,
       manifest,
     })
+    return versionId
+  }
 
   // The newest version row by timestamp, the one a coalesced write folds into.
   const latestVersion = async (id) => {
@@ -123,9 +128,12 @@ export function createRowboatStorage(options) {
     return rows.reduce((latest, row) => (latest === null || row.created > latest.created ? row : latest), null)
   }
 
-  // The rowboat `versions` table has no column for the coalesce key, so the key
-  // of the newest row this store instance wrote lives here instead. After a
-  // reload the newest row's key is unknown, so the next write starts a row.
+  // The rowboat `versions` table has no column for the coalesce key, so the
+  // `{versionId, key}` of the newest row this store instance wrote lives here
+  // instead. Tracking the row's identity, not just the key, keeps a snapshot
+  // (which mints a row without touching this map) from being folded onto: the
+  // newest row no longer matches the tracked `versionId`. After a reload the
+  // newest row is unknown, so the next write starts a row.
   const coalesceKeys = new Map()
 
   // `version: false` stores the files with no version row; `snapshot` records one later.
@@ -181,10 +189,14 @@ export function createRowboatStorage(options) {
     const nextManifest = Object.entries(fileManifest).map(([path, media]) => ({ path, hash: media }))
     if (version) {
       const latest = await latestVersion(id)
+      const tracked = coalesceKeys.get(id)
       // A restore always mints its own row, and two bursts that were never
-      // asked to coalesce (no key) or that carry a different key never share.
-      const folding = coalesceKey && latest && coalesceKeys.get(id) === coalesceKey &&
-        !message.startsWith('restore ') && ts - latest.created < coalesceMs
+      // asked to coalesce (no key), that carry a different key, or whose newest
+      // row is not the tracked one (a snapshot landed) never share.
+      const folding = coalesceKey && latest && tracked?.key === coalesceKey &&
+        tracked.versionId === latest.versionId && !message.startsWith('restore ') &&
+        ts - latest.created < coalesceMs
+      let versionId = latest?.versionId
       if (folding) {
         // Identical content is not a new version; the file rows above still
         // record the write.
@@ -192,9 +204,9 @@ export function createRowboatStorage(options) {
           await db.update('versions', latest.id, { manifest: nextManifest, created: ts, message })
         }
       } else {
-        await addVersion(id, nextManifest, message, ts)
+        versionId = await addVersion(id, nextManifest, message, ts)
       }
-      coalesceKeys.set(id, coalesceKey)
+      coalesceKeys.set(id, { versionId, key: coalesceKey })
     }
     return { id, entry: entryPath, kind: kindFromEntry(entryPath) }
   }

@@ -236,6 +236,20 @@ describe('local edit coalescing', () => {
     expect(await store.listVersions('c5')).toHaveLength(1)
     expect((await store.readProject('c5')).files).toEqual({ 'main.js': 'v1' })
   })
+
+  it('never folds an edit onto a snapshot row that landed inside the window', async () => {
+    vi.setSystemTime(1_000_000)
+    const store = createLocalStorage()
+    await store.writeFiles('c6', { 'main.js': 'v1' }, edit)
+    await store.snapshot('c6', { message: 'chat' })
+    await store.writeFiles('c6', { 'main.js': 'v2' }, edit)
+
+    const versions = await store.listVersions('c6')
+    expect(versions).toHaveLength(3)
+    expect(versions.map((v) => v.message)).toEqual(['edit', 'chat', 'edit'])
+    const chat = versions.find((v) => v.message === 'chat')
+    expect((await store.readVersion('c6', chat.versionId)).files).toEqual({ 'main.js': 'v1' })
+  })
 })
 
 describe('local snapshotUnique', () => {

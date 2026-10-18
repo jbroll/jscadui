@@ -190,6 +190,21 @@ describe('rowboat edit coalescing', () => {
     await store.close()
   })
 
+  it('never folds an edit onto a snapshot row that landed inside the window', async () => {
+    vi.setSystemTime(1_000_000)
+    const store = contentStore()
+    await store.writeFiles('p8', { 'main.js': 'v1' }, edit)
+    await store.snapshot('p8', { message: 'chat' })
+    await store.writeFiles('p8', { 'main.js': 'v2' }, edit)
+
+    const versions = await store.listVersions('p8')
+    expect(versions).toHaveLength(3)
+    expect(versions.map((v) => v.message)).toEqual(['edit', 'chat', 'edit'])
+    const chat = versions.find((v) => v.message === 'chat')
+    expect((await store.readVersion('p8', chat.versionId)).files).toEqual({ 'main.js': 'v1' })
+    await store.close()
+  })
+
   it('snapshots only when the stored manifest differs from the latest version', async () => {
     const store = contentStore()
     await store.writeFiles('p6', { 'main.js': 'v1' }, { message: 'create', name: 'P6', entry: 'main.js' })
