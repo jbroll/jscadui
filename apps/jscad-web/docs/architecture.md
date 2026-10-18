@@ -1291,7 +1291,10 @@ The provider key is the user's, in one of three modes (`packages/key-store`):
 in memory for the session, in `localStorage` on this origin, or as AES-GCM
 ciphertext under a PBKDF2 passphrase that never leaves the browser. The key
 rides the relay request to the provider and is never stored server-side, never
-logged, and never sent into the frame.
+logged, and never sent into the frame. The chat key and the per-provider
+search keys each keep their own custody mode in the selection, so the Keep
+selects restore on load; a stored key reads back as its first 8 characters
+plus an ellipsis, identifying the key without revealing it.
 
 ## Privacy
 
