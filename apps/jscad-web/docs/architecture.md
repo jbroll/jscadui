@@ -9,7 +9,8 @@ For how to use it, see the [README](../README.md).
 
 ```
 jscad.rkroll.com
-  page (main.js)            editor, viewer, params UI, chat, project drawer
+  page (main.js)            editor (project dropdown, file tree, versions),
+                            viewer, params UI, chat
    ├─ /api  →  Express      auth, sync tokens, provider relay
    │                          └─ hosted rowboat: projects, files, versions
    └─ <iframe sandbox="allow-scripts"> →  jscad-run.rkroll.com
@@ -1316,9 +1317,12 @@ and provider-sharing acknowledgements and skips the recording question.
 
 ## Storage
 
-Local-first with per-project version history (`src/storage/`). Every editor
-compile records a version row and file hashes, and so does each chat turn
-that wrote files, once, with the turn's final state.
+Local-first with per-project version history (`src/storage/`). Editor
+compiles coalesce into one version row per idle window
+(`EDIT_COALESCE_MS` in `src/storage/versioning.js`), switching projects
+snapshots the previous project only when its content differs from the
+latest version, and each chat turn that wrote files snapshots once, with
+the turn's final state and a `chat: <excerpt>` message.
 An editor Ctrl+S routes by the same rule (`saveRoute` in `src/saveFile.js`):
 a project file is already stored by the compile that ran it, a dropped file is
 written back through its handle, and only a path with neither opens the File
@@ -1363,7 +1367,7 @@ a project's mode copies it to the other backend and deletes the source row, so
 it is listed once; `listAll` also dedupes by id.
 Delete removes the project, its versions and its conversation from the owner
 backend (the `disk` project cannot be deleted). Signing out stops the sync loop
-and closes the rowboat store. The drawer labels the modes This device, Synced
+and closes the rowboat store. The editor drawer header labels the modes This device, Synced
 and Folder, and shows a status line with a Retry when a sync fails.
 
 No storage access crosses into the frame: no session, no directory handle, no

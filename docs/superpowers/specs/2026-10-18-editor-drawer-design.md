@@ -1,7 +1,7 @@
 # Editor drawer: project dropdown + file tree — design
 
 Date: 2026-10-18
-Status: draft (builder check pending, then human approval)
+Status: approved and implemented (branch fix/key-custody-recall)
 
 ## Intent and why
 
