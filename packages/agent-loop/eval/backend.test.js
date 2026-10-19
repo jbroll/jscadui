@@ -481,6 +481,16 @@ describe('eval backend run', () => {
     expect(await call(backend, 'execute', { source: 'module.exports = { main: () => ({ a: 1 }) }' })).toMatchObject({ returned: '{"a":1}' })
   })
 
+  it('summarizes fluent geometry a snippet main() returns and lets the snippet measure fluent shapes', async () => {
+    const source = `const jf = require('@jbroll/jscad-fluent')
+const box = jf.cuboid({ size: [10, 4, 2] })
+console.log(JSON.stringify(box.measureDimensions()))
+module.exports = { main: () => [box, box.clone().translateX(20)] }`
+    const res = await call(createEvalBackend(), 'execute', { source })
+    expect(res).toMatchObject({ ok: true, console: ['[10,4,2]'], geometry: { parts: 2, dimensions: [30, 4, 2], volume: 160 } })
+    expect(res.returned).toBeUndefined()
+  })
+
   it("says whether a run's geometry is watertight, manifold and self-intersecting, as a build report does", async () => {
     const closed = await call(createEvalBackend(), 'execute', { source: CUBE })
     expect(closed.geometry).toMatchObject({ parts: 1, watertight: true, manifold: true, selfIntersecting: false })

@@ -194,7 +194,12 @@ test a fix for open edges, or a `returned` preview of `module.exports`
 (`summarizeRun`), and an error with its location, without the loader's
 ` / failed loading module …` note (`withoutLoaderNote`), which builds drop
 too. The app's frame worker
-answers `execute` through the same `summarizeRun` and the same messages.
+answers `execute` through the same `summarizeRun` and the same messages. Its
+modeling is the lazy model tree, so the worker (`jscadScript` with `scratch`)
+runs the snippet's load and its `main()` inside one build context, where
+`measure*` calls (fluent's methods included) answer numbers as they do in a
+build's `main()`, and evaluates the tree nodes `main()` returns before
+`summarizeRun` sees them; the eval's eager `@jscad/modeling` needs neither.
 
 The per-turn header (`buildMessages`) sends the project files and then the
 project's last build report, so each turn starts knowing whether the project

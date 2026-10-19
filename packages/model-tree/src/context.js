@@ -15,13 +15,21 @@ export const createBuildContext = (engine) => ({
   eager: defaultEager,
 })
 
-export const withBuildContext = async (ctx, run) => {
+// Returns the restore; for a caller whose run spans a sync load and an async main.
+export const enterBuildContext = (ctx) => {
   const previous = globalThis.__jscadBuild
   globalThis.__jscadBuild = ctx
+  return () => {
+    globalThis.__jscadBuild = previous
+  }
+}
+
+export const withBuildContext = async (ctx, run) => {
+  const restore = enterBuildContext(ctx)
   try {
     return await run()
   } finally {
-    globalThis.__jscadBuild = previous
+    restore()
   }
 }
 

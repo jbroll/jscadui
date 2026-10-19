@@ -32,7 +32,10 @@ collectors, each `{ reset(), list() }`:
 - `setRunSummary(summarize)`: turns a scratch run's `{ hasMain, value }` into
   plain data for its answer. The frame passes `@jscadui/agent-loop`'s
   `summarizeRun` with `@jscadui/model-tools`' `measure`, so the chat's `run`
-  answers `geometry` or a `returned` preview as the eval does.
+  answers `geometry` or a `returned` preview as the eval does. A scratch run
+  loads and runs `main` inside one build context, so `measure*` works at the
+  snippet's top level too, and `value` holds the solids the bound evaluator
+  makes of any tree nodes `main` returned.
 
 `jscadScript` resets both before the module loads. A `jscadMain` re-run (a
 parameter change) resets the console before `main` runs, so it reports only

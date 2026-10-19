@@ -2,7 +2,7 @@ import { createNamespace } from './nodes.js'
 import { createMeasurements } from './measurements.js'
 import { productionTagOps } from './tags.js'
 
-export { createBuildContext, withBuildContext, eagerEvaluate, memoFromSpecials } from './context.js'
+export { createBuildContext, enterBuildContext, withBuildContext, eagerEvaluate, memoFromSpecials } from './context.js'
 export { splitParts } from './splitter.js'
 export { createEvaluator, createSyncEvaluator, bindEvaluator, AsyncLeafError } from './evaluator.js'
 export { productionTagOps, makeFrameMath, frameFromBBox, directionBasis, ghostOf, mergeGhosts } from './tags.js'

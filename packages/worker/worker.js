@@ -27,7 +27,7 @@ if (!requireHandlers.has('jscad')) {
 }
 import { createClaims } from './src/claims.js'
 import { shouldTransform } from './src/shouldTransform.js'
-import { bindEvaluator, createBuildContext, memoFromSpecials, splitParts, withBuildContext } from '@jscadui/model-tree'
+import { bindEvaluator, createBuildContext, enterBuildContext, memoFromSpecials, splitParts, withBuildContext } from '@jscadui/model-tree'
 import { loadBoundEvaluate } from './src/treeApi.js'
 
 /**
@@ -601,6 +601,7 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
   let previousModelState = null
   let restoreModel = null
   let cachedProjectModules = null
+  let leaveScratchContext = null
   try {
     // Check if we're still the current generation after acquiring lock
     // A timeout may have released the lock and allowed another script to start
@@ -635,6 +636,14 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     restoreModel = isolateModel?.() ?? null
     // The project modules a scratch run loads must not stay cached for the next build.
     if (scratch) cachedProjectModules = { ...requireCache.local }
+    // A snippet measures at its top level as often as in its main, so the
+    // context spans the load too, not only main() as a build's does.
+    let scratchBuild = null
+    if (scratch) {
+      scratchBuild = { ctx: createBuildContext(), evaluate: loadBoundEvaluate() }
+      if (scratchBuild.evaluate) bindEvaluator(scratchBuild.ctx, scratchBuild.evaluate)
+      leaveScratchContext = enterBuildContext(scratchBuild.ctx)
+    }
 
     if(!script) script = readFileWeb(resolveUrl(url, base, root).url)
 
@@ -698,7 +707,7 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
 
     if (scratch) {
       const hasMain = typeof workerState.main === 'function'
-      const value = hasMain ? await workerState.main(scratchParams()) : workerState.scriptModule
+      const value = hasMain ? await evaluateScratch(await workerState.main(scratchParams()), scratchBuild) : workerState.scriptModule
       const summary = runSummary?.({ hasMain, value }) ?? {}
       return { def: [], params: {}, scratch: true, ...runOutput(), ...summary }
     }
@@ -738,6 +747,7 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     if (error && typeof error === 'object') error.output = runOutput()
     throw error
   } finally {
+    leaveScratchContext?.()
     if (scratch && previousModelState) Object.assign(workerState, previousModelState)
     if (scratch) restoreModel?.()
     if (cachedProjectModules) {
@@ -746,6 +756,20 @@ export const jscadScript = async ({ script, url='jscad.js', base=workerState.glo
     }
     release()
   }
+}
+
+const isTreeNode = (value) => Boolean(value && value.isTreeNode === true)
+
+// Lazy tree nodes a scratch main returns become the solids a build would make,
+// so the summary measures geometry instead of previewing the tree as JSON.
+const evaluateScratch = async (value, { ctx, evaluate }) => {
+  if (!evaluate) return value
+  const nodes = splitParts(value).flatMap((part) => part.nodes)
+  if (!nodes.some(isTreeNode)) return value
+  const memo = memoFromSpecials(ctx)
+  const solids = []
+  for (const node of nodes) solids.push(...(await evaluate(node, memo)).solids)
+  return solids.filter((solid) => !solid?.previewOnly)
 }
 
 // A scratch run's main sees only its own defaults, never the model's param state.
