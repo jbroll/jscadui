@@ -54,6 +54,14 @@ export async function startLauncher({ modelDir, port, logDir, webDir, outName = 
     exited = true
     resolve({ code, signal })
   }))
+  // A child that failed to spawn emits 'error' and may never emit 'close'.
+  let spawnError = null
+  const failed = new Promise((resolve) => child.on('error', (e) => {
+    if (spawnError) return
+    spawnError = e
+    exited = true
+    resolve(e)
+  }))
 
   const stop = async () => {
     if (exited) return
@@ -79,9 +87,17 @@ export async function startLauncher({ modelDir, port, logDir, webDir, outName = 
       clearTimeout(timer)
       reject(new Error(`launcher exited with ${code === null ? `signal ${signal}` : `code ${code}`}:\n${tail()}`))
     })
+    failed.then((e) => {
+      clearTimeout(timer)
+      reject(e)
+    })
   }).catch(async (e) => {
     await stop()
     throw e
   })
-  return { url, stop }
+  // For a process 'exit' handler, which cannot wait.
+  const kill = () => {
+    if (!exited) child.kill('SIGKILL')
+  }
+  return { url, stop, kill }
 }

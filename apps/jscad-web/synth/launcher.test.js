@@ -69,6 +69,28 @@ describe('startLauncher', () => {
     await expect(startLauncher({ ...opts, port, spawnImpl })).rejects.toThrow(/exited with code 1[\s\S]*boom/)
   })
 
+  it('rejects with the spawn error when the process cannot start', async () => {
+    const port = await freePort()
+    const spawnImpl = () => {
+      const child = fakeChild()
+      setImmediate(() => child.emit('error', Object.assign(new Error('spawn node ENOENT'), { code: 'ENOENT' })))
+      return child
+    }
+    await expect(startLauncher({ ...opts, port, spawnImpl })).rejects.toThrow('spawn node ENOENT')
+  })
+
+  it('kill signals a running launcher synchronously', async () => {
+    const port = await freePort()
+    let child
+    const spawnImpl = () => {
+      child = fakeChild({ stdout: `jscad: /tmp/model → http://localhost:${port}/#/models/main.js\n` })
+      return child
+    }
+    const launcher = await startLauncher({ ...opts, port, spawnImpl })
+    launcher.kill()
+    expect(child.killed).toEqual(['SIGKILL'])
+  })
+
   it('resolves the page url from the launcher line and stops the process', async () => {
     const port = await freePort()
     const calls = []

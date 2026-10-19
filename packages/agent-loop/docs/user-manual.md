@@ -469,11 +469,10 @@ the scenario's `files` or, without them, the two-cars pair a new production
 project starts with, and its own launcher (`scripts/jscad.mjs`) on the lane's
 port with `JSCAD_CHAT_LOG` set to the batch directory. Headless chromium opens
 the app with the ToS consent, the key, the builder selection (`opencode-go`,
-fluent, effort `medium`), the harness flag and, for a builder that reads
-images, the vision override seeded in localStorage. The effort is set because
-the settings dialog otherwise stores its first option, `none`, which
-`beam-free` refuses on every request. A `view` that fails is logged to stderr;
-the simulated user then judges without images.
+fluent, no effort, so the app's own default applies), the harness flag and,
+for a builder that reads images, the vision override seeded in localStorage. A
+`view` that fails is logged to stderr; the simulated user then judges without
+images.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -482,8 +481,8 @@ the simulated user then judges without images.
 | `SYNTH_SCENARIOS` | all | Comma list of scenario names |
 | `SYNTH_RUNS` | `2` | Runs per scenario and builder |
 | `SYNTH_DEADLINE_S` | `6600` | No session starts this many seconds after the batch started; the rest are recorded with `skipped: true` |
-| `SYNTH_TURN_TIMEOUT_MS` | `900000` | Wait per builder turn before it is stopped |
-| `SYNTH_PORT` | `5170` | First lane's app port; lane *n* uses `SYNTH_PORT + 2n` and the port above it for the frame |
+| `SYNTH_TURN_TIMEOUT_MS` | `1800000` | Wait per builder turn before it is stopped |
+| `SYNTH_PORT` | `5170` | First lane's app port; lane *n* (from 0) uses `SYNTH_PORT + 10n` and the port above it for the frame |
 
 The batch id is the start time in ISO form with `:` replaced by `-`, and
 `<SYNTH_OUT>/latest` holds the newest id. `<SYNTH_OUT>/<batch>/` holds the
@@ -492,8 +491,11 @@ rendered view, and `index.txt`, the list of every file in it, rewritten after
 each session. Each lane builds its own bundle into
 `apps/jscad-web/build_local-<port>/` (the launcher's `JSCAD_LOCAL_OUT`), since
 a bundle bakes its app and frame origins. A session that saw no chat id on
-its relay requests ends with the error `no chat id seen`. The script exits 1
-when the probe gate refuses, or when no lane finished a session without error.
+its relay requests ends with the error `no chat id seen`. A failure while
+recording a session becomes that session's error and the lane goes on. Every
+launcher still running is stopped when the script exits or gets SIGINT or
+SIGTERM. The script exits 1 when the probe gate refuses, or when no lane
+finished a session without error.
 
 Compare two batches of the same scenario set:
 

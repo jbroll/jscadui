@@ -24,13 +24,10 @@ import { productionDefaultFiles, seedModelDir } from './defaultFiles.js'
 import { laneBuildName, startLauncher } from './launcher.js'
 import { openSession } from './pageDriver.js'
 
-// The settings dialog defaults an unset effort to its first option, `none`,
-// which beam-free refuses; beam-free and longcat both accept `medium`.
-const BUILDER_EFFORT = 'medium'
-
 const webDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const repoRoot = resolve(webDir, '../..')
 const env = process.env
+const LANE_PORT_STEP = 10
 
 const fail = (message) => {
   console.error(`synth: ${message}`)
@@ -70,7 +67,7 @@ const errorResult = (e) => ({ userTurns: 0, accepted: false, timedOut: false, er
 const out = env.SYNTH_OUT || (chatLogDir() ? join(chatLogDir(), 'synthetic') : fail('JSCAD_CHAT_LOG=0 and no SYNTH_OUT'))
 const runs = Number(env.SYNTH_RUNS ?? 2)
 const deadlineS = Number(env.SYNTH_DEADLINE_S ?? 6600)
-const turnTimeoutMs = Number(env.SYNTH_TURN_TIMEOUT_MS ?? 900_000)
+const turnTimeoutMs = Number(env.SYNTH_TURN_TIMEOUT_MS ?? 1_800_000)
 const basePort = Number(env.SYNTH_PORT ?? 5170)
 if (![runs, deadlineS, turnTimeoutMs, basePort].every((n) => Number.isFinite(n) && n > 0)) fail('SYNTH_RUNS, SYNTH_DEADLINE_S, SYNTH_TURN_TIMEOUT_MS and SYNTH_PORT must be positive numbers')
 
@@ -134,13 +131,18 @@ const shutdown = async (signal) => {
 }
 process.once('SIGINT', () => shutdown('SIGINT'))
 process.once('SIGTERM', () => shutdown('SIGTERM'))
+// A crash must not leave launchers holding the lane ports for the next batch.
+process.on('exit', () => {
+  for (const l of live) l.kill()
+})
 
 async function runOne(role, scenario, run, port) {
-  const modelDir = mkdtempSync(join(tmpdir(), 'synth-model-'))
+  let modelDir
   let launcher
   let driver
   let result
   try {
+    modelDir = mkdtempSync(join(tmpdir(), 'synth-model-'))
     seedModelDir(modelDir, scenario.files ?? productionDefaultFiles(webDir))
     launcher = await startLauncher({ modelDir, port, logDir: batchDir, webDir })
     live.add(launcher)
@@ -149,7 +151,6 @@ async function runOne(role, scenario, run, port) {
       key,
       model: role.builder,
       vision: role.vision && probe[role.builder].vision,
-      effort: BUILDER_EFFORT,
     })
     const label = `${role.builder} ${scenario.name}#${run}`
     // runSession treats a failed view as no images; say so, or the critique is silently blind.
@@ -175,31 +176,37 @@ async function runOne(role, scenario, run, port) {
       await launcher.stop().catch(() => {})
       live.delete(launcher)
     }
-    rmSync(modelDir, { recursive: true, force: true })
+    if (modelDir) rmSync(modelDir, { recursive: true, force: true })
   }
 
   const ids = driver?.chatIds() ?? []
   const chatId = ids.length === 1 ? ids[0] : null
   if (!chatId && !result.error) result.error = ids.length === 0 ? 'no chat id seen' : `${ids.length} chat ids seen`
-  let stumbles = null
-  if (chatId) {
-    const conversation = (await readConversations(batchDir)).find((c) => c.chatId === chatId)
-    if (conversation) stumbles = countStumbles(conversation)
-    mkdirSync(join(batchDir, 'views'), { recursive: true })
-    for (const v of result.views) writeFileSync(join(batchDir, 'views', `${chatId}-t${v.turn}-${v.name}.png`), dataUrlBytes(v.dataUrl))
+  const entry = { chatId, scenario, builder: role.builder, simUser: role.simUser, run, rounds: driver?.rounds() ?? 0 }
+  try {
+    let stumbles = null
+    if (chatId) {
+      const conversation = (await readConversations(batchDir)).find((c) => c.chatId === chatId)
+      if (conversation) stumbles = countStumbles(conversation)
+      mkdirSync(join(batchDir, 'views'), { recursive: true })
+      for (const v of result.views) writeFileSync(join(batchDir, 'views', `${chatId}-t${v.turn}-${v.name}.png`), dataUrlBytes(v.dataUrl))
+    }
+    record(sessionEntry({ ...entry, result, stumbles }))
+    return result
+  } catch (e) {
+    const failed = { ...result, error: `recording the session failed: ${e.message}` }
+    try {
+      record(sessionEntry({ ...entry, result: failed, stumbles: null }))
+    } catch (again) {
+      console.error(`synth: ${role.builder} ${scenario.name}#${run}: ${again.message}`)
+    }
+    return failed
   }
-  record(sessionEntry({ chatId, scenario, builder: role.builder, simUser: role.simUser, run, rounds: driver?.rounds() ?? 0, result, stumbles }))
-  return result
 }
 
 async function runLane(role, port) {
-  try {
-    // Built here, outside the launcher's start timeout.
-    await ensureLocalBuild({ webDir, port, outName: laneBuildName(port) })
-  } catch (e) {
-    console.error(`synth: ${role.builder}: ${e.message}`)
-    return false
-  }
+  // Built here, outside the launcher's start timeout.
+  await ensureLocalBuild({ webDir, port, outName: laneBuildName(port) })
   let ran = 0
   let clean = 0
   for (const scenario of scenarios) {
@@ -220,8 +227,11 @@ async function runLane(role, port) {
 
 // The builds run one at a time: ensureLocalBuild blocks on its build process.
 const outcomes = []
-for (const [i, role] of lanes.entries()) outcomes.push(runLane(role, basePort + 2 * i))
-const ok = await Promise.all(outcomes)
+for (const [i, role] of lanes.entries()) outcomes.push(runLane(role, basePort + LANE_PORT_STEP * i))
+const settled = await Promise.allSettled(outcomes)
+for (const [i, s] of settled.entries()) {
+  if (s.status === 'rejected') console.error(`synth: ${lanes[i].builder}: lane failed: ${s.reason?.message ?? s.reason}`)
+}
 await browser.close()
 console.log(`synth: batch ${batch} → ${batchDir}`)
-process.exit(ok.some(Boolean) ? 0 : 1)
+process.exit(settled.some((s) => s.status === 'fulfilled' && s.value) ? 0 : 1)

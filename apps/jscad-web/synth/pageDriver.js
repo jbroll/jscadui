@@ -38,13 +38,13 @@ const turnReply = () => {
   return rows.slice(start + 1).findLast((r) => r.classList.contains('assistant'))?.textContent ?? ''
 }
 
-export async function openSession(browser, { url, key, model, vision, effort }) {
+export async function openSession(browser, { url, key, model, vision }) {
   const context = await browser.newContext()
   const page = await context.newPage()
   const seed = {
     'jscad-ai.tos': seedTos(),
     'jscad-studio.key': JSON.stringify({ mode: 'device', key }),
-    'jscad-ai.selection': JSON.stringify({ kind: 'opencode-go', model, baseUrl: '', api: 'fluent', keyMode: 'device', ...(effort ? { effort } : {}) }),
+    'jscad-ai.selection': JSON.stringify({ kind: 'opencode-go', model, baseUrl: '', api: 'fluent', keyMode: 'device' }),
     'jscad-harness': '1',
     ...(vision ? { 'jscad-ai.vision-overrides': JSON.stringify({ [model]: true }) } : {}),
   }
