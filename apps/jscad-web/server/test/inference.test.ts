@@ -189,6 +189,22 @@ describe('inference config', () => {
     expect(options.map((o) => o.key)).toEqual(['sk-server-secret', 'sk-server-secret'])
   })
 
+  it('parses an optional vision flag, defaulting to false', () => {
+    const config = {
+      providers: [provider({ models: [modelEntry({ vision: true }), modelEntry({ model: 'plain-model' })] })],
+    }
+    const options = parseInferenceConfig(JSON.stringify(config), 'jscad-inference.json').options
+    expect(options.map((o) => [o.id, o.vision])).toEqual([
+      ['deepseek-v4.1-flash', true],
+      ['plain-model', false],
+    ])
+  })
+
+  it('refuses a non-boolean vision flag', () => {
+    const config = { providers: [provider({ models: [modelEntry({ vision: 'yes' })] })] }
+    expect(() => parseInferenceConfig(JSON.stringify(config), 'jscad-inference.json')).toThrow(/vision/)
+  })
+
   it('accepts the two free options', () => {
     expect(parseInferenceConfig(inferenceJson(), 'jscad-inference.json').options.map((o) => o.id)).toEqual(['deepseek-v4.1-flash', 'muse-spark-1.3-contributor'])
   })
@@ -207,10 +223,24 @@ describe('GET /api/relay/jscad-web/v1/models', () => {
     const res = await request(app).get('/api/relay/jscad-web/v1/models').set('Origin', 'https://app.test')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([
-      { id: 'deepseek-v4.1-flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true },
-      { id: 'muse-spark-1.3-contributor', kind: 'meta', model: 'muse-spark-1.3-contributor', available: true },
+      { id: 'deepseek-v4.1-flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true, capabilities: { vision: false } },
+      { id: 'muse-spark-1.3-contributor', kind: 'meta', model: 'muse-spark-1.3-contributor', available: true, capabilities: { vision: false } },
     ])
     expect(JSON.stringify(res.body)).not.toMatch(/secret|UsdPerMTok/)
+  })
+
+  it('marks vision-flagged options in the catalog capabilities', async () => {
+    const config = {
+      monthlyUsd: 5,
+      perIpDailyUsd: 0.1,
+      providers: [provider({ models: [modelEntry({ vision: true })] })],
+    }
+    const { app } = buildApp({ config: JSON.stringify(config) })
+    const res = await request(app).get('/api/relay/jscad-web/v1/models').set('Origin', 'https://app.test')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([
+      { id: 'deepseek-v4.1-flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true, capabilities: { vision: true } },
+    ])
   })
 
   it('marks every option unavailable once the month budget is spent', async () => {

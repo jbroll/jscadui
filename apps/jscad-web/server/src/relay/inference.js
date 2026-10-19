@@ -10,7 +10,7 @@ export const DEFAULT_INFERENCE_PATH = '/etc/jscad-relay/jscad-inference.json'
 export const DEFAULT_MONTHLY_USD = 5
 export const DEFAULT_PER_IP_DAILY_USD = 0.1
 
-/** @typedef {{ id: string, kind: string, path: string, model: string, key: string, maxTokens: number, inputUsdPerMTok: number, outputUsdPerMTok: number }} InferenceOption */
+/** @typedef {{ id: string, kind: string, path: string, model: string, key: string, maxTokens: number, inputUsdPerMTok: number, outputUsdPerMTok: number, vision: boolean }} InferenceOption */
 /** @typedef {{ monthlyUsd: number, perIpDailyUsd: number, options: InferenceOption[] }} InferenceConfig */
 
 // Mirrors RESPONSES_MODELS / MESSAGES_MODELS in
@@ -147,7 +147,22 @@ const parseModel = (value, where, seen, kind, key) => {
     maxTokens: requireMaxTokens(raw.maxTokens, where),
     inputUsdPerMTok: requirePrice(raw.inputUsdPerMTok, 'inputUsdPerMTok', where),
     outputUsdPerMTok: requirePrice(raw.outputUsdPerMTok, 'outputUsdPerMTok', where),
+    vision: parseVision(raw.vision, where),
   }
+}
+
+/**
+ * An option's vision flag: whether the model reads images, so the app may
+ * offer it the `view` tool. Absent means text-only; anything else must be a
+ * real boolean or the operator hears about it.
+ * @param {unknown} value
+ * @param {string} where
+ * @returns {boolean}
+ */
+const parseVision = (value, where) => {
+  if (value === undefined) return false
+  if (typeof value !== 'boolean') throw new Error(`relay: inference ${where} 'vision' must be a boolean`)
+  return value
 }
 
 /**

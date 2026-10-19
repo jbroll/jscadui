@@ -114,7 +114,7 @@ describe('GET /api/relay/jscad-web/v1/models', () => {
     const res = await request(app).get('/api/relay/jscad-web/v1/models').set('Origin', 'https://app.test')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([
-      { id: 'deepseek-v4.1-flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true },
+      { id: 'deepseek-v4.1-flash', kind: 'opencode-go', model: 'deepseek-v4.1-flash', available: true, capabilities: { vision: false } },
     ])
     expect(fetchMock).not.toHaveBeenCalled()
     expect(JSON.stringify(res.body)).not.toMatch(/secret|UsdPerMTok/)

@@ -477,6 +477,16 @@ describe('free provider', () => {
     globalThis.fetch = vi.fn(async () => new Response(JSON.stringify([]), { headers: { 'content-type': 'application/json' } }))
   })
 
+  it('carries the free catalog capabilities onto the provider config, so a flagged model offers view', async () => {
+    const catalog = [
+      { id: 'longcat-2.5-preview-free', kind: 'opencode-go', model: 'longcat-2.5-preview-free', available: true, capabilities: { vision: true } },
+    ]
+    const { getProviderConfig } = await openGear(inferenceFetch(catalog))
+    await selectFree('longcat-2.5-preview-free')
+    expect(getProviderConfig().capabilities).toEqual({ vision: true })
+    expect(visionCapable(getProviderConfig())).toBe(true)
+  })
+
   it('offers jscad-web as one provider row', async () => {
     await openGear(inferenceFetch(INFERENCE))
     const values = [...document.querySelectorAll('.ai-provider-select option')].map((o) => o.value)

@@ -65,7 +65,7 @@ export const jscadHook = {
       return
     }
     const available = ctx.meter.available({ monthlyUsd: config.monthlyUsd, perIpDailyUsd: config.perIpDailyUsd })
-    res.json(config.options.map((o) => ({ id: o.id, kind: o.kind, model: o.model, available })))
+    res.json(config.options.map((o) => ({ id: o.id, kind: o.kind, model: o.model, available, capabilities: { vision: o.vision === true } })))
   },
 
   servePOST: async (ctx, req, res, _kind, subPath) => {

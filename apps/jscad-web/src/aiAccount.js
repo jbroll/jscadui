@@ -505,6 +505,12 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
         }
         inferenceOptions = catalog
         modelCapabilities.clear()
+        for (const o of catalog) {
+          // Keyed by both the option id and the upstream model: the selection
+          // names the option id, and a future caller may ask by either.
+          if (o.id) modelCapabilities.set(o.id, o.capabilities ?? null)
+          if (o.model && o.model !== o.id) modelCapabilities.set(o.model, o.capabilities ?? null)
+        }
         syncModelControls(catalog.map((o) => ({ id: o.model, available: o.available })))
         syncFreeModelSelection()
         modelStatus.textContent = ''

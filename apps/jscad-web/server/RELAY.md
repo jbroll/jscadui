@@ -132,7 +132,11 @@ bad file never silently forwards.
 ```
 
 One provider entry holds one kind and one server key plus the models that
-key serves, so adding a model is one object, not a repeated key. The
+key serves, so adding a model is one object, not a repeated key. A model that
+reads images carries `"vision": true` (optional, default false); the catalog
+serves it as `capabilities: { vision }` and the app offers those models the
+`view` tool. Mark it only for models whose image input you have verified —
+an unverified flag hands pixels to a model that cannot read them. The
 endpoint is derived from kind and model, never read from the file. Loading
 refuses a kind other than `opencode-go` or `meta` (both take
 `authorization: Bearer`) and a model that needs the messages protocol (a
