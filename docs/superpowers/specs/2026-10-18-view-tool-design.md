@@ -52,10 +52,13 @@ Success: a model can call `view`, receive images, and use them in a later step.
 - Image payloads must bypass `capToolResult`: Anthropic `tool_result` image content,
   Responses `input_image`, chat completions images in a `user` message after the `tool`
   message (backlog wording).
-- Offer `view` only to models known to read images: `vision: true` in `eval/models.json`,
-  or in the app the provider's model metadata (`capabilities.vision` from the model
-  list — the relay free catalog serves it per model). No hardcoded table: a static
-  list lags every catalog rotation, so the dropdown's own data decides.
+- Offer `view` only to models known to read images, from live data only, in
+  order: a manual per-model override (the only source for providers like
+  opencode-go whose lists carry no capability fields), the provider's model
+  metadata (`capabilities.vision` — the relay free catalog serves it per
+  model), then the cached models.dev prune. No hardcoded table: a static
+  list lags every catalog rotation. `vision: true` in `eval/models.json`
+  covers the eval.
 - Render from the mesh via one shared module with the complex grader's views
   (`packages/agent-loop/eval/views.js`, `eval/render/page.html`), not the live canvas.
 - Tool error shape stays `{ok: false, error: {name, message}}` like the other tools.

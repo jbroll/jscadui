@@ -9,6 +9,7 @@ import { SEARCH_PROVIDERS, createSearchStores } from './aiSearch.js'
 import { relayBaseUrl, inferenceListUrl } from './aiChat.js'
 import { effortOptionsForModel } from './aiEffort.js'
 import { getRecordOwnChats, isFreeSelection, RECORDING_TEXT, setRecordOwnChats } from './aiConsent.js'
+import { readOverride, readVisionCache, refreshVisionCache, writeOverride } from './modelVision.js'
 import { mountSyncEntry } from './syncEntry.js'
 
 const SELECTION_KEY = 'jscad-ai.selection'
@@ -102,9 +103,13 @@ export const getProviderConfig = () => {
   if (!model) return null
   // The provider's own metadata for the chosen model rides with the config: the
   // chat reads `capabilities.vision` for the image tool (adapters ignore the
-  // field), so a provider's answer beats the known-vision table.
+  // field). A manual per-model override wins over metadata: some providers
+  // (notably opencode-go) serve no capability fields at all, so the settings
+  // toggle is the only source that can name such a model vision-capable.
   const capabilities = modelCapabilities.get(model)
-  const withCapabilities = (config) => (capabilities ? { ...config, capabilities } : config)
+  const overridden = readOverride(globalThis.localStorage, model) === true
+  const effective = overridden ? { ...(capabilities ?? {}), vision: true } : capabilities
+  const withCapabilities = (config) => (effective ? { ...config, capabilities: effective } : config)
   if (isFreeSelection(selection)) {
     const inference = selection.inference ?? ''
     if (!inference) return null
@@ -327,6 +332,21 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   const modelField = field('Model', modelSelect)
   const modelInputField = field('Custom model id', modelInput)
 
+  // A manual vision override for providers that serve no capability metadata
+  // (opencode-go lists bare ids): checked forces the image tool on for the
+  // current model, unchecked leaves the decision to provider metadata and the
+  // models.dev cache. Persisted per model id in localStorage.
+  const visionToggle = el('input', 'ai-input ai-vision-toggle')
+  visionToggle.type = 'checkbox'
+  const syncVisionToggle = () => {
+    visionToggle.checked = readOverride(globalThis.localStorage, state.model) === true
+  }
+  visionToggle.addEventListener('change', () => {
+    writeOverride(globalThis.localStorage, state.model, visionToggle.checked ? true : null)
+    syncVisionToggle()
+  })
+  const visionField = field('Model reads images', visionToggle)
+
   // Free disables everything the relay owns for it — the key, its custody,
   // the custom base URL and the custom model id — while the provider, model
   // menu and effort work exactly like every other kind. The wrappers stay
@@ -466,6 +486,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     modelField,
     modelStatus,
     modelInputField,
+    visionField,
     apiField,
     effortWrap,
     recordField,
@@ -591,6 +612,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     else dialog.setAttribute('open', '')
     loadModels()
     refreshFreeOptions()
+    syncVisionToggle()
   })
   closeBtn.addEventListener('click', closeDialog)
   dialog.addEventListener('click', (event) => {
@@ -631,10 +653,12 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     modelInput.value = modelSelect.value
     if (freeActive()) syncInferenceFromModel()
     refreshEffort()
+    syncVisionToggle()
   })
   modelInput.addEventListener('change', () => {
     state.model = modelInput.value.trim()
     refreshEffort()
+    syncVisionToggle()
   })
   effortSelect.addEventListener('change', () => {
     state.effort = effortSelect.value
@@ -671,6 +695,10 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   applyFreeState()
   // The chat gate reads capabilities per turn, so the keyless free catalog
   // loads here too — not only when the gear opens — or a user who never opens
-  // settings leaves a vision model without its `view` tool.
+  // settings leaves a vision model without its `view` tool. The models.dev
+  // vision prune warms the same way when its cache is missing or stale, so a
+  // provider-silent model resolves without a settings visit.
   refreshFreeCatalog()
+  syncVisionToggle()
+  if (!readVisionCache(globalThis.localStorage)) refreshVisionCache()
 }

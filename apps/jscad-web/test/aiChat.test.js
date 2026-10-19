@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildSystemPrompt, dispatchTool, SUMMARY_PREFIX } from '@jscadui/agent-loop'
 import { TOS_VERSION } from '../src/aiConsent.js'
 import { initChat, relayBaseUrl, visionCapable } from '../src/aiChat.js'
+import * as modelVision from '../src/modelVision.js'
 
 // Every turn is gated on the accepted terms version, so each test here starts
 // past the gate; the gate itself is covered in aiConsent.test.js.
@@ -1332,6 +1333,27 @@ describe('visionCapable', () => {
     expect(visionCapable({ model: 'gpt-4o' })).toBe(false)
     expect(visionCapable({ model: 'some-model' })).toBe(false)
     expect(visionCapable(null)).toBe(false)
+  })
+
+  it('lets a manual override force vision on, and the models.dev cache answer', () => {
+    const { writeOverride, VISION_CACHE_KEY } = modelVision
+    try {
+      writeOverride(globalThis.localStorage, 'longcat-2.5-preview-free', true)
+      expect(visionCapable({ kind: 'opencode-go', model: 'longcat-2.5-preview-free' })).toBe(true)
+    } finally {
+      writeOverride(globalThis.localStorage, 'longcat-2.5-preview-free', null)
+    }
+    expect(visionCapable({ kind: 'opencode-go', model: 'longcat-2.5-preview-free' })).toBe(false)
+    try {
+      globalThis.localStorage.setItem(
+        VISION_CACHE_KEY,
+        JSON.stringify({ at: Date.now(), providers: { 'opencode-go': { 'longcat-2.5-preview-free': true } } }),
+      )
+      expect(visionCapable({ kind: 'opencode-go', model: 'longcat-2.5-preview-free' })).toBe(true)
+      expect(visionCapable({ kind: 'opencode-go', model: 'longcat-2.0' })).toBe(false)
+    } finally {
+      globalThis.localStorage.removeItem(VISION_CACHE_KEY)
+    }
   })
 })
 

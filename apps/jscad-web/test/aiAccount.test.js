@@ -205,7 +205,7 @@ describe('account header', () => {
     document.body.innerHTML = '<div id="a"></div>'
     initAccount(document.getElementById('a'))
     const names = [...document.querySelectorAll('.ai-settings .ai-field-name')].map((n) => n.textContent)
-    expect(names).toEqual(['Provider', 'API key', 'Keep', 'Passphrase', 'Model', 'Custom model id', 'API style', 'Effort', 'Save chats', 'Base URL', 'Keep search keys', 'Search passphrase', 'Search provider'])
+    expect(names).toEqual(['Provider', 'API key', 'Keep', 'Passphrase', 'Model', 'Custom model id', 'Model reads images', 'API style', 'Effort', 'Save chats', 'Base URL', 'Keep search keys', 'Search passphrase', 'Search provider'])
   })
 
   it('carries the Allow toggle in the Web Search heading', async () => {
@@ -498,6 +498,39 @@ describe('free provider', () => {
     await selectFree('longcat-2.5-preview-free')
     expect(account.getProviderConfig().capabilities).toEqual({ vision: true })
     expect(visionCapable(account.getProviderConfig())).toBe(true)
+  })
+
+  it('warms the vision catalog at init when the cache is missing', async () => {
+    const seen = []
+    globalThis.fetch = vi.fn(async (url) => {
+      seen.push(String(url))
+      if (String(url).includes('models.dev')) return new Response(JSON.stringify({}), { headers: { 'content-type': 'application/json' } })
+      return new Response(JSON.stringify([]), { headers: { 'content-type': 'application/json' } })
+    })
+    document.body.innerHTML = '<div id="a"></div>'
+    const account = await loadAccount()
+    account.initAccount(document.getElementById('a'))
+    await vi.waitFor(() => {
+      expect(seen.some((u) => u.includes('models.dev'))).toBe(true)
+    })
+  })
+
+  it('toggles a manual vision override for the current model', async () => {
+    globalThis.fetch = inferenceFetch([
+      { id: 'longcat-2.5-preview-free', kind: 'opencode-go', model: 'longcat-2.5-preview-free', available: true },
+    ])
+    document.body.innerHTML = '<div id="a"></div>'
+    const account = await loadAccount()
+    account.initAccount(document.getElementById('a'))
+    document.querySelector('.ai-gear').click()
+    await selectFree('longcat-2.5-preview-free')
+    const toggle = document.querySelector('.ai-vision-toggle')
+    expect(toggle.checked).toBe(false)
+    toggle.checked = true
+    toggle.dispatchEvent(new Event('change'))
+    expect(account.getProviderConfig().capabilities).toEqual({ vision: true })
+    expect(visionCapable(account.getProviderConfig())).toBe(true)
+    expect(JSON.parse(globalThis.localStorage.getItem('jscad-ai.vision-overrides'))).toEqual({ 'longcat-2.5-preview-free': true })
   })
 
   it('offers jscad-web as one provider row', async () => {

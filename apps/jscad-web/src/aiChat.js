@@ -3,6 +3,7 @@
 // through requestTool, and renders streamed text. Provider HTTP targets the
 // relay, which proxies path-preserving to the provider and stores nothing.
 import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, effectiveHistoryBudget, partitionTranscript, runTurn as defaultRunTurn, SUMMARY_PREFIX, summarizeTranscript, summarizeWithProvider, toolDetail, turnsOf } from '@jscadui/agent-loop'
+import { readOverride, readVisionCache, resolveCatalogVision } from './modelVision.js'
 import { checkTurn, FREE_NOTICE_MESSAGE, getRecordOwnChats, isFreeSelection, openConsentGate, TOS_REQUIRED_MESSAGE } from './aiConsent.js'
 
 /* global __RELAY_ORIGIN__ */
@@ -26,14 +27,19 @@ export const relayBaseUrl = (selection) => {
 export const inferenceListUrl = () => `${relayRoot()}/api/relay/jscad-web/v1/models`
 
 // Whether the selected model reads images, so the loop may offer it `view`.
-// Answered only by the provider's own metadata — `capabilities.vision`, put on
-// the selection by `getProviderConfig` (src/aiAccount.js) from the model list
-// the account dialog loaded. Strictly boolean: anything else leaves the image
-// tool off, so a text-only model is never handed pixels it cannot read. There
-// is no table of known-vision models: a static list lags every catalog
-// rotation, so the dropdown's own data is the only source.
-export const visionCapable = (selection) =>
-  selection != null && selection.capabilities?.vision === true
+// Three sources, in order: a manual per-model override (the only source that
+// can name a model whose provider serves no capability metadata), the
+// provider's own `capabilities.vision`, then the cached models.dev prune.
+// Anything else leaves the image tool off, so a text-only model is never
+// handed pixels it cannot read. There is no hardcoded table: a static list
+// lags every catalog rotation, so live data decides.
+export const visionCapable = (selection) => {
+  if (selection == null || typeof selection.model !== 'string' || selection.model === '') return false
+  if (readOverride(globalThis.localStorage, selection.model) === true) return true
+  if (selection.capabilities?.vision === true) return true
+  const cached = readVisionCache(globalThis.localStorage)
+  return resolveCatalogVision(cached && cached.providers, selection.kind, selection.model) === true
+}
 
 // The loop needs a `view` result whole: its renders ride beside the text as
 // image parts, which only an object survives. Every other result travels as
