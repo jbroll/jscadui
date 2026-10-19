@@ -19,6 +19,7 @@ import modelingMountingPlate from './examples/modeling/06-mounting-plate.js?raw'
 import brainstormingSkill from './skills/brainstorming.md?raw'
 import writingPlansSkill from './skills/writing-plans.md?raw'
 import executingPlansSkill from './skills/executing-plans.md?raw'
+import modelSpecSkill from './skills/model-spec.md?raw'
 import systematicDebuggingSkill from './skills/systematic-debugging.md?raw'
 
 export const PROSE = prose
@@ -37,6 +38,7 @@ export const SKILLS = {
   brainstorming: brainstormingSkill,
   'writing-plans': writingPlansSkill,
   'executing-plans': executingPlansSkill,
+  'model-spec': modelSpecSkill,
   'systematic-debugging': systematicDebuggingSkill,
 }
 
