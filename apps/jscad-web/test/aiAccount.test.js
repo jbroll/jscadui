@@ -113,7 +113,7 @@ describe('account header', () => {
     initAccount(document.getElementById('a'))
     document.querySelector('.ai-gear').click()
     await vi.waitFor(() => expect(document.querySelector('.ai-model-select').options.length).toBe(2))
-    expect(String(globalThis.fetch.mock.calls.find(([u]) => String(u).includes('/v1/models'))[0])).toMatch(/\/api\/relay\/openai\/v1\/models/)
+    expect(String(globalThis.fetch.mock.calls.map(([u]) => String(u)).find((u) => u.includes('/v1/models') && !u.includes('/jscad-web/')))).toMatch(/\/api\/relay\/openai\/v1\/models/)
   })
 
   it('carries a listed model capabilities on the provider config, so its own vision flag offers view', async () => {
@@ -485,6 +485,21 @@ describe('free provider', () => {
     await selectFree('longcat-2.5-preview-free')
     expect(getProviderConfig().capabilities).toEqual({ vision: true })
     expect(visionCapable(getProviderConfig())).toBe(true)
+  })
+
+  it('loads the free catalog at init, so capabilities exist before the gear opens', async () => {
+    globalThis.fetch = inferenceFetch([
+      { id: 'longcat-2.5-preview-free', kind: 'opencode-go', model: 'longcat-2.5-preview-free', available: true, capabilities: { vision: true } },
+    ])
+    document.body.innerHTML = '<div id="a"></div>'
+    const account = await loadAccount()
+    account.initAccount(document.getElementById('a'))
+    await vi.waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringContaining(CATALOG_URL), expect.anything())
+    })
+    await selectFree('longcat-2.5-preview-free')
+    expect(account.getProviderConfig().capabilities).toEqual({ vision: true })
+    expect(visionCapable(account.getProviderConfig())).toBe(true)
   })
 
   it('offers jscad-web as one provider row', async () => {

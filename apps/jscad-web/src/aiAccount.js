@@ -480,6 +480,42 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   container.append(dialog)
 
   let modelsRequest = 0
+  // Validated catalog items applied to the free menu, the selection and the
+  // capabilities the chat gate reads. Shared by the gear-open load (which
+  // clears first, replacing one list with another) and the init refresh
+  // (which merges into whatever a later gear load replaces).
+  const applyFreeCatalog = (catalog) => {
+    const items = Array.isArray(catalog)
+      ? catalog.filter((opt) => opt && typeof opt.id === 'string' && typeof opt.model === 'string')
+      : []
+    if (items.length === 0) return false
+    inferenceOptions = items
+    for (const o of items) {
+      // Keyed by both the option id and the upstream model: the selection
+      // names the option id, and a future caller may ask by either.
+      if (o.id) modelCapabilities.set(o.id, o.capabilities ?? null)
+      if (o.model && o.model !== o.id) modelCapabilities.set(o.model, o.capabilities ?? null)
+    }
+    syncModelControls(items.map((o) => ({ id: o.model, available: o.available })))
+    syncFreeModelSelection()
+    refreshEffort()
+    return true
+  }
+
+  // The free catalog is keyless, so it loads at init as well as on gear open:
+  // the chat gate reads capabilities per turn, and a user who never opens
+  // settings would otherwise leave a vision model without its `view` tool.
+  // A failed load is silent here; the gear open reports it in the menu.
+  const refreshFreeCatalog = async () => {
+    try {
+      const res = await fetch(inferenceListUrl(), { headers: { accept: 'application/json' } })
+      if (!res.ok) return
+      applyFreeCatalog(await res.json())
+    } catch {
+      // Unreadable catalog at boot: the gear open reports it in the menu.
+    }
+  }
+
   const loadModels = async () => {
     const request = ++modelsRequest
     // Free reads the same model menu as every other kind, from the relay's
@@ -496,25 +532,12 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
         }
         const body = await res.json()
         if (request !== modelsRequest) return
-        const catalog = Array.isArray(body)
-          ? body.filter((opt) => opt && typeof opt.id === 'string' && typeof opt.model === 'string')
-          : []
-        if (catalog.length === 0) {
+        modelCapabilities.clear()
+        if (!applyFreeCatalog(body)) {
           modelStatus.textContent = 'No free models listed. Add your own key to keep chatting.'
           return
         }
-        inferenceOptions = catalog
-        modelCapabilities.clear()
-        for (const o of catalog) {
-          // Keyed by both the option id and the upstream model: the selection
-          // names the option id, and a future caller may ask by either.
-          if (o.id) modelCapabilities.set(o.id, o.capabilities ?? null)
-          if (o.model && o.model !== o.id) modelCapabilities.set(o.model, o.capabilities ?? null)
-        }
-        syncModelControls(catalog.map((o) => ({ id: o.model, available: o.available })))
-        syncFreeModelSelection()
         modelStatus.textContent = ''
-        refreshEffort()
       } catch (err) {
         if (request === modelsRequest) modelStatus.textContent = `Models failed: ${err.message}`
       }
@@ -646,4 +669,8 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
 
   renderProviderOptions()
   applyFreeState()
+  // The chat gate reads capabilities per turn, so the keyless free catalog
+  // loads here too — not only when the gear opens — or a user who never opens
+  // settings leaves a vision model without its `view` tool.
+  refreshFreeCatalog()
 }
