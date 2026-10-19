@@ -120,7 +120,7 @@ Given a folder, it opens the file a dropped folder runs (see [External editor](#
 
 The folder is the open project, listed as the `disk` project in the Projects drawer. The editor shows its files, and the chat's `list`, `read`, `write`, `edit` and `run` work on them. A chat `write` or `edit`, a run from the editor (Shift+Enter) and Ctrl+S write the file back into the folder. `export` writes `<entry name>.<format>` (`main.js` → `main.stl`) at the folder's root and answers its `path`. An edit made outside the app, in another editor or by `git checkout`, reloads: the file list updates, the open file reloads unless you have edits in the buffer you have not run or saved (those stay, with a console warning), and the model rebuilds. The app keeps no version history for the folder; commit it with git. Files git ignores, dot files and `node_modules` stay out of the project, which lists at most 2000 files.
 
-The bundles are built into `build_local/` and reused while the ports and the checkout's source match. A new commit, a checkout or an uncommitted edit rebuilds them on the next launch. `--build` forces a rebuild.
+The bundles are built into `build_local/` and reused while the ports and the checkout's source match. A new commit, a checkout or an uncommitted edit rebuilds them on the next launch. `--build` forces a rebuild. `JSCAD_LOCAL_OUT=<name>` builds into `<name>/` instead, so launchers on different ports can run at the same time without rebuilding over each other.
 
 To keep a `jscad-chat` on your PATH that runs the latest `origin/main`, give it its own checkout and mark it:
 

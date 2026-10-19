@@ -6,12 +6,7 @@ import { test, expect } from '@playwright/test'
 import http from 'node:http'
 import { createEvalBackend } from '../../../packages/agent-loop/eval/backend.js'
 import { TOS_VERSION } from '../src/aiConsent.js'
-import { dismissWelcome, waitForRender, assertNoError } from './helpers.js'
-
-// Every turn is gated on an accepted terms version, so a seeded relay must
-// carry an accepted `jscad-ai.tos` record too, or Send opens the gate instead
-// of the turn and the spec times out.
-const seedTos = (version = TOS_VERSION, recordOwnChats = true) => JSON.stringify({ version, at: 0, recordOwnChats })
+import { dismissWelcome, waitForRender, assertNoError, seedTos } from './helpers.js'
 
 // The key-custody "Keep" select. Its label's accessible name also carries the
 // option texts, and the search panel has a "Keep search keys" field, so target

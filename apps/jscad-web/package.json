@@ -14,6 +14,7 @@
     "serve": "node build.js --serve",
     "jscad": "node scripts/jscad.mjs",
     "jscad-chat": "node scripts/jscad.mjs",
+    "synth": "node synth/run-batch.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:watch": "vitest",

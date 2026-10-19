@@ -1417,7 +1417,10 @@ for the ports it serves (`scripts/local/build.js`). The marker
 git HEAD, plus a hash of `git diff HEAD` and the untracked file names when the
 tree is dirty. The launcher reuses the build only when all three match, so a
 checkout, pull or edit rebuilds on the next launch. Outside git the stamp is
-null and only the ports count.
+null and only the ports count. `JSCAD_LOCAL_OUT` names another output
+directory; the synthetic session runner (`synth/run-batch.mjs`) gives each
+concurrent lane `build_local-<port>/`, since one shared directory would be
+rebuilt for each lane's ports under the other lanes' running servers.
 
 That build sets `JSCAD_LOCAL_FS=1`, which `build.js` stamps as
 `__LOCAL_FS__`; only then does `main.js` load the disk store. The server's

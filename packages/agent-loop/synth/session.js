@@ -45,7 +45,7 @@ export async function runSession({ driver, scenario, simUser, maxUserTurns = 3, 
   }
 
   const shoot = async (turn) => {
-    const shots = await driver.view({ views: VIEWS }).then((r) => r?.shots ?? [], () => [])
+    const shots = await driver.view({ views: VIEWS.map((preset) => ({ preset })) }).then((r) => r?.shots ?? [], () => [])
     const taken = shots.map((s, i) => ({ turn, name: VIEWS[i], dataUrl: s?.image?.dataUrl })).filter((v) => v.dataUrl)
     result.views.push(...taken)
     return taken.map((v) => v.dataUrl)

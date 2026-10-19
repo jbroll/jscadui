@@ -78,6 +78,13 @@ describe('ensureLocalBuild', () => {
     })
     expect(s.written.marker).toEqual({ ...origins, source: 'abc123' })
   })
+  it('builds into a named directory so launchers on other ports keep theirs', async () => {
+    const s = setup(null)
+    const out = await ensureLocalBuild({ webDir: '/w', port: 7377, outName: 'build_local-7377', ...s })
+    expect(out).toBe('/w/build_local-7377')
+    expect(s.spawned[0].env.JSCAD_OUT_DIR).toBe('build_local-7377')
+    expect(s.written.out).toBe('/w/build_local-7377')
+  })
   it('--no-build fails fast instead of building', async () => {
     const s = setup(null, false)
     await expect(ensureLocalBuild({ webDir: '/w', port: 7377, noBuild: true, ...s })).rejects.toThrow(/no matching local build/)

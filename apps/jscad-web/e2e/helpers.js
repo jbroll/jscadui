@@ -1,4 +1,10 @@
 import { expect } from '@playwright/test'
+import { TOS_VERSION } from '../src/aiConsent.js'
+
+// Every turn is gated on an accepted terms version, so a seeded page must
+// carry an accepted `jscad-ai.tos` record, or Send opens the gate instead of
+// the turn. Without `recordOwnChats` the relay gets no chat id.
+export const seedTos = (version = TOS_VERSION, recordOwnChats = true) => JSON.stringify({ version, at: 0, recordOwnChats })
 
 /**
  * Dismiss the welcome overlay if it is present.

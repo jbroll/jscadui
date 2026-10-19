@@ -47,6 +47,8 @@ const explicitFile = st.isDirectory() ? undefined : basename(target)
 const out = await ensureLocalBuild({
   webDir,
   port,
+  // Concurrent launchers on different ports each need their own baked origins.
+  outName: process.env.JSCAD_LOCAL_OUT || undefined,
   force: args.includes('--build'),
   noBuild: args.includes('--no-build'),
 }).catch((e) => { console.error(e.message); process.exit(1) })

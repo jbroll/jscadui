@@ -24,7 +24,7 @@ function fakeDriver(over = {}) {
     },
     async view(spec) {
       calls.view.push(spec)
-      return { ok: true, shots: spec.views.map((v) => ({ image: { dataUrl: `data:${v}#${turn}`, mime: 'image/png' }, camera: {} })) }
+      return { ok: true, shots: spec.views.map((v) => ({ image: { dataUrl: `data:${v.preset}#${turn}`, mime: 'image/png' }, camera: {} })) }
     },
     async measure() {
       return { ok: true, size: [340, 150, 180] }
@@ -63,7 +63,7 @@ describe('runSession', () => {
     expect(r).toMatchObject({ userTurns: 1, accepted: true, timedOut: false, error: null, checks: null })
     expect(driver.calls.send).toEqual(['make a jeep'])
     expect(r.simUserCalls).toEqual([call])
-    expect(driver.calls.view[0]).toEqual({ views: ['iso-front', 'iso-back', 'top'] })
+    expect(driver.calls.view[0]).toEqual({ views: [{ preset: 'iso-front' }, { preset: 'iso-back' }, { preset: 'top' }] })
     expect(r.views.map((v) => [v.turn, v.name])).toEqual([[1, 'iso-front'], [1, 'iso-back'], [1, 'top']])
     expect(simUser.calls.critique[0]).toMatchObject({
       finalText: 'reply 1',

@@ -450,6 +450,51 @@ after 120 s.
 prompt is a critique, since an accepted turn ends the session. A session that
 never ran, such as one for a builder the probe rejected, has `skipped: true`.
 
+### Running a batch
+
+```bash
+npm run synth -w @jscadui/jscad-web
+SYNTH_BUILDERS=beam-free SYNTH_SCENARIOS=nameplate SYNTH_RUNS=1 npm run synth -w @jscadui/jscad-web
+```
+
+`apps/jscad-web/synth/run-batch.mjs` reads the `opencode-go` key from
+`$JSCAD_CHAT_KEYS` or `~/.config/jscad-chat/keys.json`, probes every model the
+chosen roles use, and refuses to start unless each model it will call is a
+free model the probe found available. A builder whose model or simulated user
+fails the probe is skipped; its sessions are recorded with `skipped: true`. A
+simulated user that fails the image probe critiques from text only. Then it
+runs one lane per builder, the lanes at the same time and the sessions in a
+lane one after another. Each session gets a fresh model directory, seeded with
+the scenario's `files` or, without them, the two-cars pair a new production
+project starts with, and its own launcher (`scripts/jscad.mjs`) on the lane's
+port with `JSCAD_CHAT_LOG` set to the batch directory. Headless chromium opens
+the app with the ToS consent, the key, the builder selection (`opencode-go`,
+fluent, effort `medium`), the harness flag and, for a builder that reads
+images, the vision override seeded in localStorage. The effort is set because
+the settings dialog otherwise stores its first option, `none`, which
+`beam-free` refuses on every request. A `view` that fails is logged to stderr;
+the simulated user then judges without images.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SYNTH_OUT` | `<logs>/synthetic` | Where batch directories go |
+| `SYNTH_BUILDERS` | all three | Comma list of builder models |
+| `SYNTH_SCENARIOS` | all | Comma list of scenario names |
+| `SYNTH_RUNS` | `2` | Runs per scenario and builder |
+| `SYNTH_DEADLINE_S` | `6600` | No session starts this many seconds after the batch started; the rest are recorded with `skipped: true` |
+| `SYNTH_TURN_TIMEOUT_MS` | `900000` | Wait per builder turn before it is stopped |
+| `SYNTH_PORT` | `5170` | First lane's app port; lane *n* uses `SYNTH_PORT + 2n` and the port above it for the frame |
+
+The batch id is the start time in ISO form with `:` replaced by `-`, and
+`<SYNTH_OUT>/latest` holds the newest id. `<SYNTH_OUT>/<batch>/` holds the
+relay day files, `manifest.json`, `views/<chatId>-t<turn>-<name>.png` for each
+rendered view, and `index.txt`, the list of every file in it, rewritten after
+each session. Each lane builds its own bundle into
+`apps/jscad-web/build_local-<port>/` (the launcher's `JSCAD_LOCAL_OUT`), since
+a bundle bakes its app and frame origins. A session that saw no chat id on
+its relay requests ends with the error `no chat id seen`. The script exits 1
+when the probe gate refuses, or when no lane finished a session without error.
+
 Compare two batches of the same scenario set:
 
 ```bash

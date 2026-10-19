@@ -7,13 +7,7 @@
 // spec, only the shared page helpers.
 import { test, expect } from '@playwright/test'
 import http from 'node:http'
-import { TOS_VERSION } from '../src/aiConsent.js'
-import { dismissWelcome, waitForRender } from './helpers.js'
-
-// Every turn is gated on an accepted terms version, so a seeded relay must
-// carry an accepted `jscad-ai.tos` record too, or Send opens the gate instead
-// of the turn and the spec times out.
-const seedTos = (version = TOS_VERSION, recordOwnChats = true) => JSON.stringify({ version, at: 0, recordOwnChats })
+import { dismissWelcome, seedTos, waitForRender } from './helpers.js'
 
 // The key-custody "Keep" select. Its label's accessible name also carries the
 // option texts, and the search panel has a "Keep search keys" field, so target

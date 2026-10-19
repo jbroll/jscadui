@@ -7,7 +7,7 @@ test('the harness hook exposes the chat handlers when the flag is set', async ({
   await dismissWelcome(page)
   await waitForRender(page)
 
-  const view = await page.evaluate(() => globalThis.jscadHarness.view({ views: ['iso-front', 'top'] }))
+  const view = await page.evaluate(() => globalThis.jscadHarness.view({ views: [{ preset: 'iso-front' }, { preset: 'top' }] }))
   expect(view.ok).toBe(true)
   expect(view.shots).toHaveLength(2)
   for (const shot of view.shots) expect(shot.image.dataUrl.startsWith('data:image/png;base64,')).toBe(true)
