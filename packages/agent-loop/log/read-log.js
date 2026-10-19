@@ -1,12 +1,20 @@
 // Usage: node log/read-log.js [--since ISO] [--json]
 import { readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { chatLogDir } from './log-dir.js'
 import { apiStyleOf, requestMessages, responseMessage } from './wire.js'
 
+// Day files sit at the top level (the launcher) and one directory down
+// (pull-chat-logs.sh writes production logs to prod/).
 const listLogFiles = (dir) => {
   try {
-    return readdirSync(dir).filter((f) => f.endsWith('.jsonl')).sort()
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      if (entry.isFile() && entry.name.endsWith('.jsonl')) return [entry.name]
+      if (!entry.isDirectory()) return []
+      return readdirSync(join(dir, entry.name))
+        .filter((f) => f.endsWith('.jsonl'))
+        .map((f) => join(entry.name, f))
+    })
   } catch {
     return []
   }
@@ -15,7 +23,7 @@ const listLogFiles = (dir) => {
 const readRecords = (dir, since) => {
   const records = []
   for (const file of listLogFiles(dir)) {
-    if (since && file.slice(0, 10) < since.slice(0, 10)) continue
+    if (since && basename(file).slice(0, 10) < since.slice(0, 10)) continue
     for (const line of readFileSync(join(dir, file), 'utf8').split('\n')) {
       if (!line.trim()) continue
       try {

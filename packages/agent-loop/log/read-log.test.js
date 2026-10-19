@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { formatConversations, readConversations } from './read-log.js'
 
 const sse = (...events) => events.map((e) => `data: ${typeof e === 'string' ? e : JSON.stringify(e)}\n\n`).join('')
@@ -33,7 +33,8 @@ const OAI = 'v1/chat/completions'
 const writeLog = (files) => {
   const dir = mkdtempSync(join(tmpdir(), 'readlog-'))
   for (const [name, records] of Object.entries(files)) {
-    writeFileSync(join(dir, name), records.map((r) => JSON.stringify(r)).join('\n') + '\n')
+    mkdirSync(dirname(join(dir, name)), { recursive: true })
+    writeFileSync(join(dir, name),records.map((r) => JSON.stringify(r)).join('\n') + '\n')
   }
   return dir
 }
@@ -124,6 +125,16 @@ describe('readConversations', () => {
     })
     const conversations = await readConversations(dir, { since: '2026-09-27T00:00:00Z' })
     expect(conversations.map((c) => c.chatId)).toEqual(['chat-1'])
+  })
+
+  it('reads the pulled production logs in a subdirectory, honoring since', async () => {
+    const dir = writeLog({
+      '2026-09-27.jsonl': openaiChat,
+      'prod/2026-09-26.jsonl': [rec('2026-09-26T10:00:00.000Z', 'old-prod', OAI, { model: 'm', messages: [sys, ask] }, openaiText('a'))],
+      'prod/2026-09-28.jsonl': [rec('2026-09-28T10:00:00.000Z', 'prod-1', OAI, { model: 'm', messages: [sys, ask] }, openaiText('a'))],
+    })
+    const conversations = await readConversations(dir, { since: '2026-09-27T00:00:00Z' })
+    expect(conversations.map((c) => c.chatId)).toEqual(['chat-1', 'prod-1'])
   })
 
   it('returns nothing for a missing dir', async () => {

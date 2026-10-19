@@ -395,7 +395,9 @@ completions); a log from before the two-style split, whose prompt taught
 both, reports `unknown`. `readConversations(dir, { since })` in
 `log/read-log.js` returns
 `[{ chatId, model, api, turns: [{ ts, user, steps: [{ name, input, result, ok, error? }], final, error? }] }]`.
-It reads the directory the launcher writes (`JSCAD_CHAT_LOG` when set).
+It reads the directory the launcher writes (`JSCAD_CHAT_LOG` when set) and
+the day files one directory below it, such as the production logs
+`apps/jscad-web/scripts/pull-chat-logs.sh` pulls into `logs/prod/`.
 
 ## Eval
 
