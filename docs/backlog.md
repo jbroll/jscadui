@@ -164,6 +164,44 @@ Found by `e2e/ai-chat-tools.spec.js` (plan `docs/superpowers/plans/2026-10-17-ch
   a late answer resolves into an abandoned promise. Either pass a longer
   timeout for question-bearing turns or document the cap.
 
+## Chat review follow-ups (2026-10-19)
+
+From reviewing the 09-30 local and 10-19 production logs (chats bb17e98f,
+037181f1). The execute, view part-reference and negative-angle stumbles are
+fixed; these remain.
+
+- **Agent writes can destroy the user's model.** In bb17e98f about eight
+  experiment writes replaced a 70-part Jeep in `main.js` with text tests, and
+  the next turn's request carried only the clobbered snapshot, so the agent
+  could not restore it. Needs undo or history for agent writes in the app, and
+  `view` of a scratch model so experiments need no save.
+- **A stray scratch rejection clears the loaded model.** The worker's
+  `unhandledrejection` handler calls `workerState.clearGeometry()`
+  (`packages/worker/worker.js`), so an un-awaited rejected Promise in an
+  `execute` snippet can wipe the build's solids. Async work a snippet does not
+  await also runs after its build context closes.
+- **Build and scratch contexts can restore out of order.** `jscadMain` and a
+  scratch run that interleave across awaits each restore
+  `globalThis.__jscadBuild` from what they saw on entry.
+- **`measure*` at a build's top level rejects in the app.** Only `main()` runs
+  inside the build context; a scratch run now covers its top level too.
+- **`measure` accepts a reversed range.** `parts: "3-1"` selects nothing and
+  returns a zero box; `view` refuses it. Reject it with the forms error.
+- **Upstream angle checks (`@jscad/modeling`).** `star` says "startAngle must
+  be greater than zero" and arc, ellipse, torus and cylinderElliptic say "must
+  be positive", but all accept zero and take the angle mod TAU. Drop the
+  `isGTE(…, 0)` checks and wrap instead; `optionChecks.js` wraps on our side
+  meanwhile.
+- **`read-log` loses review evidence.** `view` images (sent as a following
+  user message) are kept only as camera JSON; Responses-API `refusal` content
+  decodes blank; the app's "Maximum steps reached" message counts as a user
+  turn; records without a chat id each become a conversation; and a session's
+  last tool result never appears, since results arrive in the next request.
+- **Prompt and fixture work for chat-review.** "10:1 scale model" read as an
+  enlargement (037181f1 built a 35 m Jeep without asking), and text on a
+  vertical face came out mirrored and inside-out after ten rounds (bb17e98f).
+  Neither has a fixture; `nameplate` and `luggage-tag` cover flat text only.
+
 ## Render sweep
 
 Baseline 1226/1420 on manifold (CI job `94f275be0655e54b`), plus 75
