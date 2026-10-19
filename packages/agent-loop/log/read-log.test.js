@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { formatConversations, readConversations } from './read-log.js'
+import { formatConversations, readBatch, readConversations } from './read-log.js'
 
 const sse = (...events) => events.map((e) => `data: ${typeof e === 'string' ? e : JSON.stringify(e)}\n\n`).join('')
 const openaiCall = (id, name, args) =>
@@ -228,5 +228,42 @@ describe('formatConversations', () => {
     expect(text).toContain('    write FAILED\n      error: boom\n      main.js\n      | const a = 1')
     expect(text).toContain('    edit FAILED\n      error: boom\n      main.js\n      - a = 1\n      + a = 2')
     expect(text).toContain('    run FAILED\n      error: boom\n      | console.log(a)')
+  })
+})
+
+describe('readBatch', () => {
+  const synthetic = () => {
+    const turn = (chatId) => rec('2026-10-19T10:00:00.000Z', chatId, OAI, { model: 'm', messages: [sys, ask] }, openaiText('ok'))
+    const manifest = { sessions: [{ chatId: 'syn', scenario: 'jeep-1-10', builder: 'beam-free', simUser: 'minimax-m3.1-flash-free', run: 1 }, { skipped: true, scenario: 'x' }] }
+    const dir = writeLog({ '2026-10-19.jsonl': [turn('real')], 'synthetic/b1/2026-10-19.jsonl': [turn('syn')] })
+    writeFileSync(join(dir, 'synthetic/b1/manifest.json'), JSON.stringify(manifest))
+    return dir
+  }
+
+  it('readBatch reads only that batch and labels from the manifest', async () => {
+    const conversations = await readBatch(synthetic(), 'b1')
+    expect(conversations).toHaveLength(1)
+    expect(conversations[0].chatId).toBe('syn')
+    expect(conversations[0].label.scenario).toBe('jeep-1-10')
+  })
+
+  it('labels a conversation missing from the manifest null', async () => {
+    const dir = synthetic()
+    writeFileSync(join(dir, 'synthetic/b1/manifest.json'), JSON.stringify({ sessions: [] }))
+    expect((await readBatch(dir, 'b1'))[0].label).toBeNull()
+  })
+
+  it('plain readConversations skips synthetic batches', async () => {
+    const conversations = await readConversations(synthetic())
+    expect(conversations.map((c) => c.chatId)).toEqual(['real'])
+  })
+
+  it('readBatch fails with the path when the batch is missing', async () => {
+    await expect(readBatch(synthetic(), 'nope')).rejects.toThrow('synthetic/nope')
+  })
+
+  it('the header shows stumble counts and the label', async () => {
+    const text = formatConversations(await readBatch(synthetic(), 'b1'))
+    expect(text).toContain('failed:0 unbuilt:1 jeep-1-10 beam-free#1')
   })
 })

@@ -1,7 +1,8 @@
-// Usage: node log/read-log.js [--since ISO] [--json]
+// Usage: node log/read-log.js [--since ISO | --batch ID] [--json]
 import { readdirSync, readFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { chatLogDir } from './log-dir.js'
+import { countStumbles } from './stumbles.js'
 import { apiStyleOf, requestMessages, responseMessage } from './wire.js'
 
 // Day files sit at the top level (the launcher) and one directory down
@@ -100,9 +101,28 @@ export const readConversations = async (dir, { since } = {}) => {
   }
   const conversations = []
   for (const [key, list] of groups) {
-    conversations.push({ chatId: typeof key === 'string' ? key : null, model: list[0].request.model ?? null, api: apiStyleOf(list[0]), turns: await turnsOf(list) })
+    const conversation = { chatId: typeof key === 'string' ? key : null, model: list[0].request.model ?? null, api: apiStyleOf(list[0]), turns: await turnsOf(list) }
+    conversations.push({ ...conversation, stumbles: countStumbles(conversation) })
   }
   return conversations
+}
+
+// A batch sits two levels down (synthetic/<batch>/), so plain reads never list it.
+export const readBatch = async (logDir, batchId) => {
+  const dir = join(logDir, 'synthetic', batchId)
+  let manifest
+  try {
+    manifest = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'))
+  } catch (e) {
+    throw new Error(`read-log: cannot read batch manifest at ${join(dir, 'manifest.json')}: ${e.message}`)
+  }
+  const labels = new Map(
+    (manifest.sessions ?? [])
+      .filter((s) => !s.skipped && s.chatId)
+      .map(({ chatId, scenario, builder, simUser, run }) => [chatId, { scenario, builder, simUser, run }]),
+  )
+  const conversations = await readConversations(dir)
+  return conversations.map((c) => ({ ...c, label: labels.get(c.chatId) ?? null }))
 }
 
 const clip = (text, n) => (text.length > n ? `${text.slice(0, n)}…` : text)
@@ -122,7 +142,9 @@ const codeOf = ({ path, source, content, oldString, newString }) => {
 export const formatConversations = (conversations) => {
   const lines = []
   for (const c of conversations) {
-    lines.push(`== ${c.chatId ?? '(no chat id)'}  ${c.model ?? ''}  ${c.api}  ${c.turns[0]?.ts ?? ''}`)
+    const counts = c.stumbles ? `  failed:${c.stumbles.failedCalls} unbuilt:${c.stumbles.unbuiltTurns}` : ''
+    const label = c.label ? ` ${c.label.scenario} ${c.label.builder}#${c.label.run}` : ''
+    lines.push(`== ${c.chatId ?? '(no chat id)'}  ${c.model ?? ''}  ${c.api}  ${c.turns[0]?.ts ?? ''}${counts}${label}`)
     for (const turn of c.turns) {
       lines.push(`  > ${clip(turn.user ?? '', 200)}`)
       for (const step of turn.steps) {
@@ -141,11 +163,26 @@ export const formatConversations = (conversations) => {
 if (process.argv[1] === new URL(import.meta.url).pathname) {
   const args = process.argv.slice(2)
   const at = args.indexOf('--since')
+  const batchAt = args.indexOf('--batch')
   const dir = chatLogDir()
   if (!dir) {
     console.error('read-log: JSCAD_CHAT_LOG=0, logging is off')
     process.exit(1)
   }
-  const conversations = await readConversations(dir, { since: at === -1 ? undefined : args[at + 1] })
+  if (batchAt !== -1 && at !== -1) {
+    console.error('read-log: --batch and --since cannot be combined')
+    process.exit(1)
+  }
+  if (batchAt !== -1 && !args[batchAt + 1]) {
+    console.error('read-log: --batch needs a batch id')
+    process.exit(1)
+  }
+  let conversations
+  try {
+    conversations = batchAt === -1 ? await readConversations(dir, { since: at === -1 ? undefined : args[at + 1] }) : await readBatch(dir, args[batchAt + 1])
+  } catch (e) {
+    console.error(e.message)
+    process.exit(1)
+  }
   console.log(args.includes('--json') ? JSON.stringify(conversations, null, 2) : formatConversations(conversations))
 }

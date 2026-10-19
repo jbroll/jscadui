@@ -382,7 +382,18 @@ with the adapters' own stream parsers.
 ```bash
 npm run read-log -w @jscadui/agent-loop -- --since 2026-09-27T00:00:00Z
 npm run read-log -w @jscadui/agent-loop -- --json
+npm run read-log -w @jscadui/agent-loop -- --batch 2026-10-19-a
 ```
+
+`--batch <id>` reads one synthetic batch, `<logs>/synthetic/<id>/`, and cannot
+be combined with `--since`. Plain reads skip `logs/synthetic/`. Each
+conversation in a batch is labeled from the batch's `manifest.json`; one whose
+chat id is not in the manifest has `label: null`. A missing manifest is an
+error naming its path.
+
+Every header ends with `failed:<n> unbuilt:<n>`: the count of failed tool calls
+and of turns that did not end on a successful `write` or `edit`. A labeled
+conversation adds `<scenario> <builder>#<run>`.
 
 The summary prints one block per conversation, headed by its chat id, model
 and API style, then each user message, each tool call as `ok`, `FAILED` or
@@ -395,7 +406,8 @@ or a leading `input` item for Responses, a leading message for chat
 completions); a log from before the two-style split, whose prompt taught
 both, reports `unknown`. `readConversations(dir, { since })` in
 `log/read-log.js` returns
-`[{ chatId, model, api, turns: [{ ts, user, steps: [{ name, input, result, ok, error? }], final, error? }] }]`.
+`[{ chatId, model, api, turns: [{ ts, user, steps: [{ name, input, result, ok, error? }], final, error? }], stumbles: { failedCalls, unbuiltTurns } }]`.
+`readBatch(dir, batchId)` returns the same plus `label: { scenario, builder, simUser, run } | null`.
 It reads the directory the launcher writes (`JSCAD_CHAT_LOG` when set) and
 the day files one directory below it, such as the production logs
 `apps/jscad-web/scripts/pull-chat-logs.sh` pulls into `logs/prod/`.
