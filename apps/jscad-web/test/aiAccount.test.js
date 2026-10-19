@@ -736,4 +736,35 @@ describe('aiEffort', () => {
     expect(effortOptionsForModel({ kind: 'openai', modelId: 'gpt-x', capabilities: null })).toEqual(OPENAI_STYLE_EFFORTS)
     expect(effortOptionsForModel({ kind: 'meta', modelId: 'muse-spark-1.3', capabilities: null })).not.toContain('none')
   })
+
+  it('defaults to medium when offered, else the first option, never none first', async () => {
+    const { defaultEffort, OPENAI_STYLE_EFFORTS } = await import('../src/aiEffort.js')
+    expect(defaultEffort(OPENAI_STYLE_EFFORTS)).toBe('medium')
+    expect(defaultEffort(['low', 'high'])).toBe('low')
+    expect(defaultEffort([])).toBe('')
+  })
+})
+
+describe('effort default in the dialog', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    document.body.innerHTML = ''
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({}), { status: 401 }))
+  })
+
+  it('stores medium for an opencode-go model with no effort chosen', async () => {
+    const { initAccount } = await loadAccount()
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'opencode-go', model: 'beam-free' }))
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    expect(JSON.parse(localStorage.getItem('jscad-ai.selection')).effort).toBe('medium')
+  })
+
+  it('keeps a stored effort the model offers', async () => {
+    const { initAccount } = await loadAccount()
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'opencode-go', model: 'beam-free', effort: 'high' }))
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    expect(JSON.parse(localStorage.getItem('jscad-ai.selection')).effort).toBe('high')
+  })
 })

@@ -16,3 +16,7 @@ export const effortOptionsForModel = ({ kind, modelId = '', capabilities = null 
   if (MUSE_RE.test(modelId)) levels = levels.filter((l) => l !== 'none')
   return levels
 }
+
+// The level a model gets until the user picks one. Not the first option: that
+// is `none` for openai-style lists, which some models (beam-free) refuse.
+export const defaultEffort = (options) => (options.includes('medium') ? 'medium' : (options[0] ?? ''))

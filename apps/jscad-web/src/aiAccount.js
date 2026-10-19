@@ -7,7 +7,7 @@ import { APIS, DEFAULT_API } from '@jscadui/agent-loop'
 import { createKeyStore } from '@jscadui/key-store'
 import { SEARCH_PROVIDERS, createSearchStores } from './aiSearch.js'
 import { relayBaseUrl, inferenceListUrl } from './aiChat.js'
-import { effortOptionsForModel } from './aiEffort.js'
+import { defaultEffort, effortOptionsForModel } from './aiEffort.js'
 import { getRecordOwnChats, isFreeSelection, RECORDING_TEXT, setRecordOwnChats } from './aiConsent.js'
 import { readOverride, readVisionCache, refreshVisionCache, writeOverride } from './modelVision.js'
 import { mountSyncEntry } from './syncEntry.js'
@@ -280,7 +280,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
       state.effort = ''
     } else {
       effortWrap.style.display = ''
-      effortSelect.value = options.includes(state.effort) ? state.effort : options[0]
+      effortSelect.value = options.includes(state.effort) ? state.effort : defaultEffort(options)
       state.effort = effortSelect.value
     }
     persistSelection()
