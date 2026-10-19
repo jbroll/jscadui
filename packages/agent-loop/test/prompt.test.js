@@ -129,6 +129,12 @@ describe('system prompt', () => {
     expect(buildSystemPrompt(api)).toMatch(/the file `package\.json` names in\s+`main`, else `index\.js`, else `main\.js`/)
   })
 
+  it.each(APIS)('%s: tells the model to fold durable instructions into the model spec', (api) => {
+    const prompt = buildSystemPrompt(api)
+    expect(prompt).toContain('notes/model-spec.md')
+    expect(prompt).toContain('`model-spec`')
+  })
+
   it.each(APIS)('%s: teaches the project tools, with no save step and no old tools', (api) => {
     const prompt = buildSystemPrompt(api)
     for (const tool of ['edit', 'write', 'execute', 'measure', 'check', 'docs']) expect(prompt).toContain(`\`${tool}\``)

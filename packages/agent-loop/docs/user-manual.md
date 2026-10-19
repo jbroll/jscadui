@@ -63,6 +63,21 @@ message (`basis` counts the leading messages already folded in), so a resumed
 chat keeps summarizing where it left off; a summarizer failure leaves the
 transcript to plain truncation, as before.
 
+### Model spec
+
+`notes/model-spec.md` is the project's durable instructions: design intent,
+units, printer, fits and clearances, style and conventions. The agent creates
+it from the first spec-worthy instruction and merges later corrections into it
+with `read` then `write`/`edit`, one line per rule under `Intent`,
+`Constraints & preferences`, `Decisions` (newest wins, retractions delete the
+line). The whole file inlines in every project message under `Model spec:`
+(4,000 characters; over that the newest lines survive with a `[truncated]`
+note), ahead of code files when the project budget binds, so every turn and
+every chat knows it without a `read` call. One-off sizes and turn-local
+choices stay out. The user can edit the file directly; the agent merges
+minimally around hand-edits and never re-imposes the section schema.
+Deleting the file resets the memory.
+
 `runTurn` caps each tool result it hands the provider at `TOOL_RESULT_CHARS`
 (the same 24,000 characters) and ends a longer one with `… [tool result
 truncated: N of M characters shown]`, in the app and the eval alike, so a few

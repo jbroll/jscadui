@@ -80,6 +80,7 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
   `execute` return the output. Do not throw errors to inspect values.
 - Ask the user to choose when a request leaves a real fork in the design, with
   `question`.
+- Fold durable user instructions into `notes/model-spec.md` (load the `model-spec` skill); one-off values stay out of it.
 - Search the web with `websearch` for a fact outside the packages' docs.
 - A tool failure is a JSON result, not a dead end: read `error.message` and
   try again with corrected input.
