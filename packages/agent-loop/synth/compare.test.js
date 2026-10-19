@@ -38,6 +38,8 @@ describe('compareBatches', () => {
     expect(rows.map((r) => `${r.scenario}|${r.builder}`)).toEqual(['jeep|beam-free', 'gear|beam-free'])
     expect(rows[0].a).toEqual({
       sessions: 2,
+      errors: 0,
+      timedOut: 0,
       checkPassRate: 0.5,
       accepted: 1,
       meanUserTurns: 2,
@@ -67,12 +69,25 @@ describe('compareBatches', () => {
     expect(rows[0].a.checkPassRate).toBe(null)
   })
 
-  it('formats one line per row with both batches', () => {
+  it('leaves errored sessions out of the means and counts them', () => {
+    const a = batch([
+      session('jeep', 'beam-free'),
+      session('jeep', 'beam-free', { run: 2, error: 'page crashed', checks: null, userTurns: 1, rounds: 1, accepted: false }),
+      session('jeep', 'beam-free', { run: 3, timedOut: true, accepted: false, userTurns: 1, rounds: 32, checks: { passed: 0, total: 2, failed: ['a', 'b'] } }),
+    ])
+    const [row] = compareBatches(a, batch([]))
+    expect(row.a).toMatchObject({ sessions: 3, errors: 1, timedOut: 1, checkPassRate: 0.5, accepted: 1, meanRounds: 18 })
+  })
+
+  it('a row of only errored sessions has null means', () => {
+    const [row] = compareBatches(batch([session('jeep', 'beam-free', { error: 'go 429', checks: null })]), batch([]))
+    expect(row.a).toMatchObject({ sessions: 1, errors: 1, checkPassRate: null, accepted: 0, meanUserTurns: null })
+  })
+
+  it('formats one line per row, with - for the missing side', () => {
     const text = formatCompare(compareBatches(batch([session('jeep', 'beam-free')]), batch([])))
     const [header, line] = text.split('\n')
-    expect(header).toContain('scenario')
-    expect(line).toContain('jeep')
-    expect(line).toContain('beam-free')
-    expect(line).toContain('-')
+    expect(header.split(/\s{2,}/)).toEqual(['scenario', 'builder', 'n', 'errors', 'timeouts', 'checks', 'accepted', 'turns', 'rounds', 'failed', 'unbuilt', 'corrections'])
+    expect(line.split(/\s{2,}/)).toEqual(['jeep', 'beam-free', '1 -> -', '0 -> -', '0 -> -', '1 -> -', '1 -> -', '1 -> -', '4 -> -', '0 -> -', '0 -> -', '0 -> -'])
   })
 })

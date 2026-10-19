@@ -175,6 +175,7 @@ describe('runSession', () => {
     })
     const r = await runSession({ driver, scenario, simUser })
     expect(r.error).toBe('go 503')
+    expect(driver.calls.stop).toBe(1)
   })
 
   it('a sim-user error inside a question ends the session even when the driver swallows it', async () => {
@@ -192,6 +193,49 @@ describe('runSession', () => {
     const r = await runSession({ driver, scenario, simUser })
     expect(r.error).toBe('go 503')
     expect(simUser.calls.critique).toHaveLength(0)
+    expect(driver.calls.stop).toBe(1)
+  })
+
+  it('a swallowed question failure on a timed-out turn records the timeout and stops', async () => {
+    const driver = fakeDriver({
+      async waitTurn({ onQuestion }) {
+        await onQuestion('How long?').catch(() => {})
+        return { timedOut: true }
+      },
+    })
+    const simUser = Object.assign(fakeSimUser(), {
+      async answer() {
+        throw new Error('go 503')
+      },
+    })
+    const r = await runSession({ driver, scenario, simUser })
+    expect(r).toMatchObject({ error: 'go 503', timedOut: true })
+    expect(driver.calls.stop).toBe(1)
+  })
+
+  it('a waitTurn rejection stops the turn and keeps the waitTurn error when stop fails', async () => {
+    const driver = fakeDriver({
+      async waitTurn() {
+        throw new Error('page closed')
+      },
+      async stop() {
+        driver.calls.stop++
+        throw new Error('stop failed')
+      },
+    })
+    const r = await runSession({ driver, scenario, simUser: fakeSimUser() })
+    expect(r.error).toBe('page closed')
+    expect(driver.calls.stop).toBe(1)
+  })
+
+  it('a driver error outside waitTurn does not stop the turn', async () => {
+    const driver = fakeDriver({
+      async buildReport() {
+        throw new Error('page crashed')
+      },
+    })
+    await runSession({ driver, scenario, simUser: fakeSimUser() })
+    expect(driver.calls.stop).toBe(0)
   })
 
   it('a driver error ends the session with error', async () => {

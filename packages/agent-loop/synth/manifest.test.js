@@ -51,6 +51,10 @@ describe('manifest', () => {
     })
   })
 
+  it('sessionEntry stores the scenario name when given the scenario object', () => {
+    expect(sessionEntry({ ...entry(), result, scenario: { name: 'jeep-1-10', prompt: 'x' } }).scenario).toBe('jeep-1-10')
+  })
+
   it('a session that never sent counts no corrections', () => {
     const e = sessionEntry({ ...entry(), result: { ...result, userTurns: 0 }, stumbles: null })
     expect(e.stumbles).toEqual({ failedCalls: null, unbuiltTurns: null, corrections: 0 })

@@ -13,16 +13,23 @@ const passRate = (checks) => {
   return checks.total ? checks.passed / checks.total : 0
 }
 
-const statsOf = (sessions) => ({
-  sessions: sessions.length,
-  checkPassRate: mean(sessions.map((s) => passRate(s.checks))),
-  accepted: sessions.filter((s) => s.accepted).length,
-  meanUserTurns: mean(sessions.map((s) => s.userTurns)),
-  meanRounds: mean(sessions.map((s) => s.rounds)),
-  meanFailedCalls: mean(sessions.map((s) => s.stumbles?.failedCalls)),
-  meanUnbuiltTurns: mean(sessions.map((s) => s.stumbles?.unbuiltTurns)),
-  meanCorrections: mean(sessions.map((s) => s.stumbles?.corrections)),
-})
+// Errored sessions are counted, not averaged: a crash after the first build
+// would otherwise read as fewer turns and stumbles.
+const statsOf = (sessions) => {
+  const clean = sessions.filter((s) => !s.error)
+  return {
+    sessions: sessions.length,
+    errors: sessions.length - clean.length,
+    timedOut: sessions.filter((s) => s.timedOut).length,
+    checkPassRate: mean(clean.map((s) => passRate(s.checks))),
+    accepted: clean.filter((s) => s.accepted).length,
+    meanUserTurns: mean(clean.map((s) => s.userTurns)),
+    meanRounds: mean(clean.map((s) => s.rounds)),
+    meanFailedCalls: mean(clean.map((s) => s.stumbles?.failedCalls)),
+    meanUnbuiltTurns: mean(clean.map((s) => s.stumbles?.unbuiltTurns)),
+    meanCorrections: mean(clean.map((s) => s.stumbles?.corrections)),
+  }
+}
 
 const groupOf = (manifest) => {
   const groups = new Map()
@@ -52,6 +59,8 @@ export const compareBatches = (a, b) => {
 
 const COLUMNS = [
   ['sessions', 'n'],
+  ['errors', 'errors'],
+  ['timedOut', 'timeouts'],
   ['checkPassRate', 'checks'],
   ['accepted', 'accepted'],
   ['meanUserTurns', 'turns'],

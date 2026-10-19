@@ -54,10 +54,16 @@ export async function runSession({ driver, scenario, simUser, maxUserTurns = 3, 
   try {
     await say(scenario.prompt)
     for (;;) {
-      const { timedOut } = await driver.waitTurn({ timeoutMs: turnTimeoutMs, onQuestion })
-      if (questionError) throw questionError
-      if (timedOut) {
-        result.timedOut = true
+      try {
+        const { timedOut } = await driver.waitTurn({ timeoutMs: turnTimeoutMs, onQuestion })
+        if (timedOut) result.timedOut = true
+        if (questionError) throw questionError
+      } catch (e) {
+        // The builder's turn may still be running in the page.
+        await Promise.resolve().then(() => driver.stop()).catch(() => {})
+        throw e
+      }
+      if (result.timedOut) {
         await driver.stop()
         break
       }

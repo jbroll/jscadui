@@ -17,7 +17,7 @@ export const addSession = (manifest, entry) => {
 // Every simulated-user message after the opening request is a non-ACCEPT critique.
 export const sessionEntry = ({ chatId, scenario, builder, simUser, run, rounds, result, stumbles }) => ({
   chatId,
-  scenario,
+  scenario: scenario?.name ?? scenario,
   builder,
   simUser,
   run,

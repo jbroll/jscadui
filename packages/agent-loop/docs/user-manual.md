@@ -423,7 +423,9 @@ send the scenario's prompt, answer each question the builder asks through the
 simulated user, then render `iso-front`, `iso-back` and `top`, take the build
 report and the final assistant text, and ask the simulated user to judge. It
 ends on `ACCEPT`, after 3 user turns (the prompt included), on a turn that
-times out (the turn is stopped), or on the first error. An empty reply from
+times out, or on the first error. A timed-out turn is stopped, and so is one
+whose wait failed or whose question the simulated user could not answer.
+An empty reply from
 the simulated user is an error and is never sent. Scenario `checks` then run
 on the final build, after a timeout too but not after an error. The simulated
 user sees only the user's messages and answers, the questions asked and each
@@ -455,11 +457,12 @@ npm run synth:compare -w @jscadui/agent-loop -- <batchA> <batchB>
 ```
 
 Each id resolves under `<logs>/synthetic/`. One row per scenario and builder
-shows `a -> b` for the session count, check pass rate (the mean of each
-session's `passed / total`, a session without geometry counting 0), accepted
-sessions, and the mean user turns, rounds, failed calls, unbuilt turns and
-corrections. A row absent from one batch shows `-` on that side; skipped
-entries are ignored. `compareBatches(a, b)` in `synth/compare.js` returns the
+shows `a -> b` for the session count, errored and timed-out sessions, check
+pass rate (the mean of each session's `passed / total`, a session without
+geometry counting 0), accepted sessions, and the mean user turns, rounds,
+failed calls, unbuilt turns and corrections. Errored sessions are left out of
+the pass rate, the accepted count and the means. A row absent from one batch
+shows `-` on that side; skipped entries are ignored. `compareBatches(a, b)` in `synth/compare.js` returns the
 rows as `{ scenario, builder, a: stats | null, b: stats | null }`.
 
 ## Eval
