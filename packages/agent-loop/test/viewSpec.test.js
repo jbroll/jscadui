@@ -120,7 +120,8 @@ describe('viewInputSchema', () => {
   it('is derived from the same preset, view-count and size constants', () => {
     const views = viewInputSchema.properties.views
     expect(views.items.properties.preset.enum).toEqual(VIEW_PRESETS)
-    expect(VIEW_PRESETS).toHaveLength(8)
+    expect(VIEW_PRESETS).toHaveLength(9)
+    expect(VIEW_PRESETS).toContain('side')
     expect([views.minItems, views.maxItems]).toEqual([1, MAX_VIEWS])
     expect(views.items.additionalProperties).toBe(false)
     expect(viewInputSchema.properties.size.properties).toMatchObject({ w: { type: 'integer' }, h: { type: 'integer' } })

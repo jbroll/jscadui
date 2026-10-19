@@ -67,8 +67,9 @@ Success: a model can call `view`, receive images, and use them in a later step.
 
 Camera spec element (one per requested view), exactly one aim form each:
 
-- `preset`: one of front, back, left, right, top, bottom, iso-front, iso-back.
-  iso-front and iso-back reuse the eval describer directions
+- `preset`: one of front, back, left, right, side, top, bottom, iso-front, iso-back.
+  `side` is the eval's word for the `front` framing (same vector); iso-front
+  and iso-back reuse the eval describer directions
   (`eval/views.js`: iso-front dir [1,-1,0.7], iso-back [-1,1,0.7], side [0.25,-1,0.35],
   top [0.15,-0.35,1]).
 - `lookAt`: either `[x,y,z]` coords or a hierarchical part name (dotted param path such

@@ -23,6 +23,7 @@
 // than through the viewer.
 
 import { boundingBox } from '@jscadui/format-common'
+import * as ThreeNS from 'three'
 import { CommonToThree } from '@jscadui/format-threejs'
 import { DEFAULT_VIEW_SIZE, VIEW_PRESETS } from '@jscadui/agent-loop/src/viewSpec.js'
 
@@ -39,11 +40,20 @@ const PRESET_VECTORS = {
   back: { dir: [-0.25, 1, 0.35], up: [0, 0, 1] },
   right: { dir: [1, 0.25, 0.35], up: [0, 0, 1] },
   left: { dir: [-1, -0.25, 0.35], up: [0, 0, 1] },
+  // `side` names the eval's raised lateral view, which is the same framing as
+  // `front`: one direction, two names, so models asking either word get it.
+  side: { dir: [0.25, -1, 0.35], up: [0, 0, 1] },
   top: { dir: [0.15, -0.35, 1], up: [0, 1, 0] },
   bottom: { dir: [0.15, -0.35, -1], up: [0, 1, 0] },
   'iso-front': { dir: [1, -1, 0.7], up: [0, 0, 1] },
   'iso-back': { dir: [-1, 1, 0.7], up: [0, 0, 1] },
 }
+
+// The three.js namespace a render uses: an explicitly injected one wins (unit
+// tests), then the viewer's ambient global, then this module's own bundled
+// copy — so a view renders under either render engine, with no dependency on
+// which bundles the page happened to load as globals.
+export const resolveThree = (envTHREE) => envTHREE ?? globalThis.THREE ?? ThreeNS
 
 /**
  * The direction and up vectors for every preset, keyed by the names
@@ -170,10 +180,11 @@ const buildScene = (THREE, mesh, smooth, bg) => {
  * @param {{THREE?: object, smooth?: boolean, bg?: number[]}} [env] injectable THREE (the app's global) for tests
  * @returns {Promise<Array<{pngDataUrl: string, camera: object}>>}
  */
-export const renderViews = async (mesh, { shots, size = { ...DEFAULT_VIEW_SIZE } } = {}, { THREE = globalThis.THREE, smooth = false, bg = [1, 1, 1] } = {}) => {
+export const renderViews = async (mesh, { shots, size = { ...DEFAULT_VIEW_SIZE } } = {}, { THREE: envTHREE, smooth = false, bg = [1, 1, 1] } = {}) => {
   if (!Array.isArray(mesh) || mesh.length === 0) throw named('ViewRenderError', 'no geometry to render')
   if (!Array.isArray(shots) || shots.length === 0) throw named('ViewRenderError', 'renderViews needs at least one shot')
-  if (!THREE) throw named('ViewRenderError', 'renderViews needs three.js on globalThis.THREE')
+  const THREE = resolveThree(envTHREE)
+  if (!THREE) throw named('ViewRenderError', 'renderViews needs a three.js namespace: inject env.THREE, load the viewer bundle, or bundle three')
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
   renderer.setSize(size.w, size.h)
   try {

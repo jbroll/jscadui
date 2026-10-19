@@ -6,7 +6,7 @@
 
 // The presets a camera spec may name. Directions and up vectors live with the
 // renderer, which owns the framing math.
-export const VIEW_PRESETS = ['front', 'back', 'left', 'right', 'top', 'bottom', 'iso-front', 'iso-back']
+export const VIEW_PRESETS = ['front', 'back', 'left', 'right', 'side', 'top', 'bottom', 'iso-front', 'iso-back']
 
 // A call carries 1-4 camera specs; more would cost more tokens than they return.
 export const MAX_VIEWS = 4

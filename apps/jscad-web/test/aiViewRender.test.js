@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { VIEW_PRESETS } from '@jscadui/agent-loop/src/viewSpec.js'
 
-import { frameCamera, PRESET_DIRS } from '../src/aiViewRender.js'
+import { frameCamera, PRESET_DIRS, resolveThree } from '../src/aiViewRender.js'
 
 // A 64-unit cube centred on the origin, in the shape @jscadui/format-common's
 // boundingBox hands back (min/max as {x, y, z}).
@@ -47,14 +47,29 @@ const projectedCornersInside = (cam, bbox) => {
 const framePreset = (preset, at = size) => frameCamera(cube64, PRESET_DIRS[preset].dir, PRESET_DIRS[preset].up, at)
 
 describe('PRESET_DIRS', () => {
-  it('keys exactly the eight view presets from the request spec', () => {
+  it('keys exactly the nine view presets from the request spec', () => {
     expect(Object.keys(PRESET_DIRS).sort()).toEqual([...VIEW_PRESETS].sort())
+    expect(PRESET_DIRS['side']).toEqual(PRESET_DIRS['front'])
   })
 
   it('carries the eval describer directions for the shared presets', () => {
     expect(PRESET_DIRS['iso-front']).toEqual({ dir: [1, -1, 0.7], up: [0, 0, 1] })
     expect(PRESET_DIRS['iso-back']).toEqual({ dir: [-1, 1, 0.7], up: [0, 0, 1] })
     expect(PRESET_DIRS['top']).toEqual({ dir: [0.15, -0.35, 1], up: [0, 1, 0] })
+  })
+
+  it('resolves three.js from the injected env, the viewer global, then the bundle', () => {
+    const env = { WebGLRenderer: function () {} }
+    expect(resolveThree(env)).toBe(env)
+    const prior = globalThis.THREE
+    globalThis.THREE = env
+    try {
+      expect(resolveThree(undefined)).toBe(env)
+    } finally {
+      if (prior === undefined) delete globalThis.THREE
+      else globalThis.THREE = prior
+    }
+    expect(typeof resolveThree(undefined).WebGLRenderer).toBe('function')
   })
 
   it('uses +Z up for the side-on views and +Y up for top and bottom', () => {
@@ -90,8 +105,10 @@ describe('frameCamera', () => {
     }
   })
 
-  it('all eight presets produce distinct positions', () => {
+  it('all nine presets produce distinct positions but side aliases front', () => {
     const positions = new Set(Object.keys(PRESET_DIRS).map((preset) => framePreset(preset).position.join(',')))
+    // Nine names, eight framings: `side` is the eval's word for `front`'s view.
+    expect(Object.keys(PRESET_DIRS)).toHaveLength(9)
     expect(positions.size).toBe(8)
   })
 
