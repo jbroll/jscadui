@@ -61,14 +61,15 @@ if ! command -v "$LAND_BIN" >/dev/null 2>&1; then
   exit 1
 fi
 
-# A tag names one tree but many jobs: re-pushes re-use it, and a bare
-# `sci wait TAG` does not resolve then. Wait by job ID instead: a passed run
-# for the tag gates immediately, else the newest job for the tag.
+# Wait by job ID: a tag can name several jobs, and `sci wait TAG` fails then.
+# A killed job was superseded, and a live job's empty cells shift the columns.
 resolve_job() {
   sci stat -n 100 2>/dev/null | awk -v t="$1" '
-    $7 == t && $2 == "pass" { print $1; done=1; exit }
-    $7 == t && newest == "" { newest=$1 }
-    END { if (!done && newest != "") print newest }'
+    $(NF-1) != t || $2 == "killed" { next }
+    $2 == "pass" && pass == "" { pass=$1 }
+    ($2 == "running" || $2 == "queued") && live == "" { live=$1 }
+    newest == "" { newest=$1 }
+    END { print (pass != "" ? pass : live != "" ? live : newest) }'
 }
 
 ensure_green() {
@@ -104,11 +105,10 @@ fi
 # investigated or reverted, never left silently.
 if [ "$(git rev-parse main)" != "$TIP" ]; then
   echo "ship: land rebased $BRANCH; landed tree differs from green $TAG"
-  NEWTAG="commit-$(git rev-parse --short main)"
-  sci push jscadui/test -t "$NEWTAG" --supersede | tail -1
-  echo "ship: waiting for CI $NEWTAG (landed tree)..."
-  if ! sci wait "$NEWTAG"; then
-    echo "ship: LANDED TREE $NEWTAG IS RED; investigate or revert main now"
+  TAG="commit-$(git rev-parse --short main)"
+  echo "ship: waiting for CI $TAG (landed tree)..."
+  if ! ensure_green; then
+    echo "ship: LANDED TREE $TAG IS RED; investigate or revert main now"
     exit 1
   fi
 fi
