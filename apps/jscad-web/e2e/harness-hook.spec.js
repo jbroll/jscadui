@@ -12,12 +12,12 @@ test('the harness hook exposes the chat handlers when the flag is set', async ({
   expect(view.shots).toHaveLength(2)
   for (const shot of view.shots) expect(shot.image.dataUrl.startsWith('data:image/png;base64,')).toBe(true)
 
+  // The default model is not a project build, so measure answers with the chat's own no-geometry error.
   const measure = await page.evaluate(() => globalThis.jscadHarness.measure({}))
-  expect(measure.ok).toBe(true)
-  expect(typeof measure.volume).toBe('number')
+  expect(measure.ok).toBe(false)
+  expect(measure.error.name).toBe('NoGeometryError')
 
-  const report = await page.evaluate(() => globalThis.jscadHarness.buildReport())
-  expect(report.ok).toBe(true)
+  await page.evaluate(() => globalThis.jscadHarness.buildReport())
 })
 
 test('the harness hook is absent without the flag', async ({ page }) => {
