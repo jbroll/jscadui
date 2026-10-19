@@ -137,6 +137,18 @@ export const WARNING_CASES = [
     ],
   },
   {
+    name: 'A: a negative jf.star startAngle is wrapped into 0 to 2π, with a warning',
+    api: 'fluent',
+    source: fluent('module.exports = { main: () => jf.star({ vertices: 5, outerRadius: 1800, innerRadius: 720, startAngle: -Math.PI / 2 }) }'),
+    warnings: [{ fn: 'jf.star', option: 'startAngle', hints: ['startAngle -1.570796 is outside 0 to 2π; used 4.712389, the same direction'] }],
+  },
+  {
+    name: 'A: a negative modeling circle startAngle is wrapped, and an end angle in range is left alone',
+    api: 'modeling',
+    source: modeling('module.exports = { main: () => primitives.circle({ radius: 5, startAngle: -Math.PI / 2, endAngle: Math.PI / 2 }) }'),
+    warnings: [{ fn: 'primitives.circle', option: 'startAngle', hints: ['used 4.712389'] }],
+  },
+  {
     name: 'I: a method on plain modeling geometry, fluent mode',
     api: 'fluent',
     source: `${modeling('')}const jf = require('@jbroll/jscad-fluent')

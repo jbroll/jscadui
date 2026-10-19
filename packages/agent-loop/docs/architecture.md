@@ -281,7 +281,11 @@ rounded primitives and `cylinderElliptic`, which change the arguments before
 the call: a `roundRadius` past the limit modeling throws at becomes the
 largest value in thousandths it accepts, and a number radius becomes
 `[r, r]`, since each slip was the most common failed build with one sensible
-reading and cost a round every time. `EXTRA_SPECS` and
+reading and cost a round every time. The angle primitives (`arc`, `circle`,
+`ellipse`, `star`, `torus`, `cylinderElliptic`, and `jf.cylinder`'s `angle`
+pair) get their angles wrapped into 0 to 2π: modeling takes each angle mod 2π
+but throws on a negative one, so `-Math.PI / 2` failed a build that
+`1.5 * Math.PI` passes. `EXTRA_SPECS` and
 `EXTRA_METHOD_SPECS` in `src/optionChecks.js` add them to the table's specs,
 keyed by the table's prefix. The empty check asks a shape's `isEmpty()` first,
 because a manifold shape converts its polygons only when they are read.
