@@ -6,7 +6,8 @@
   `responses.js` (the provider adapters and their stream parsers), `tools.js`
   (`buildTools(api)`, `READ_ONLY`), `prompt.js` (`buildSystemPrompt(api)`),
   `context.js`
-  (`buildMessages`, `partitionTranscript`, `mentionedPaths`), `summarize.js`
+  (`buildMessages`, `partitionTranscript`, `mentionedPaths`), `modelSpec.js`
+  (the per-project model spec: path, budget, section renderer), `summarize.js`
   (the summary prompt and the summarizer provider adapter), `project.js` (the file tools' operations and entry
   resolution), `projectUrl.js` (`PROJECT_BASE`, `RUN_FILE` and the loader's
   `createReadFile`), `dispatchTool.js` (tool routing), `buildReport.js` (the
