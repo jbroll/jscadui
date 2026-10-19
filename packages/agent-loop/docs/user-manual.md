@@ -412,6 +412,56 @@ It reads the directory the launcher writes (`JSCAD_CHAT_LOG` when set) and
 the day files one directory below it, such as the production logs
 `apps/jscad-web/scripts/pull-chat-logs.sh` pulls into `logs/prod/`.
 
+## Synthetic sessions
+
+A batch drives the real app through every scenario and builder model, with a
+simulated user playing the person on the scenario's fact card. Its relay logs
+and `manifest.json` go to `<logs>/synthetic/<batch>/`.
+
+`runSession` (`synth/session.js`) runs one session against a page driver:
+send the scenario's prompt, answer each question the builder asks through the
+simulated user, then render `iso-front`, `iso-back` and `top`, take the build
+report and the final assistant text, and ask the simulated user to judge. It
+ends on `ACCEPT`, after 3 user turns (the prompt included), on a turn that
+times out (the turn is stopped), or on the first error. An empty reply from
+the simulated user is an error and is never sent. Scenario `checks` then run
+on the final build, after a timeout too but not after an error. The simulated
+user sees only the user's messages and answers, the questions asked and each
+turn's final text. Its model calls go straight to the Go endpoint and time out
+after 120 s.
+
+`manifest.json` holds `batch`, `jscaduiCommit`, `scenarioSetCommit`, `probe`
+(per model `{ available, vision }`) and one entry per session:
+
+| Field | Meaning |
+|---|---|
+| `chatId`, `scenario`, `builder`, `simUser`, `run` | Which session; `run` counts from 1 per scenario and builder |
+| `userTurns` | Messages sent from the user, the prompt included; answers to questions are not counted |
+| `accepted` | The simulated user replied `ACCEPT` |
+| `checks` | `{ passed, total, failed: [names] }`; `{ passed: 0, total: null, failed: [], noGeometry: true }` when the final build has no geometry; `null` for a scenario without checks or a session that ended in error |
+| `stumbles` | `failedCalls` and `unbuiltTurns` as `read-log` counts them, and `corrections` |
+| `simUserCalls` | `{ ms, inputTokens, outputTokens }` per simulated-user call |
+| `rounds` | Builder model requests in the session |
+| `timedOut`, `error` | A turn hit the turn timeout; the message that ended the session, or `null` |
+
+`corrections` is `userTurns - 1`: every simulated-user message after the
+prompt is a critique, since an accepted turn ends the session. A session that
+never ran, such as one for a builder the probe rejected, has `skipped: true`.
+
+Compare two batches of the same scenario set:
+
+```bash
+npm run synth:compare -w @jscadui/agent-loop -- <batchA> <batchB>
+```
+
+Each id resolves under `<logs>/synthetic/`. One row per scenario and builder
+shows `a -> b` for the session count, check pass rate (the mean of each
+session's `passed / total`, a session without geometry counting 0), accepted
+sessions, and the mean user turns, rounds, failed calls, unbuilt turns and
+corrections. A row absent from one batch shows `-` on that side; skipped
+entries are ignored. `compareBatches(a, b)` in `synth/compare.js` returns the
+rows as `{ scenario, builder, a: stats | null, b: stats | null }`.
+
 ## Eval
 
 The eval replays each fixture in `eval/fixtures/` against a live model and

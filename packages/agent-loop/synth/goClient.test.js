@@ -47,4 +47,14 @@ describe('createGoClient', () => {
     const client = createGoClient({ apiKey: KEY, fetchImpl, session: 's' })
     await expect(client.complete({ model: 'm', messages: [] })).rejects.toThrow(/m.*200/)
   })
+
+  it('rejects a hung connection after timeoutMs, naming the model', async () => {
+    const fetchImpl = (url, init) =>
+      new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)))
+    const client = createGoClient({ apiKey: KEY, fetchImpl, session: 's', timeoutMs: 20 })
+    const err = await client.complete({ model: 'beam-free', messages: [] }).catch((e) => e)
+    expect(err).toBeInstanceOf(Error)
+    expect(err.message).toContain('beam-free')
+    expect(err.message).toContain('timeout')
+  })
 })

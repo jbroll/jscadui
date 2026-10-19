@@ -1,21 +1,32 @@
 import { GO_BASE_URL } from './roles.js'
 
-export function createGoClient({ apiKey, fetchImpl = fetch, session }) {
+export function createGoClient({ apiKey, fetchImpl = fetch, session, timeoutMs = 120000 }) {
+  async function post(model, body) {
+    const signal = AbortSignal.timeout(timeoutMs)
+    try {
+      const res = await fetchImpl(`${GO_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+          'x-opencode-session': session,
+        },
+        body: JSON.stringify(body),
+        signal,
+      })
+      return { res, raw: await res.text() }
+    } catch (e) {
+      if (signal.aborted) throw new Error(`${model}: timeout after ${timeoutMs} ms`)
+      throw e
+    }
+  }
+
   async function complete({ model, messages, temperature, maxTokens }) {
     const body = { model, messages }
     if (temperature !== undefined) body.temperature = temperature
     if (maxTokens !== undefined) body.max_tokens = maxTokens
     const started = Date.now()
-    const res = await fetchImpl(`${GO_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${apiKey}`,
-        'x-opencode-session': session,
-      },
-      body: JSON.stringify(body),
-    })
-    const raw = await res.text()
+    const { res, raw } = await post(model, body)
     let json
     try {
       json = JSON.parse(raw)

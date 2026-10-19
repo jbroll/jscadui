@@ -18,6 +18,7 @@
     "test": "vitest run",
     "api-index": "node api/build-index.js",
     "read-log": "node log/read-log.js",
+    "synth:compare": "node synth/compare.js",
     "eval": "node --import ./text-loader.js eval/run-eval.js",
     "eval:keyless": "node --import ./text-loader.js eval/keyless.js",
     "grader-validate": "node --import ./text-loader.js eval/grader-validate.js",
