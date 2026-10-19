@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Runs a batch of synthetic chat sessions through the real app on the CI host:
+# one lane per builder model, each lane driving its own launcher and Chromium.
+#
+#   sci push jscadui/synth
+#
+# Settings come from ci/synth.conf (SYNTH_BUILDERS, SYNTH_SCENARIOS, SYNTH_RUNS,
+# SYNTH_DEADLINE_S); edit it in the working tree before pushing, since sci push
+# runs the tree as-is, uncommitted changes included. The opencode-go key comes
+# from the CI host user's ~/.config/jscad-chat/keys.json; see ci/README.md.
+# Fetch the results with: npm run synth:fetch -w @jscadui/agent-loop -- JOB-ID
+set -euo pipefail
+
+WORKTREE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$WORKTREE"
+
+# shellcheck source=ci/lib/bootstrap.sh
+. "$WORKTREE/ci/lib/bootstrap.sh"
+export JSCAD_SKIP_DOCS=1
+bootstrap sources install deps grids workspace
+
+KEYS_FILE="$HOME/.config/jscad-chat/keys.json"
+if [ ! -f "$KEYS_FILE" ]; then
+  echo "ci/synth: no keys file at $KEYS_FILE; place it on the CI host (mode 600) and re-run" >&2
+  exit 1
+fi
+if ! node -e 'process.exit(require(process.argv[1])[process.argv[2]] ? 0 : 1)' "$KEYS_FILE" opencode-go 2>/dev/null; then
+  echo "ci/synth: no \"opencode-go\" key in $KEYS_FILE" >&2
+  exit 1
+fi
+
+# Lane i serves its launcher and model directory on SYNTH_PORT + 10*i and +1;
+# three lanes from 5170. A server already there would be driven in place of ours.
+for p in 5170 5171 5180 5181 5190 5191; do
+  if curl -s -o /dev/null "http://localhost:$p/"; then
+    echo "ci/synth: something already serves :$p (another copy of this job?)" >&2
+    exit 2
+  fi
+done
+
+# shellcheck source=ci/synth.conf
+. "$WORKTREE/ci/synth.conf"
+export SYNTH_BUILDERS SYNTH_SCENARIOS SYNTH_RUNS SYNTH_DEADLINE_S
+export SYNTH_OUT="$WORKTREE/synth-results"
+mkdir -p "$SYNTH_OUT"
+
+cd "$WORKTREE/apps/jscad-web"
+npx playwright install chromium
+
+cd "$WORKTREE"
+npm run synth -w @jscadui/jscad-web
+echo "ci/synth: results in $SYNTH_OUT"

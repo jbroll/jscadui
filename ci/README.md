@@ -192,6 +192,30 @@ Each executor holds up to 2G. `ci/eval` passes the lane count (models × APIs)
 as `EVAL_PROCESSES`, and each `run-eval` lowers its `EVAL_CONCURRENCY` so that
 lanes × concurrency × 2G fits in three quarters of the host's memory.
 
+## Synthetic sessions (`ci/synth`)
+
+`sci push jscadui/synth` runs a batch of synthetic chat sessions
+(`apps/jscad-web/synth/run-batch.mjs`, `npm run synth`) through the real app:
+one lane per builder model, each with its own launcher, Chromium and ports
+`5170 + 10*i` and `+1`. The job refuses to start when anything serves 5170,
+5171, 5180, 5181, 5190 or 5191. Lanes build their own bundle, so no separate
+web build runs.
+
+Settings are in `ci/synth.conf` (`SYNTH_BUILDERS`, `SYNTH_SCENARIOS`,
+`SYNTH_RUNS`, `SYNTH_DEADLINE_S`); `sci push` runs the working tree as-is, so
+edit the file before pushing and restore it afterwards. The `opencode-go` key
+comes from the CI host user's `~/.config/jscad-chat/keys.json`, as for
+`ci/eval`; the job fails before any model call when it is missing.
+
+The batch lands in the job's `synth-results/<batch>/`, with the batch id in
+`synth-results/latest`. Fetch it into the local chat log dir
+(`<log dir>/synthetic/<batch>/`) with:
+
+```bash
+npm run synth:fetch -w @jscadui/agent-loop -- JOB-ID
+npm run read-log -w @jscadui/agent-loop -- --batch <batch>
+```
+
 ## Complex eval (`ci/eval-complex`)
 
 `sci push jscadui/eval-complex` runs the complex fixtures
