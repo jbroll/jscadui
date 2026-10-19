@@ -1,5 +1,6 @@
 import { CommonToThree } from '@jscadui/format-threejs'
 
+import { depthRange } from './depthRange.js'
 import { createObjectCache } from './objectCache.js'
 
 export function RenderThreejs({
@@ -62,6 +63,7 @@ export function RenderThreejs({
     _camera.up.set(0, 0, 1)
     _camera.position.set(...cameraPosition)
     _camera.lookAt(...cameraTarget)
+    fitDepth(cameraPosition, cameraTarget)
 
     window.camera = _camera
     window.updateView = updateView
@@ -151,13 +153,24 @@ export function RenderThreejs({
   }
 
   function setCamera({ position, target }) {
-    if (position && position.every(v => Number.isFinite(v))) {
+    const validPosition = position?.every(v => Number.isFinite(v))
+    const validTarget = target?.every(v => Number.isFinite(v))
+    if (validPosition) {
       _camera.position.set(...position)
     }
-    if (target && target.every(v => Number.isFinite(v))) {
+    if (validTarget) {
       _camera.lookAt(...target)
     }
+    if (validPosition && validTarget) fitDepth(position, target)
     updateView()
+  }
+
+  function fitDepth(position, target) {
+    const range = depthRange(position, target)
+    if (!range) return
+    _camera.near = range.near
+    _camera.far = range.far
+    _camera.updateProjectionMatrix()
   }
 
   function getCamera() {
