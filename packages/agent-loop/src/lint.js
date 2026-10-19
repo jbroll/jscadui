@@ -5,6 +5,11 @@ import { suggestOptions } from './optionChecks.js'
 
 export const MAX_DIAGNOSTICS = 20
 
+// The first blocking diagnostic, if any: a `severity: 'error'` entry
+// (today only `Syntax error` from the parser). Callers use it as the
+// pre-write gate — a syntax error needs no worker round-trip.
+export const firstError = (diagnostics = []) => (Array.isArray(diagnostics) ? diagnostics.find((d) => d?.severity === 'error') : undefined)
+
 // Bare calls the model is expected to have without declaring them.
 const GLOBALS = new Set([
   'Array', 'BigInt', 'Boolean', 'Date', 'Error', 'Function', 'Infinity', 'JSON',

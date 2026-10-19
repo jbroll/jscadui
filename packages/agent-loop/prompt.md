@@ -12,6 +12,11 @@ The project builds from its entry file: the file `package.json` names in
 the report of its last build, which may show a failure from the user's own
 edits, or says the project is empty.
 
+Organize by part: one part per file (`bracket.js`, `plate.js` each export a
+maker such as `makeBracket`), shared math in `lib/*.js`, and `main.js` only
+requires the parts and assembles `main()`. Split when `main.js` grows past
+about 200 lines; never keep helpers only tests need inside `main.js`.
+
 ## Imports
 
 The runtime serves these packages. Import the package root only: a path

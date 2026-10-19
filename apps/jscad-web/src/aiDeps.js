@@ -1,4 +1,4 @@
-import { applyDelete, applyEdit, applyWrite, DEFAULT_API, deleteReport, isCodePath, lintSource, listFiles, PROJECT_BASE, readFile, reportError, RUN_FILE, runTimeoutError, summarizeTestRun, withUnits, writeReport } from '@jscadui/agent-loop'
+import { applyDelete, applyEdit, applyWrite, buildFiles, buildReport, DEFAULT_API, deleteReport, firstError, isCodePath, lintSource, listFiles, PROJECT_BASE, readFile, reportError, resolveEntry, RUN_FILE, runTimeoutError, summarizeTestRun, withUnits, writeReport } from '@jscadui/agent-loop'
 import { indexFor } from './projectBuild.js'
 import { sendScript } from './scriptRuns.js'
 import { defaultCreateWorker, runProjectTests } from './testWorker.js'
@@ -91,7 +91,30 @@ export const createProjectTools = ({
     await storeFile(projectId, path, content)
     written.add(projectId)
     showFile(path, content, files)
-    const report = mergeStatic(writeReport(path, await build()), await lint(content))
+    const diagnostics = await lint(content)
+    const blocked = path.endsWith('.js') ? firstError(diagnostics) : undefined
+    if (blocked) {
+      const entry = resolveEntry(buildFiles(files))
+      const gated = mergeStatic(
+        writeReport(
+          path,
+          buildReport({
+            entry,
+            error: { name: 'SyntaxError', message: blocked.message, file: path, line: blocked.line, column: blocked.column },
+            warnings: [],
+            console: [],
+            params: [],
+          }),
+        ),
+        diagnostics,
+      )
+      if (!isCodePath(path)) return gated
+      const createWorker = createTestWorker ?? defaultCreateWorker({})
+      const run = await runProjectTests(files, getApi(), createWorker ? { createWorker } : {})
+      const { tests, coverageNote } = summarizeTestRun(run, gated.geometry?.parts)
+      return { ...gated, ok: gated.ok && tests.ok, build: gated, tests, coverageNote }
+    }
+    const report = mergeStatic(writeReport(path, await build()), diagnostics)
     // Docs, notes and the test files themselves skip tests; every other `.js`
     // write runs the full `test/` suite after the build. The geometry builder
     // (main.js buildProject into the frame's jscadScript) executes the entry

@@ -16,11 +16,11 @@ import { createScadHandler } from '../src/scadHandler.js'
 import { shouldTransform } from '@jscadui/worker/src/shouldTransform.js'
 import { docsTool } from '../src/docs.js'
 import { skillTool } from '../src/skills.js'
-import { lintSource } from '../src/lint.js'
+import { lintSource, firstError } from '../src/lint.js'
 import { dispatchTool, toolError } from '../src/dispatchTool.js'
 import { reportError } from '../src/modelError.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
-import { asGeometry, assembleReport, noEntryReport, noGeometryError, noMainError, summarizeRun, writeReport } from '../src/buildReport.js'
+import { asGeometry, assembleReport, buildReport, noEntryReport, noGeometryError, noMainError, summarizeRun, writeReport } from '../src/buildReport.js'
 import { exportConfig, exportedSize } from '../src/exportFormat.js'
 import { applyDelete, applyEdit, applyWrite, buildFiles, deleteReport, isCodePath, isTestFile, listFiles, readFile, resolveEntry } from '../src/project.js'
 import { createReadFile, PROJECT_BASE, RUN_FILE } from '../src/projectUrl.js'
@@ -193,7 +193,7 @@ const modelError = (error, api) => reportError(error, { api, index: API_INDEX })
 // browser's testRun.js does, with the identical aggregated shape (console
 // included, empty when nothing logs). A throw in one file fails its own run,
 // never the loop.
-const runEvalTests = (testFiles, testApi) => {
+const runEvalTests = async (testFiles, testApi) => {
   const names = Object.keys(testFiles).filter((path) => isTestFile(path) && typeof testFiles[path] === 'string').sort()
   const capture = installConsoleCapture()
   // Bare `test`/`assert`/`assertPart` resolve as well as `require('test')`,
@@ -210,7 +210,7 @@ const runEvalTests = (testFiles, testApi) => {
     for (const file of names) {
       let result
       try {
-        result = runTestFile(testFiles[file], { filename: file, ...(testApi === undefined ? {} : { api: testApi }) })
+        result = await runTestFile(testFiles[file], { filename: file, files: testFiles, ...(testApi === undefined ? {} : { api: testApi }) })
       } catch (error) {
         failed += 1
         failures.push({ file, error: { name: error?.name ?? 'Error', message: String(error?.message ?? error), file } })
@@ -352,15 +352,31 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
 
   const saved = async (next) => {
     files = next.files
+    const content = next.files[next.path] ?? ''
+    const diagnostics = await lintSource(API_INDEX, typeof content === 'string' ? content : '', { api })
+    // Pre-write gate: a JS syntax error needs no worker round-trip. Reuse the
+    // build's own Babel message via locateSyntaxError so the report matches a
+    // built one; skip only the model run. Non-JS writes never gate.
+    const blocked = next.path.endsWith('.js') ? firstError(diagnostics) : undefined
+    if (blocked) {
+      const entry = resolveEntry(buildFiles(next.files))
+      const located = locateSyntaxError(next.files, entry ?? next.path, { name: 'SyntaxError', message: '' })
+      const gated = writeReport(
+        next.path,
+        buildReport({ entry, error: modelError(located, api), warnings: staticWarnings(diagnostics), console: [], params: [] }),
+      )
+      if (!isCodePath(next.path)) return gated
+      const { tests, coverageNote } = summarizeTestRun(await runEvalTests(files, api), gated.geometry?.parts)
+      return { ...gated, ok: gated.ok && tests.ok, build: gated, tests, coverageNote }
+    }
     const report = await build()
     if (!report) return toolError('ResetError', 'the run was reset before the build finished')
-    const diagnostics = await lintSource(API_INDEX, next.files[next.path] ?? '', { api })
     const merged = writeReport(next.path, mergeStatic(report, diagnostics))
     // The app's save answers the same shape: docs, notes and the test files
     // themselves skip tests, every other `.js` write runs the full suite.
     // A red build stays saved — the run still answers, with ok false.
     if (!isCodePath(next.path)) return merged
-    const { tests, coverageNote } = summarizeTestRun(runEvalTests(files, api), merged.geometry?.parts)
+    const { tests, coverageNote } = summarizeTestRun(await runEvalTests(files, api), merged.geometry?.parts)
     return { ...merged, ok: merged.ok && tests.ok, build: merged, tests, coverageNote }
   }
 

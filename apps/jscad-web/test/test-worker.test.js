@@ -61,8 +61,8 @@ describe('runProjectTests', () => {
     expect(r.passed).toBe(1)
   })
 
-  it('the worker entry answers test runs without geometry', () => {
-    const r = jscadRunTests({
+  it('the worker entry answers test runs without geometry', async () => {
+    const r = await jscadRunTests({
       files: {
         'main.js': `throw new Error('geometry must not run')`,
         'test/a.js': `test('x',()=>{})`,

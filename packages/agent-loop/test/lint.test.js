@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parser } from '@lezer/javascript'
 import index from '../api/index.json'
-import { hoverTarget, lintSource, lintTree } from '../src/lint.js'
+import { firstError, hoverTarget, lintSource, lintTree } from '../src/lint.js'
 
 const lint = (source, api = 'modeling') => lintTree(index, parser.parse(source), { api, text: source })
 
@@ -73,6 +73,13 @@ describe('unknown function names', () => {
 describe('syntax errors', () => {
   it('flags an incomplete statement', () => {
     expect(lint(`const x = `)).toContainEqual(expect.objectContaining({ severity: 'error', message: 'Syntax error' }))
+  })
+
+  it('firstError returns the first severity error', async () => {
+    const diagnostics = await lintSource(index, `const x = `)
+    expect(firstError(diagnostics)).toMatchObject({ severity: 'error' })
+    expect(firstError([])).toBe(undefined)
+    expect(firstError([{ severity: 'warning' }])).toBe(undefined)
   })
 })
 

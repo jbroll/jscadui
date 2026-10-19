@@ -10,7 +10,7 @@ import { runTestFiles } from './testRun.js'
  * @param {{files?: Record<string, string|ArrayBuffer>, api?: string}} [input]
  *   the project files and the api style the run was requested with
  */
-export const jscadRunTests = ({ files = {}, api } = {}) => runTestFiles(files, { api })
+export const jscadRunTests = async ({ files = {}, api } = {}) => runTestFiles(files, { api })
 
 // A classic worker script (built iife): wire the dispatcher to messages.
 // Guarded so Node (vitest) can import the handler without a worker global.

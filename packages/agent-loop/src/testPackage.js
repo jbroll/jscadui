@@ -76,9 +76,9 @@ const currentRun = (caller) => {
 }
 
 /**
- * Register and immediately run one test. A throw in `fn` (a failed assert or
+ * Register and run one test. A throw in `fn` (a failed assert or
  * any error) fails this test only; later tests still run. An async `fn`
- * fails: asserts resolve after the run and cannot be collected.
+ * is awaited: the run stays open until its promise settles.
  * @param {string} name the test name
  * @param {Function} fn the test body
  */
@@ -87,17 +87,27 @@ export const test = (name, fn) => {
   if (typeof fn !== 'function') throw assertionError(`test '${String(name)}' needs a function`)
   const record = { name: String(name), ok: true }
   run.tests.push(record)
+  let returned
   try {
-    const returned = fn()
-    if (returned && typeof returned.then === 'function') {
-      const error = new Error(`test '${record.name}' returned a promise; async tests are not supported here`)
-      error.name = 'AsyncTestError'
-      throw error
-    }
+    returned = fn()
   } catch (error) {
     record.ok = false
     record.error = mapError(error, run.filename, run.offset)
     run.failed += 1
+    return
+  }
+  if (returned && typeof returned.then === 'function') {
+    const task = Promise.resolve(returned).then(
+      () => {
+        run.passed += 1
+      },
+      (error) => {
+        record.ok = false
+        record.error = mapError(error, run.filename, run.offset)
+        run.failed += 1
+      },
+    )
+    run.pending.push(task)
     return
   }
   run.passed += 1
@@ -138,27 +148,93 @@ export const TEST_API = { test, assert, assertPart }
 
 /**
  * Run one CommonJS test file against the `require('test')` surface and
- * collect the result synchronously: per-test pass/fail plus passing-assert
+ * collect the result: per-test pass/fail plus passing-assert
  * counts per part index. Environment-free: no Worker, no DOM, no builtins
- * beyond `Function` and stack parsing.
+ * beyond `Function` and stack parsing. Async `test` bodies are awaited.
+ * `files` is the project file map: `require('./x')`, `require('../x')`
+ * and `require('/x')` resolve against it, jailed to the project; anything
+ * escaping the root fails the file. Bare specifiers still resolve from
+ * `api` extras, and `require('api')` serves the `api` option.
  * @param {string} source the test file source
  * @param {object} [api] extra `require` specifiers to values, plus the
- *   reserved `filename` naming the file in error reports (`test` always
- *   serves the built-in surface and cannot be overridden)
- * @returns {{passed:number, failed:number, assertsByPart:Record<number,number>,
- *   tests:Array<{name:string, ok:boolean, error?:object}>, errors:Array<object>}}
+ *   reserved `filename` naming the file in error reports, `files` carrying
+ *   the project map, and `api` exposed as `require('api')`
+ *   (`test` always serves the built-in surface and cannot be overridden)
+ * @returns {Promise<{passed:number, failed:number, assertsByPart:Record<number,number>,
+ *   tests:Array<{name:string, ok:boolean, error?:object}>, errors:Array<object>}>}
  */
-export const runTestFile = (source, api = {}) => {
-  const { filename = DEFAULT_FILENAME, ...modules } = api ?? {}
+export const runTestFile = async (source, api = {}) => {
+  const { filename = DEFAULT_FILENAME, files = {}, ...modules } = api ?? {}
   if (lineOffset === null) lineOffset = probeOffset()
-  const run = { filename, offset: lineOffset, passed: 0, failed: 0, assertsByPart: {}, tests: [], errors: [] }
-  const require = (name) => {
+  const run = { filename, offset: lineOffset, passed: 0, failed: 0, assertsByPart: {}, tests: [], errors: [], pending: [] }
+  const cache = new Map()
+  const loading = new Set()
+  const normalize = (parts) => {
+    const out = []
+    for (const part of parts) {
+      if (part === '' || part === '.') continue
+      if (part === '..') {
+        if (out.length === 0) {
+          const error = new Error(`cannot find module outside the project`)
+          error.name = 'PathError'
+          throw error
+        }
+        out.pop()
+        continue
+      }
+      out.push(part)
+    }
+    return out.join('/')
+  }
+  const resolveProject = (spec, from) => {
+    if (typeof spec !== 'string') return null
+    if (spec.startsWith('/')) return normalize(spec.slice(1).split('/'))
+    if (spec.startsWith('./') || spec.startsWith('../')) {
+      const dir = String(from).split('/').slice(0, -1)
+      return normalize([...dir, ...spec.split('/')])
+    }
+    return null
+  }
+  const loadModule = (path) => {
+    if (cache.has(path)) return cache.get(path)
+    const text = files[path]
+    if (typeof text !== 'string') {
+      const error = new Error(`cannot find module '${path}'`)
+      error.name = 'ModuleNotFoundError'
+      throw error
+    }
+    if (loading.has(path)) return cache.get(path) ?? {}
+    loading.add(path)
+    const module = { exports: {} }
+    cache.set(path, module.exports)
+    try {
+      const compiled = new Function('require', 'module', 'exports', `${text}\n//# sourceURL=${path}`)
+      compiled(makeRequire(path), module, module.exports)
+    } finally {
+      loading.delete(path)
+    }
+    cache.set(path, module.exports)
+    return module.exports
+  }
+  const makeRequire = (from) => (name) => {
     if (name === TEST_MODULE) return TEST_API
     if (Object.prototype.hasOwnProperty.call(modules, name)) return modules[name]
+    if (name === 'api' && modules.api !== undefined) return modules.api
+    const resolved = resolveProject(name, from)
+    if (resolved === null) {
+      const error = new Error(`cannot find module '${String(name)}'`)
+      error.name = 'ModuleNotFoundError'
+      throw error
+    }
+    const candidates = [resolved, `${resolved}.js`, `${resolved}/index.js`]
+    for (const candidate of candidates) {
+      if (typeof files[candidate] === 'string') return loadModule(candidate)
+    }
     const error = new Error(`cannot find module '${String(name)}'`)
     error.name = 'ModuleNotFoundError'
     throw error
   }
+  const require = makeRequire(filename)
   let compiled
   try {
     compiled = new Function('require', 'module', 'exports', `${source}\n//# sourceURL=${filename}`)
@@ -178,6 +254,9 @@ export const runTestFile = (source, api = {}) => {
   } catch (error) {
     run.errors.push(mapError(error, filename, run.offset))
     run.failed += 1
+  }
+  try {
+    if (run.pending.length) await Promise.all(run.pending)
   } finally {
     runStack.pop()
   }

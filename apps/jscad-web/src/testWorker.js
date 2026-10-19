@@ -28,7 +28,7 @@ const timeoutResult = (timeoutMs) => ({
 // to: run on this thread. This branch is chosen explicitly for environments
 // without a browser Worker (Node, vitest, eval) — never silently in the
 // browser, where a synchronous hang would block the viewer.
-const runLocal = (files, api) => Promise.resolve(runTestFiles(files, { api }))
+const runLocal = (files, api) => runTestFiles(files, { api })
 
 // A real browser Worker exists only where both exist: Node's worker_threads
 // provide Worker but no page location to resolve the bundle URL from.
