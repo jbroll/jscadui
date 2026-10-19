@@ -1,5 +1,6 @@
 import { SUMMARY_PREFIX } from './summarize.js'
 import { notesIndex } from './notes.js'
+import { specSection } from './modelSpec.js'
 
 export const CONTEXT_BUDGET = 24_000
 
@@ -95,13 +96,18 @@ const buildSection = (build) => {
 // Sent every turn, so the model knows the project's state without a `glob`.
 // `build` is the project's last build report (src/buildReport.js), or null.
 export const projectMessage = (files = {}, build = null, mentioned = [], budget = PROJECT_BUDGET) => {
-  const listed = filesSection(files, mentioned, budget)
+  // The spec reserves its budget first: under pressure the full spec survives
+  // and code files trim, so durable instructions ride every turn even on
+  // large projects.
+  const spec = specSection(files)
+  const listed = filesSection(files, mentioned, Math.max(0, budget - (spec?.length ?? 0)))
   const notes = notesIndex(files)
   if (!listed && !notes && !build && Object.keys(files).length === 0) return { role: 'user', content: EMPTY_PROJECT }
   const onlyNotes = Object.keys(files).length > 0 && Object.keys(files).every((path) => path.startsWith('notes/'))
   const sections = [
     listed ?? (onlyNotes ? null : (Object.keys(files).length > 0 ? 'The project has no text files; glob shows every file.' : 'The project has no files.')),
     ...(notes ? [notes] : []),
+    ...(spec ? [spec] : []),
     build ? buildSection(build) : 'The project has not been built yet.',
     PROJECT_NOTE,
   ].filter((section) => section !== null)
