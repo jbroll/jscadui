@@ -40,4 +40,4 @@ done
 
 cd "$APP"
 npx playwright install chromium
-npx playwright test e2e/app.spec.js e2e/ai-chat.spec.js e2e/frame.spec.js e2e/export.spec.js e2e/multi-model.spec.js
+npx playwright test e2e/app.spec.js e2e/ai-chat.spec.js e2e/frame.spec.js e2e/export.spec.js e2e/multi-model.spec.js e2e/harness-hook.spec.js

@@ -1291,6 +1291,16 @@ turn only when the request carries the chat id header, which the client
 omits when the user opts out, always writes a free turn, and prunes files
 older than `CHAT_LOG_RETAIN_DAYS` (90 by default, `server/RELAY.md`).
 
+### Harness hook
+
+The browser session generator drives the real app in headless chromium and
+calls the chat's own handlers. `src/harnessHook.js` sets
+`globalThis.jscadHarness = { view, measure, check, buildReport }` when
+`localStorage['jscad-harness']` is `'1'`. `view`, `measure` and `check` are the
+handlers in `aiDeps`, so they return what the chat's tools return;
+`buildReport()` returns the last build's report. Without the flag nothing is
+installed.
+
 ## Free jscad-web models
 
 A visitor can try the chat before signing up or adding a key. The gear dialog

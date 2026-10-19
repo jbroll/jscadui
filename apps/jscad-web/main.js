@@ -47,6 +47,7 @@ import { showPartsBrowser, partsBrowserStyles } from './src/partsBrowser.js'
 import { updatePipelineStats, countGeometry, createProgressHandler } from './src/stats.js'
 import { capGeometry, DEFAULT_CAPS } from './src/caps.js'
 import { createProjectTools } from './src/aiDeps.js'
+import { installHarnessHook } from './src/harnessHook.js'
 import { createViewHandler } from './src/aiView.js'
 import { renderViews } from './src/aiViewRender.js'
 import { createProjectBuilds, projectEntry } from './src/projectBuild.js'
@@ -1107,6 +1108,15 @@ const aiDeps = {
   }),
   webfetch: createWebFetchHandler({}),
 }
+
+installHarnessHook({
+  storage: globalThis.localStorage,
+  target: globalThis,
+  view: aiDeps.view,
+  measure: chatTools.measure,
+  check: chatTools.check,
+  buildReport: () => projectBuilds.report(),
+})
 
 // Both drawer headers mount the same sign-in control and sign out together.
 const accountDeps = {
