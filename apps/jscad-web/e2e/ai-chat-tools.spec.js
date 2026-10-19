@@ -556,6 +556,36 @@ test.describe('AI chat tools', () => {
     await expect(page.locator('.chat-tool-name')).toHaveText('view')
   })
 
+  // The model spec is a project file the agent maintains: written with the
+  // normal file tools in one turn, inlined whole in the project message of
+  // every later turn, and absent before it exists.
+  test('model spec written in one turn rides the next turn', async ({ page }) => {
+    test.setTimeout(60_000)
+    stub = await startStubRelay([
+      { name: 'write', args: { path: 'notes/model-spec.md', content: '## Intent\n\nSPEC-MARKER-123 a bracket.\n' } },
+      { text: 'Saved.' },
+      { text: 'Still noted.' },
+    ])
+    await openChatWithKey(page, stub)
+
+    await page.locator('.chat-input').fill('remember this')
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('Saved.', { timeout: 30_000 })
+    await expect(page.locator('.chat-tool-mark').first()).toHaveText('ok')
+
+    // The first turn predates the spec: no Model spec heading rode it.
+    expect(JSON.stringify(stub.requests[0].messages)).not.toContain('Model spec:')
+
+    await page.locator('.chat-input').fill('again')
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('Still noted.', { timeout: 30_000 })
+
+    // The second turn carries the written spec whole in its project message.
+    const second = stub.requests.at(-1)
+    expect(JSON.stringify(second.messages)).toContain('Model spec:')
+    expect(JSON.stringify(second.messages)).toContain('SPEC-MARKER-123')
+  })
+
   // The `question` tool is served by the chat card itself: the turn pauses, the
   // card renders in the transcript, and the chosen answer returns to the loop.
   // A string result rides through verbatim (like a `docs` result), so the model
