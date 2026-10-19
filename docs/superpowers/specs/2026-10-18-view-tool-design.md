@@ -53,8 +53,9 @@ Success: a model can call `view`, receive images, and use them in a later step.
   Responses `input_image`, chat completions images in a `user` message after the `tool`
   message (backlog wording).
 - Offer `view` only to models known to read images: `vision: true` in `eval/models.json`,
-  or in the app the provider's model metadata, else a `VISION_MODELS` table beside
-  `RESPONSES_MODELS` (`packages/agent-loop/src/providers.js:20`).
+  or in the app the provider's model metadata (`capabilities.vision` from the model
+  list — the relay free catalog serves it per model). No hardcoded table: a static
+  list lags every catalog rotation, so the dropdown's own data decides.
 - Render from the mesh via one shared module with the complex grader's views
   (`packages/agent-loop/eval/views.js`, `eval/render/page.html`), not the live canvas.
 - Tool error shape stays `{ok: false, error: {name, message}}` like the other tools.

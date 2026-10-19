@@ -1121,8 +1121,9 @@ data URL reaches the DOM, and the loop drops the oldest images when one call's
 renders would push the relay past its 1MB body limit. The tool is offered to a
 vision-capable model alone — the provider's own model metadata
 (`capabilities.vision`, carried on the selection from the account dialog's
-model list), else `VISION_MODELS`, or `vision: true` in `eval/models.json` for
-the eval. A part-name look-at resolves through the build's auto-attached anchors
+model list, which the relay free catalog serves per model), or `vision: true`
+in `eval/models.json` for the eval. No hardcoded table: a static list lags
+every catalog rotation, so the dropdown's own data is the only source. A part-name look-at resolves through the build's auto-attached anchors
 (a dotted param path to its anchor frame origin via `measure({anchors: true})`;
 jscad-engine builds only): an unknown or ambiguous name fails the call with
 `PartNotFoundError`/`AmbiguousPartError` rather than guessed. A point look-at and every preset still resolve, and one bad aim fails the whole

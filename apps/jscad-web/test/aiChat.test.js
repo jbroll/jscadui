@@ -1313,7 +1313,7 @@ describe('view tool', () => {
   it('tells the loop a vision model reads images, and withholds it otherwise', async () => {
     const vision = vi.fn(async () => ({ messages: [] }))
     const text = vi.fn(async () => ({ messages: [] }))
-    const { type } = openChat({ runTurnFn: vision, getProvider: () => ({ kind: 'openai', model: 'gpt-4o', apiKey: 'k', baseUrl: 'https://relay.test' }) })
+    const { type } = openChat({ runTurnFn: vision, getProvider: () => ({ kind: 'openai', model: 'gpt-4o', apiKey: 'k', baseUrl: 'https://relay.test', capabilities: { vision: true } }) })
     type('hi')
     await vi.waitFor(() => expect(vision).toHaveBeenCalledTimes(1))
     expect(vision.mock.calls[0][0].vision).toBe(true)
@@ -1326,14 +1326,10 @@ describe('view tool', () => {
 })
 
 describe('visionCapable', () => {
-  it('reads the known-vision table first', () => {
-    expect(visionCapable({ model: 'gpt-4o' })).toBe(true)
-    expect(visionCapable({ model: 'deepseek-v4.1-flash' })).toBe(false)
-  })
-
-  it('falls back to the provider capability metadata, and is false without it', () => {
-    expect(visionCapable({ model: 'some-model', capabilities: { vision: true } })).toBe(true)
-    expect(visionCapable({ model: 'some-model', capabilities: { vision: false } })).toBe(false)
+  it('reads only the provider capability metadata, never a hardcoded table', () => {
+    expect(visionCapable({ model: 'any-model', capabilities: { vision: true } })).toBe(true)
+    expect(visionCapable({ model: 'gpt-4o', capabilities: { vision: false } })).toBe(false)
+    expect(visionCapable({ model: 'gpt-4o' })).toBe(false)
     expect(visionCapable({ model: 'some-model' })).toBe(false)
     expect(visionCapable(null)).toBe(false)
   })

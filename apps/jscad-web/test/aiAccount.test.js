@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createProvider } from '@jscadui/agent-loop'
-import { VISION_MODELS } from '@jscadui/agent-loop/src/providers.js'
 import { TOS_VERSION } from '../src/aiConsent.js'
 import { relayBaseUrl, visionCapable } from '../src/aiChat.js'
 
@@ -132,9 +131,8 @@ describe('account header', () => {
     document.querySelector('.ai-gear').click()
     await vi.waitFor(() => expect(document.querySelector('.ai-model-select').options.length).toBe(1))
 
-    // The id is in no vision table: only the provider's own metadata says so,
-    // and it must reach the chat's gate through the provider config.
-    expect(VISION_MODELS.has('muse-vision-x')).toBe(false)
+    // Only the provider's own metadata says so, and it must reach the chat's
+    // gate through the provider config.
     expect(getProviderConfig().capabilities).toEqual({ vision: true })
     expect(visionCapable(getProviderConfig())).toBe(true)
   })

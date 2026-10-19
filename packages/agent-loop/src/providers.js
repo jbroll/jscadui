@@ -26,17 +26,13 @@ export const MESSAGES_MODELS = new Set(['minimax-m3', 'minimax-m2.7', 'minimax-m
 // the selection, the eval reads `vision` in eval/models.json), so metadata can
 // add the tool but never silently take it away from a known-vision model. A
 // text-only model here would get images it cannot read.
-export const VISION_MODELS = new Set([
-  'grok-4.6',
-  'gpt-5.6-luna',
-  'claude-sonnet-4-5',
-  'gpt-4o',
-  'muse-spark-1.3',
-  'muse-spark-1.3-contributor',
-  'muse-spark-1.2-contributor',
-  'qwen3.8-max',
-  'qwen3.8-flash',
-])
+// Whether the selected model reads images is answered only by the provider's
+// own metadata: `capabilities.vision` on the selection, filled from the model
+// list the account dialog loaded (the relay free catalog serves it per model;
+// keyed providers expose whatever their list endpoint reports). There is
+// deliberately no hardcoded table — a static list lags every catalog rotation,
+// denying vision to models that have it, so the dropdown's own data decides.
+// A model whose provider is silent on capabilities is not offered `view`.
 
 // Provider error bodies that mean "try again", across Anthropic/OpenAI/relay
 // shapes (`error.type` or `error.code`).

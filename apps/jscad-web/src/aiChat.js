@@ -3,7 +3,6 @@
 // through requestTool, and renders streamed text. Provider HTTP targets the
 // relay, which proxies path-preserving to the provider and stores nothing.
 import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, effectiveHistoryBudget, partitionTranscript, runTurn as defaultRunTurn, SUMMARY_PREFIX, summarizeTranscript, summarizeWithProvider, toolDetail, turnsOf } from '@jscadui/agent-loop'
-import { VISION_MODELS } from '@jscadui/agent-loop/src/providers.js'
 import { checkTurn, FREE_NOTICE_MESSAGE, getRecordOwnChats, isFreeSelection, openConsentGate, TOS_REQUIRED_MESSAGE } from './aiConsent.js'
 
 /* global __RELAY_ORIGIN__ */
@@ -26,14 +25,15 @@ export const relayBaseUrl = (selection) => {
 // The free option catalog the relay serves beside the per-id turn routes.
 export const inferenceListUrl = () => `${relayRoot()}/api/relay/jscad-web/v1/models`
 
-// Whether the selected model reads images, so the loop may offer it `view`. The
-// known-vision table answers first; a model it does not know is offered the tool
-// only when the provider's own metadata says so — `capabilities.vision`, put on
-// the selection by `getProviderConfig` (src/aiAccount.js) from the model list the
-// account dialog loaded. Strictly boolean: anything else leaves the image tool
-// off, so a text-only model is never handed pixels it cannot read.
+// Whether the selected model reads images, so the loop may offer it `view`.
+// Answered only by the provider's own metadata — `capabilities.vision`, put on
+// the selection by `getProviderConfig` (src/aiAccount.js) from the model list
+// the account dialog loaded. Strictly boolean: anything else leaves the image
+// tool off, so a text-only model is never handed pixels it cannot read. There
+// is no table of known-vision models: a static list lags every catalog
+// rotation, so the dropdown's own data is the only source.
 export const visionCapable = (selection) =>
-  selection != null && (VISION_MODELS.has(selection.model) || selection.capabilities?.vision === true)
+  selection != null && selection.capabilities?.vision === true
 
 // The loop needs a `view` result whole: its renders ride beside the text as
 // image parts, which only an object survives. Every other result travels as
