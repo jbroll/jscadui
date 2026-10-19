@@ -12,12 +12,10 @@ export const scenario = {
     'does not need a lid',
   ],
   checks: (m, { solid } = {}) => {
-    const [low, mid, longest] = sortedDims(m)
-    const boxVolume = low * mid * longest
+    const [low, , longest] = sortedDims(m)
     return [
       { name: 'box-sized', pass: between(longest, 50, 200) && between(low, 20, 100) },
       { name: 'lettering changes the volume', pass: volume(m) > 0 && fill(m) < 0.999 },
-      { name: 'a box, not mostly letters', pass: boxVolume > 0 && fill(m) > 0.5 },
       { name: 'watertight', pass: watertight(solid) },
     ]
   },

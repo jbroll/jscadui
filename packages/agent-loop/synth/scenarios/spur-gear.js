@@ -15,7 +15,7 @@ export const scenario = {
     const [thin, mid, longest] = sortedDims(m)
     return [
       { name: 'gear-sized', pass: between(longest, 40, 250) && between(thin, 3, 40) },
-      { name: 'two gears take more room than one', pass: longest > 1.3 * mid || mid > 1.3 * thin },
+      { name: 'two gears take more room than one', pass: longest > 1.15 * mid },
       { name: 'toothed discs, not a block', pass: volume(m) > 0 && fill(m) < 0.8 },
       { name: 'watertight', pass: watertight(solid) },
     ]

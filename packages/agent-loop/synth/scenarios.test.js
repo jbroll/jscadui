@@ -1,3 +1,4 @@
+import vm from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import { loadScenarios } from './scenarios/index.js'
 
@@ -58,5 +59,10 @@ describe('starting scenario set', () => {
     const js = Object.entries(s.files ?? {}).filter(([name]) => name.endsWith('.js'))
     expect(js.length).toBeGreaterThan(0)
     expect(js[0][1].length).toBeGreaterThan(1000)
+  })
+
+  it('the seeded Jeep source parses', () => {
+    const s = scenarios.find((x) => x.name === 'jeep-inspect-fix')
+    expect(() => new vm.Script(s.files['main.js'])).not.toThrow()
   })
 })
