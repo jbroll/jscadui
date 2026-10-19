@@ -92,6 +92,28 @@ test('measureAnchors lists each item explicit world frames, null for an array it
   expect(measureAnchors(cube(0), 'geom3')).toEqual([{ part: '0', anchors: {} }])
 })
 
+// Centred rather than translated: frames read only off geometry whose polygons
+// are the basis they were stamped on.
+const namedCube = (x, name) => withFrames(cuboid({ size: [5, 5, 5], center: [x, 0, 0] }), { [name]: { origin: [x, 0, 0], z: [0, 0, 1] } })
+const namedScene = () => [namedCube(0, 'front.left'), namedCube(10, 'rear.left'), namedCube(20, 'body')]
+
+test('measure selects a part by the anchor name measureAnchors reports', () => {
+  const m = measure(namedScene(), { parts: ['front.left', 'body'], between: ['rear.left', 'body'] })
+  expect(m.parts.map((p) => [p.part, p.center[0]])).toEqual([
+    ['front.left', 0],
+    ['body', 20],
+  ])
+  expect(m.between.gap[0]).toBeCloseTo(5, 6)
+})
+
+test('measure refuses an unknown or ambiguous part name, listing the forms it takes', () => {
+  expect(() => measure(namedScene(), { parts: ['wheel'] })).toThrow(
+    /part "wheel".*"0" to "2".*"1-3".*front\.left, rear\.left, body/,
+  )
+  expect(() => measure(namedScene(), { parts: ['left'] })).toThrow(/"left" matches 2 part names \(front\.left, rear\.left\)/)
+  expect(() => measure([cube(0)], { parts: ['wheel'] })).toThrow(/carry no part names/)
+})
+
 test('measureAnchors prefixes a non-geometry item error with its part index', () => {
   expect(() => measureAnchors([cube(0), {}], 'array')).toThrow(
     'part 1: geometry must be geom2 or geom3',
@@ -134,7 +156,7 @@ test('measure rejects a parts value that is not a selector, a range, or an array
 
 test('measure rejects a non-numeric part selector with a clear error', () => {
   expect(() => measure(cube(0), { parts: 'base' })).toThrow(
-    'part "base" must be an index like "0" or a range like "1-3" — parts are indexes into the array main() returns',
+    'part "base" is not a part of this model; name an index "0" into the array main() returns, a range like "1-3", or a part name; this model\'s parts carry no part names',
   )
 })
 

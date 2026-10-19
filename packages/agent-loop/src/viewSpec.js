@@ -20,6 +20,9 @@ export const MAX_VIEW_SIZE = 768
 // The aim keys a spec may carry; exactly one of them names the camera.
 const AIM_FORMS = ['preset', 'lookAt', 'position']
 
+// The part references measure and check report, which a lookAt also takes.
+const PART_FORMS = 'to aim at a part, give its index (57), an index range ("51-54") or its part name (front.left)'
+
 const named = (name, message) => Object.assign(new Error(message), { name })
 
 // The default call: one iso-front auto-fit of the whole model, never the live
@@ -49,11 +52,13 @@ const normalizeSpec = (input, index) => {
     return { kind: 'preset', preset: input.preset }
   }
   if (forms[0] === 'lookAt') {
+    if (Number.isInteger(input.lookAt) && input.lookAt >= 0) return { kind: 'lookAtPart', part: String(input.lookAt) }
     if (typeof input.lookAt === 'string') {
       const part = input.lookAt.trim()
-      if (part === '') throw named('ArgumentsError', `${at} lookAt part name is empty; name a part such as front.left`)
+      if (part === '') throw named('ArgumentsError', `${at} lookAt part is empty; ${PART_FORMS}`)
       return { kind: 'lookAtPart', part }
     }
+    if (!Array.isArray(input.lookAt)) throw named('ArgumentsError', `${at} lookAt must be three finite numbers [x, y, z]; ${PART_FORMS}`)
     return { kind: 'lookAt', point: triple(input.lookAt, `${at} lookAt`) }
   }
   const position = triple(input.position, `${at} position`)
@@ -88,7 +93,7 @@ const normalizeSize = (size) => {
  * A camera spec as the renderer receives it.
  * @typedef {{kind: 'preset', preset: string}
  *   | {kind: 'lookAt', point: [number, number, number]}
- *   | {kind: 'lookAtPart', part: string}
+ *   | {kind: 'lookAtPart', part: string} // an index, an index range or a part name
  *   | {kind: 'position', position: [number, number, number], offset: [number, number, number]}} ViewSpec
  */
 
@@ -98,7 +103,7 @@ const normalizeSize = (size) => {
  * Accepts the default call (undefined or `{}`), one bare camera spec
  * (`{preset: 'top'}`), or the full shape `{views: [spec...], size: {w, h}}`.
  * An omitted or empty `views` means one iso-front auto-fit; a spec names
- * exactly one aim, as a preset, a lookAt point or part name, or a position
+ * exactly one aim, as a preset, a lookAt point or part reference, or a position
  * with an optional world offset.
  * @param {unknown} input the tool arguments as received
  * @returns {{views: Array<ViewSpec>, size: {w: number, h: number}}}
@@ -123,15 +128,17 @@ export const normalizeViewRequest = (input) => {
 
 const CAMERA_SPEC_SCHEMA = {
   type: 'object',
-  description: 'One camera aim: a preset, a lookAt point or part name, or a position with an offset. Name exactly one of preset, lookAt or position.',
+  description: 'One camera aim: a preset, a lookAt point or part, or a position with an offset. Name exactly one of preset, lookAt or position.',
   properties: {
     preset: { type: 'string', enum: [...VIEW_PRESETS], description: 'A named view direction, auto-fit to the whole model' },
     lookAt: {
       anyOf: [
         { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 },
+        { type: 'integer' },
         { type: 'string' },
       ],
-      description: "The [x, y, z] point to aim at, or a part name such as front.left, resolved to that part's center",
+      description:
+        'The [x, y, z] point to aim at, or a part as measure and check report it: an index (57 or "57") or index range ("51-54") into the array main() returns, aimed at its bounding-box center, or a part name such as front.left, aimed at its anchor origin',
     },
     position: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3, description: 'The [x, y, z] camera position' },
     offset: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3, description: 'A [x, y, z] world offset added to the position for this render' },

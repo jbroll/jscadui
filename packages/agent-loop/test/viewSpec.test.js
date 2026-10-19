@@ -53,6 +53,13 @@ describe('normalizeViewRequest', () => {
     ])
   })
 
+  it('reads a whole-number lookAt as the part index check reports', () => {
+    expect(normalizeViewRequest({ lookAt: 57 }).views).toEqual([{ kind: 'lookAtPart', part: '57' }])
+    expect(normalizeViewRequest({ lookAt: ' 51-54 ' }).views).toEqual([{ kind: 'lookAtPart', part: '51-54' }])
+    expect(thrown(() => normalizeViewRequest({ lookAt: 1.5 }))?.name).toBe('ArgumentsError')
+    expect(thrown(() => normalizeViewRequest({ lookAt: -1 }))?.name).toBe('ArgumentsError')
+  })
+
   it('defaults a missing offset to zero and copies the triples it returns', () => {
     const point = [1, 2, 3]
     const position = [4, 5, 6]
@@ -128,9 +135,10 @@ describe('viewInputSchema', () => {
     expect(viewInputSchema.additionalProperties).toBe(false)
   })
 
-  it('describes a lookAt as either a point or a part name', () => {
+  it('describes a lookAt as a point, a part index, or a part selector string', () => {
     expect(viewInputSchema.properties.views.items.properties.lookAt.anyOf).toEqual([
       expect.objectContaining({ type: 'array', minItems: 3, maxItems: 3 }),
+      expect.objectContaining({ type: 'integer' }),
       expect.objectContaining({ type: 'string' }),
     ])
   })

@@ -1132,10 +1132,15 @@ model list, which the relay free catalog serves per model), a manual per-model
 override for providers whose lists carry no capability fields, or the cached
 models.dev prune; `vision: true` in `eval/models.json` covers the eval. No
 hardcoded table: a static list lags every catalog rotation, so live data and
-the user's own override decide. A part-name look-at resolves through the build's auto-attached anchors
-(a dotted param path to its anchor frame origin via `measure({anchors: true})`;
-jscad-engine builds only): an unknown or ambiguous name fails the call with
-`PartNotFoundError`/`AmbiguousPartError` rather than guessed. A point look-at and every preset still resolve, and one bad aim fails the whole
+the user's own override decide. A part look-at takes the part references
+`measure` and `check` report: an index (`57` or `"57"`) or index range
+(`"51-54"`) aims at that selection's bounding-box center (`measure({parts})`),
+and a name resolves through the build's auto-attached anchors (a dotted param
+path to its anchor frame origin via `measure({anchors: true})`; jscad-engine
+builds only), matched by model-tools' `src/partRefs.js` rule as `measure`'s
+`parts` matches it. An out-of-range index or unknown name fails the call with
+`PartNotFoundError` listing the index range and names the build has, and an
+ambiguous name with `AmbiguousPartError`, rather than guessed. A point look-at and every preset still resolve, and one bad aim fails the whole
 call before anything renders.
 
 `export` answers `{ ok, format, size }` (`src/aiExport.js`): the model learns

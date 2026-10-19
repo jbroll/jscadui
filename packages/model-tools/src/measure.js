@@ -2,6 +2,7 @@ import { anchors } from './anchors.js'
 import { measureArray, wrapOne } from './array-geom.js'
 import { axisRelation, symmetryAxis } from './axis.js'
 import { INSIDE_OUT_NOTE, isInsideOut } from './check.js'
+import { isIndexSelector, matchPartName, partRefForms } from './partRefs.js'
 import { sectionOutline } from './section.js'
 
 export const measureGeom = (geom, geomType) => {
@@ -34,14 +35,7 @@ const classify = (g) => {
 // Index the array as the model returns it, the same items `check` numbers.
 const itemsOf = (geom, geomType) => (geomType === 'array' ? geom : [geom])
 
-const SELECTOR_FORMAT = /^\d+(-\d+)?$/
-
-export const selectorRange = (selector, length) => {
-  if (typeof selector !== 'string' || !SELECTOR_FORMAT.test(selector)) {
-    throw new Error(
-      `part ${JSON.stringify(selector)} must be an index like "0" or a range like "1-3" — parts are indexes into the array main() returns`,
-    )
-  }
+const selectorRange = (selector, length) => {
   const [from, to = from] = selector.split('-').map(Number)
   if (to >= length) {
     const count = `${length} item${length === 1 ? '' : 's'}`
@@ -50,9 +44,37 @@ export const selectorRange = (selector, length) => {
   return [from, to]
 }
 
-const selectItems = (items, selector) => {
+// The anchor names each item carries. A nested array, a non-geometry item or
+// unreadable frames carry none, so one bad item cannot fail a name lookup.
+const namesOf = (item) => {
+  if (Array.isArray(item) || classify(item) === 'unknown') return []
+  try {
+    return Object.keys(anchors(item))
+  } catch {
+    return []
+  }
+}
+
+const itemsNamed = (items, selector) => {
+  const names = items.map(namesOf)
+  const matches = matchPartName(selector, names.flat())
+  if (matches.length > 1) {
+    throw new Error(`part ${JSON.stringify(selector)} matches ${matches.length} part names (${matches.join(', ')}); name the full dotted path`)
+  }
+  if (matches.length === 0) {
+    throw new Error(`part ${JSON.stringify(selector)} is not a part of this model; name ${partRefForms(items.length, names.flat())}`)
+  }
+  return items.filter((_, i) => names[i].includes(matches[0]))
+}
+
+const selectedItems = (items, selector) => {
+  if (!isIndexSelector(selector)) return itemsNamed(items, selector)
   const [from, to] = selectorRange(selector, items.length)
-  const picked = items.slice(from, to + 1).flat(Infinity)
+  return items.slice(from, to + 1)
+}
+
+const selectItems = (items, selector) => {
+  const picked = selectedItems(items, selector).flat(Infinity)
   const bad = picked.find((g) => classify(g) === 'unknown')
   if (bad !== undefined)
     throw new Error(`part ${selector} includes an item that is not a geom2 or geom3`)
@@ -148,7 +170,7 @@ export const measureOverlaps = (geom, geomType) => {
 }
 
 const PARTS_ERROR =
-  'parts must be "all" or a selector like "0" or "1-3" (indexes into the array main() returns), an array of them, or a JSON array string'
+  'parts must be "all" or a selector like "0" or "1-3" (indexes into the array main() returns) or a part name such as front.left, an array of them, or a JSON array string'
 const BETWEEN_ERROR = 'between needs exactly two part selectors like "0" or "1-3", e.g. ["0", "1"]'
 
 const asSelector = (s) => (Number.isInteger(s) && s >= 0 ? String(s) : s)

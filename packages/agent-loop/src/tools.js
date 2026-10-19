@@ -17,7 +17,7 @@ const BUILDS =
 const VIEW_TOOL = {
   name: 'view',
   description:
-    "Render the current model and look at it: ask for one to four views (each a preset, a lookAt point or part name, or a position with an offset) and get back an image per view with the camera finally used. The render is off-screen for this call only, so the user's own view never moves. Images are resent in later rounds, so ask for the fewest views that answer the question.",
+    "Render the current model and look at it: ask for one to four views (each a preset, a lookAt point or part, or a position with an offset) and get back an image per view with the camera finally used. The render is off-screen for this call only, so the user's own view never moves. Images are resent in later rounds, so ask for the fewest views that answer the question.",
   inputSchema: viewInputSchema,
 }
 
@@ -118,15 +118,15 @@ export const buildTools = (api = DEFAULT_API, { vision = false } = {}) => [
         parts: {
           anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
           description:
-            'Index selectors into the array main() returns: "0", "1-3", "all", or an array of them (a JSON array string works too)',
+            'Part selectors: an index into the array main() returns ("0"), an index range ("1-3"), "all", or a part name its anchors carry (front.left); or an array of them (a JSON array string works too)',
         },
         between: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Exactly two index selectors ("0" or "1-3") to measure the gap between; "all" works only in parts',
+          description: 'Exactly two part selectors ("0", "1-3" or a part name) to measure the gap between; "all" works only in parts',
         },
         overlaps: { type: 'boolean', description: 'List every pair of parts whose bounding boxes overlap, with per-axis gap and distance; pairs past 50 are counted but not listed' },
-        anchors: { type: 'boolean', description: "Include each part's named anchor frames" },
+        anchors: { type: 'boolean', description: "Include each part's named anchor frames; the names work as part selectors here and as a view lookAt" },
         section: {
           type: 'string',
           description: 'An axis cross-section: "x", "y", "z", or an offset like "z=5". Gives its area, size and each loop\'s outline as points in the section plane, holes marked, so no slicing in execute is needed',
@@ -137,7 +137,7 @@ export const buildTools = (api = DEFAULT_API, { vision = false } = {}) => [
   {
     name: 'check',
     description:
-      'Check the current model: watertight, manifold, inside out, self-intersecting, open and non-manifold edge counts, where a few open edges are, and size in mm, for each part of an array too; the build report already gives watertight, manifold and self-intersecting for the whole. With a bed, also whether it fits. Pass a bed only when the user names a printer.',
+      'Check the current model: watertight, manifold, inside out, self-intersecting, open and non-manifold edge counts, where a few open edges are, and size in mm, for each part of an array too, numbered by index as measure and view take them; the build report already gives watertight, manifold and self-intersecting for the whole. With a bed, also whether it fits. Pass a bed only when the user names a printer.',
     inputSchema: {
       type: 'object',
       properties: {

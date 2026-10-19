@@ -11,12 +11,18 @@ measure(model) // { boundingBox, dimensions, center, volume, polygonCount, ... }
 check(model, { bed: 'mk3' }) // { watertight, manifold, fitsBed, ... }
 ```
 
-`measure` options: `parts` (an index selector like `"0"` or `"1-3"`, `"all"`,
-an array of selectors, where `"all"` stands for every part, or that array as a
-JSON string; they index the array
-`main()` returns, and a whole number stands for its index), `between`
+`measure` options: `parts` (an index selector like `"0"` or `"1-3"`, a part
+name, `"all"`, an array of selectors, where `"all"` stands for every part, or
+that array as a JSON string; indexes number the array `main()` returns, and a
+whole number stands for its index), `between`
 (exactly two selectors; `"all"` is refused there), `anchors` (boolean), `section` (an axis `"x"`/`"y"`/
-`"z"`, an offset like `"z=5"`, or `{axis, offset}`). A negative-volume geom3
+`"z"`, an offset like `"z=5"`, or `{axis, offset}`). A part name is an anchor
+frame name the `anchors` option reports (a dotted param path such as
+`front.left`): the exact name, or a unique whole-segment suffix of one (`left`
+for `front.left`), selects every item carrying that frame. An unknown name is
+refused with the indexes and names the model has, and a suffix several names
+share is refused as ambiguous. `src/partRefs.js` holds the matching rule; the
+app's `view` look-at uses it too. A negative-volume geom3
 gets `insideOut: true` and a `notes` entry saying it is inside out; for an
 array, the note names each such part.
 

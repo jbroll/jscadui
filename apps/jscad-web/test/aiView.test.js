@@ -120,6 +120,45 @@ describe('view handler', () => {
     expect(measure).toHaveBeenCalledWith({ anchors: true })
   })
 
+  // Answers as the frame's measure does: anchors per item, and each selector's
+  // bounding-box center when `parts` is asked for.
+  const indexedMeasure = () =>
+    vi.fn(async (options) => {
+      if (options.anchors) {
+        return { anchors: [0, 1, 2].map((i) => ({ part: String(i), anchors: i === 0 ? { body: { origin: [0, 0, 4.5] } } : {} })) }
+      }
+      return { parts: options.parts.map((part) => ({ part, center: [Number(part.split('-').at(-1)) * 10, 0, 0] })) }
+    })
+
+  it('aims an index, a range or a whole-number lookAt at that selection, as measure and check number parts', async () => {
+    const plans = []
+    const measure = indexedMeasure()
+    await handler({ render: renderOf(plans), measure })({ views: [{ lookAt: '1' }, { lookAt: '1-2' }, { lookAt: 2 }, { lookAt: 'body' }] })
+
+    expect(plans[0].shots.map((shot) => shot.target)).toEqual([
+      [10, 0, 0],
+      [20, 0, 0],
+      [20, 0, 0],
+      [0, 0, 4.5],
+    ])
+    expect(measure).toHaveBeenCalledWith({ parts: ['1', '1-2', '2'] })
+  })
+
+  it('refuses an index past the last part, listing the forms lookAt takes', async () => {
+    const render = renderOf()
+    const view = handler({ render, measure: indexedMeasure() })
+    const error = await view({ views: [{ lookAt: '51-54' }] }).catch((e) => e)
+    expect(error.name).toBe('PartNotFoundError')
+    expect(error.message).toMatch(/"51-54".*"0" to "2".*"1-3".*body/)
+    expect(render).not.toHaveBeenCalled()
+  })
+
+  it('lists the indexes and names a build carries when a name misses', async () => {
+    const error = await handler({ measure: indexedMeasure() })({ views: [{ lookAt: 'wheel' }] }).catch((e) => e)
+    expect(error.name).toBe('PartNotFoundError')
+    expect(error.message).toMatch(/"wheel".*"0" to "2".*"1-3".*body/)
+  })
+
   it('never measures when no shot names a part', async () => {
     const measure = vi.fn(async () => ({ anchors: [] }))
     await handler({ measure })({ views: [{ preset: 'top' }, { lookAt: [1, 2, 3] }] })

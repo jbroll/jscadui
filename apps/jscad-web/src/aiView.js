@@ -10,16 +10,17 @@
 // A bad view fails the whole call: the plan is built for every shot before the
 // renderer runs, so one bad aim means no renders at all.
 //
-// A part-name aim resolves through the build's auto-attached anchors: the
-// injected `measure({anchors: true})` reports each solid's named frames, and a
-// name maps to its frame origin (Task 7; an index mapping was disproven on the
-// real car). A name no build names is a `PartNotFoundError`, never a guess.
-// Anchors ride jscad-engine solids only — on a manifold build the measurement
-// reports none and every part name misses as not-found; coords always work.
+// A part aim takes the references measure and check report. An index or range
+// aims at that selection's bounding-box center, measured by the injected
+// `measure`; a name maps to its auto-attached anchor frame origin from
+// `measure({anchors: true})`. A part the build lacks is a `PartNotFoundError`,
+// never a guess. Anchors ride jscad-engine solids only, so on a manifold build
+// every name misses; indexes and coords always work.
 
 import { boundingBox } from '@jscadui/format-common'
 import { normalizeViewRequest } from '@jscadui/agent-loop/src/viewSpec.js'
-import { resolveLookAt } from './aiViewParts.js'
+import { isIndexSelector } from '@jscadui/model-tools/src/partRefs.js'
+import { checkPartIndex, resolveLookAt } from './aiViewParts.js'
 import { PRESET_DIRS } from './aiViewRender.js'
 
 // Named errors, as the request spec and part resolver do, so a caller can match
@@ -60,6 +61,23 @@ export const buildAnchorFrames = (result) => {
   return frames
 }
 
+// What the part aims resolve against, measured only when a view names a part,
+// so a preset or point call never pays for it. Index aims are checked against
+// the part count first, so measure never answers its own out-of-range error.
+const partContext = async (views, measure) => {
+  const aims = views.filter((view) => view.kind === 'lookAtPart').map((view) => view.part)
+  if (aims.length === 0 || !measure) return {}
+  const measured = await measure({ anchors: true })
+  const ctx = { anchorFrames: buildAnchorFrames(measured), partCount: measured?.anchors?.length ?? 0 }
+  const selectors = [...new Set(aims.filter(isIndexSelector))]
+  selectors.forEach((part) => checkPartIndex(part, ctx))
+  if (selectors.length > 0) {
+    const { parts } = await measure({ parts: selectors })
+    ctx.partCenters = new Map(parts.map((part) => [part.part, part.center]))
+  }
+  return ctx
+}
+
 // The no-geometry result is the last build's own wording when it has one (so
 // the agent hears why the model is empty), else a plain statement of fact.
 const noGeometryError = async (noGeometry) => {
@@ -80,12 +98,12 @@ const noGeometryError = async (noGeometry) => {
  * The returned handler takes the tool's raw arguments and resolves to
  * `{ok: true, shots}`, each shot `{image: {dataUrl, mime}, camera}` in the loop's
  * shape; it rejects with a named Error on a bad call, an empty model or a part
- * name no build names (`PartNotFoundError`/`AmbiguousPartError`).
+ * the build lacks (`PartNotFoundError`/`AmbiguousPartError`).
  * @param {{
  *   getMesh: () => Array<object> | undefined,
  *   noGeometry: () => Promise<object | null>,
  *   render: (mesh: Array<object>, plan: object, env?: object) => Promise<Array<{pngDataUrl: string, camera: object}>>,
- *   measure?: (options: {anchors: true}) => Promise<object>,
+ *   measure?: (options: {anchors?: true, parts?: string[]}) => Promise<object>,
  *   env?: () => object,
  * }} deps
  * @returns {(input: unknown) => Promise<{ok: true, shots: Array<object>}>}
@@ -96,13 +114,7 @@ export const createViewHandler = ({ getMesh, noGeometry, render, measure, env })
   const mesh = getMesh()
   if (!Array.isArray(mesh) || mesh.length === 0) throw await noGeometryError(noGeometry)
 
-  // The build's anchors are measured at most once, and only when a part-name
-  // aim needs them, so a preset or point call never pays for the measurement.
-  let anchorFrames
-  const framesOf = async () => {
-    if (!anchorFrames) anchorFrames = buildAnchorFrames(measure ? await measure({ anchors: true }) : null)
-    return anchorFrames
-  }
+  const parts = await partContext(views, measure)
 
   // Every shot is planned before the renderer runs: an unusable aim throws here
   // and nothing is rendered.
@@ -112,9 +124,9 @@ export const createViewHandler = ({ getMesh, noGeometry, render, measure, env })
       const dirs = PRESET_DIRS[view.preset]
       shots.push({ dir: dirs.dir, up: dirs.up })
     } else if (view.kind === 'lookAtPart') {
-      // A part-name aim shoots iso-front auto-fit to that part's frame origin.
+      // A part aim shoots iso-front auto-fit to that part's center or frame origin.
       const iso = PRESET_DIRS['iso-front']
-      shots.push({ dir: iso.dir, up: iso.up, target: resolveLookAt(view, { anchorFrames: await framesOf() }) })
+      shots.push({ dir: iso.dir, up: iso.up, target: resolveLookAt(view, parts) })
     } else if (view.kind === 'lookAt') {
       // A point aim shoots the default iso-front direction; the renderer
       // auto-fits the whole model around the target it is given.

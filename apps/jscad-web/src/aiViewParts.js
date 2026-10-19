@@ -1,21 +1,18 @@
 // Resolves a `view` spec's look-at aim to the [x, y, z] point the camera
-// frames: a raw point, or a hierarchical part name turned into that part's
-// anchor-frame origin. The frames are injected as a `Map<string, [x, y, z]>`
-// the caller builds from a build's `measure({anchors: true})` result, so this
-// module never touches geometry, the worker or the app.
+// frames: a raw point, a part index or index range (as measure and check number
+// the array main() returns) turned into that selection's bounding-box center,
+// or a hierarchical part name turned into that part's anchor-frame origin. The
+// caller injects the build's frames (a `Map<string, [x, y, z]>` from
+// `measure({anchors: true})`), its part count and the measured index centers,
+// so this module never touches geometry, the worker or the app.
 //
-// A part-name aim resolves through auto-attached anchors (see the view design's
-// Provenance section): the build stamps each part-path on the primitive it
-// creates, and the frames survive booleans and transforms. An index mapping was
-// disproven on the real hierarchical car (11 typed paths vs 13 geometry items)
-// and is not used.
-//
-// Matching never guesses. An exact dotted-path match wins; failing that, only
-// whole dot-separated segment suffixes match (`left` for `front.left`), and
-// more than one of those is ambiguous. Character-level substring matching is
-// never done, so `left` does not match `front.leftover`. A name that cannot be
-// a path at all (empty segments, `/`, `..`) reads as not found rather than
-// matching something surprising.
+// A part name resolves through auto-attached anchors (see the view design's
+// Provenance section); the name-to-index mapping through proxyState.types was
+// disproven on the real hierarchical car and is not used. Name matching is
+// model-tools' (exact dotted path, else a unique whole-segment suffix), the
+// same rule measure applies, so a name one tool takes the other takes too.
+
+import { isIndexSelector, matchPartName, partRefForms } from '@jscadui/model-tools/src/partRefs.js'
 
 // Named errors, as the view request spec's violations are
 // (packages/agent-loop/src/viewSpec.js). The name is repeated in the message so
@@ -34,8 +31,11 @@ const triple = (value, label) => {
   return [value[0], value[1], value[2]]
 }
 
-const notFound = (part) =>
-  named('PartNotFoundError', `no part named ${JSON.stringify(part)}; name a dotted param path such as front.left`)
+const notFound = (part, ctx) =>
+  named(
+    'PartNotFoundError',
+    `no part ${JSON.stringify(part)} in this build; lookAt takes ${partRefForms(ctx.partCount ?? 0, asFrameMap(ctx.anchorFrames).keys())}, or an [x, y, z] point`,
+  )
 
 const ambiguous = (name, matches) =>
   named(
@@ -43,48 +43,44 @@ const ambiguous = (name, matches) =>
     `${JSON.stringify(name)} matches ${matches.length} parts (${matches.join(', ')}); name the full dotted path`,
   )
 
-// The dot-separated segments of a typed name, or null when it cannot name a
-// part: the empty string, empty segments, `/` and `..` are all rejected here.
-const segmentsOf = (name) => {
-  if (typeof name !== 'string' || name === '' || name.includes('/')) return null
-  const segments = name.split('.')
-  return segments.every((segment) => segment !== '' && segment !== '..') ? segments : null
-}
-
-// Whole-segment suffix match, so `left` names the `left` child of `front` but
-// `front.leftover` is not a match.
-const endsWithSegments = (path, nameSegments) => {
-  const pathSegments = path.split('.')
-  if (nameSegments.length > pathSegments.length) return false
-  const offset = pathSegments.length - nameSegments.length
-  return nameSegments.every((segment, i) => pathSegments[offset + i] === segment)
-}
-
 const asFrameMap = (anchorFrames) => {
   if (anchorFrames instanceof Map) return anchorFrames
   return new Map(Object.entries(anchorFrames || {}))
 }
 
+/**
+ * Whether an index aim names parts the build has; a range is in range when its
+ * last index is. Throws the not-found error listing the forms a lookAt takes.
+ * @param {string} part an index selector such as "3" or "1-3"
+ * @param {{partCount?: number, anchorFrames?: Map<string, [number, number, number]> | Object}} ctx
+ */
+export const checkPartIndex = (part, ctx) => {
+  const [from, to = from] = part.split('-').map(Number)
+  if (from > to || to >= (ctx.partCount ?? 0)) throw notFound(part, ctx)
+}
+
 // The origin of the one frame the name picks, or the ambiguity/not-found error.
-const frameOrigin = (part, anchorFrames) => {
-  const nameSegments = segmentsOf(part)
-  if (!nameSegments) throw notFound(part)
-  const frames = asFrameMap(anchorFrames)
-  if (frames.has(part)) return triple(frames.get(part), `the anchor for ${JSON.stringify(part)}`)
-  const partial = [...frames.keys()].filter((name) => typeof name === 'string' && endsWithSegments(name, nameSegments))
-  if (partial.length > 1) throw ambiguous(part, partial)
-  if (partial.length === 1) return triple(frames.get(partial[0]), `the anchor for ${JSON.stringify(partial[0])}`)
-  throw notFound(part)
+const frameOrigin = (part, ctx) => {
+  const frames = asFrameMap(ctx.anchorFrames)
+  const matches = matchPartName(part, frames.keys())
+  if (matches.length > 1) throw ambiguous(part, matches)
+  if (matches.length === 0) throw notFound(part, ctx)
+  return triple(frames.get(matches[0]), `the anchor for ${JSON.stringify(matches[0])}`)
 }
 
 /**
  * The [x, y, z] point a look-at aim frames.
  *
  * A `{kind: 'lookAt', point}` spec returns its point after finite-number
- * validation; a `{kind: 'lookAtPart', part}` spec resolves the name against
- * `ctx.anchorFrames` and returns that frame's origin.
+ * validation. A `{kind: 'lookAtPart', part}` spec that is an index or range
+ * returns `ctx.partCenters`' center for it; any other part is a name resolved
+ * against `ctx.anchorFrames` to that frame's origin.
  * @param {{kind: string, point?: unknown, part?: string}} spec a normalized ViewSpec
- * @param {{anchorFrames?: Map<string, [number, number, number]> | Object}} ctx the build's part-name -> origin frames
+ * @param {{
+ *   anchorFrames?: Map<string, [number, number, number]> | Object,
+ *   partCount?: number,
+ *   partCenters?: Map<string, [number, number, number]>,
+ * }} ctx the build's part-name -> origin frames, part count and index-selector -> center
  * @returns {[number, number, number]}
  * @throws {Error} a named `ArgumentsError`, `PartNotFoundError` or `AmbiguousPartError`
  */
@@ -94,5 +90,7 @@ export const resolveLookAt = (spec, ctx = {}) => {
   if (spec.kind !== 'lookAtPart') {
     throw named('ArgumentsError', `resolveLookAt got a ${JSON.stringify(spec.kind)} spec; it resolves lookAt and lookAtPart aims only`)
   }
-  return frameOrigin(spec.part, ctx.anchorFrames)
+  if (!isIndexSelector(spec.part)) return frameOrigin(spec.part, ctx)
+  checkPartIndex(spec.part, ctx)
+  return triple(ctx.partCenters?.get(spec.part), `the center of part ${spec.part}`)
 }
