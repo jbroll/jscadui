@@ -894,7 +894,7 @@ The message list shows each kind of row differently, light and dark alike
 | User message | `.chat-msg.user` | right-aligned bubble tinted from the drawer's blue toggle |
 | Reply text | `.chat-msg.assistant` | plain text on the panel |
 | Reasoning | `<details class="chat-reasoning">` | smaller muted text behind a thin left rule, collapsed |
-| Tool call | `<details class="chat-tool">` | one monospace row: tool, its path, query or format (`toolDetail` from agent-loop), and `…`, `ok` or `failed`; opening it shows the input and the result |
+| Tool call | `<details class="chat-tool">` | one monospace row: tool, its path, query or format (`toolDetail` from agent-loop), and `…`, `ok` or `failed`; opening it shows the input and the result; a `view` result auto-opens with thumbnail images (`.chat-tool-images`) that open full-size in a `.chat-view-overlay` dialog |
 | Error | `.chat-msg.error` | red-tinted block with a red left rule |
 | Stopped | `.chat-msg.stopped` | small muted italic `Stopped`, not an error |
 

@@ -622,6 +622,32 @@ describe('message kinds', () => {
     await vi.waitFor(() => expect(q('.chat-tool-mark').textContent).toBe('ok'))
     expect(q('.chat-tool').classList.contains('running')).toBe(false)
   })
+
+  it('shows a view result as thumbnails that open full-size', async () => {
+    const shots = [
+      { image: { dataUrl: 'data:image/png;base64,AAA' }, camera: { position: [1, 2, 3] } },
+      { image: { dataUrl: 'data:image/png;base64,BBB' }, camera: { position: [4, 5, 6] } },
+    ]
+    const { q, type } = openChat({
+      requestTool: async () => ({ ok: true, shots }),
+      runTurnFn: async ({ requestTool }) => {
+        await requestTool('view', {})
+        return { messages: [] }
+      },
+    })
+    type('what do you see?')
+    await vi.waitFor(() => expect(q('.chat-tool-mark')?.textContent).toBe('ok'))
+    // The text result carries cameras only; the pixels ride the thumbnails.
+    expect(q('.chat-tool-result').textContent).not.toContain('data:image')
+    const thumbs = q('.chat-tool').querySelectorAll('.chat-tool-thumb img')
+    expect(thumbs).toHaveLength(2)
+    expect(thumbs[0].src).toContain('data:image/png')
+    expect(q('.chat-tool').open).toBe(true)
+    q('.chat-tool-thumb').click()
+    expect(document.querySelector('.chat-view-overlay img.chat-view-full')?.src).toContain('AAA')
+    document.querySelector('.chat-view-close').click()
+    expect(document.querySelector('.chat-view-overlay')).toBeNull()
+  })
 })
 describe('stored conversation', () => {
   it('loads a stored conversation and persists the turn', async () => {

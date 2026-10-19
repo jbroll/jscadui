@@ -470,6 +470,43 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     renderReasoning()
   }
 
+  // A full-size view of one agent image, over the app. Backdrop click,
+  // the close button or Escape dismisses it; focus returns to the thumbnail.
+  const openViewImage = (dataUrl, label, returnTo) => {
+    const overlay = el('div', 'chat-view-overlay')
+    overlay.setAttribute('role', 'dialog')
+    overlay.setAttribute('aria-label', label)
+    const full = document.createElement('img')
+    full.className = 'chat-view-full'
+    full.src = dataUrl
+    full.alt = label
+    const close = el('button', 'chat-view-close', '✕')
+    close.type = 'button'
+    close.setAttribute('aria-label', 'Close full-size view')
+    overlay.append(full, close)
+    const done = () => {
+      overlay.remove()
+      document.removeEventListener('keydown', onKey, true)
+      returnTo?.focus?.()
+    }
+    const onKey = (event) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        done()
+      }
+    }
+    close.addEventListener('click', (event) => {
+      event.stopPropagation()
+      done()
+    })
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) done()
+    })
+    document.addEventListener('keydown', onKey, true)
+    document.body.append(overlay)
+    close.focus?.()
+  }
+
   const addToolLine = (name, inputJson) => {
     const stick = atBottom()
     const details = el('details', 'chat-tool running')
@@ -485,11 +522,37 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     details.append(resultEl)
     messagesEl.append(details)
     follow(stick)
-    return (result, failed) => {
+    return (result, failed, raw) => {
       resultEl.textContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
       mark.textContent = failed ? 'failed' : 'ok'
       details.classList.remove('running')
       details.classList.toggle('failed', failed)
+      // The `view` tool's pixels travel in `raw.shots[].image.dataUrl`
+      // (the displayed text carries cameras only). Show what the agent saw
+      // as thumbnails in the same tool row; click opens the full render.
+      const shots = Array.isArray(raw?.shots) ? raw.shots.filter((shot) => typeof shot?.image?.dataUrl === 'string') : []
+      if (shots.length > 0) {
+        const strip = el('div', 'chat-tool-images')
+        shots.forEach((shot, index) => {
+          const label = `view ${index + 1} of ${shots.length}`
+          const thumb = document.createElement('button')
+          thumb.type = 'button'
+          thumb.className = 'chat-tool-thumb'
+          thumb.title = `Open full-size ${label}`
+          thumb.setAttribute('aria-label', `Open full-size ${label}`)
+          const img = document.createElement('img')
+          img.src = shot.image.dataUrl
+          img.alt = `Agent ${label}`
+          img.loading = 'lazy'
+          thumb.append(img)
+          thumb.addEventListener('click', () => openViewImage(shot.image.dataUrl, `Agent ${label}`, thumb))
+          strip.append(thumb)
+        })
+        details.append(strip)
+        // The row is collapsed by default; an image result opens it so the
+        // thumbnails are visible without an extra click.
+        details.open = true
+      }
     }
   }
 
@@ -566,7 +629,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     const finish = live() ? addToolLine(name, input) : () => {}
     try {
       const result = await requestTool(name, input)
-      finish(forDisplay(result), toolFailed(result))
+      finish(forDisplay(result), toolFailed(result), result)
       return forLoop(result)
     } catch (err) {
       const errorResult = { ok: false, error: { name: err.name, message: err.message } }
