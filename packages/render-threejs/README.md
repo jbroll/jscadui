@@ -24,6 +24,12 @@ const renderer = RenderThreejs({PerspectiveCamera, HemisphereLight, WebGLRendere
 })(options)
 ```
 
+## Camera clip planes
+
+`setCamera({ position, target })` sets the near plane to 1/100 and the far
+plane to 1000 times the camera-to-target distance (`depthRange.js`), so a
+model of any size stays visible at any zoom.
+
 ## Creating a smaller Three.js bundle
 
 Use `bundle.example.js` as an example to build your own smaller bundle, it has all needed dependencies. It is smaller than full build, but may not be the smallest possible.

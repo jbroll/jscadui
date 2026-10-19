@@ -449,6 +449,13 @@ viewer, not the model. Smooth Render re-sends the current scene with the new
 (`onZoomToFit`, wired in `main.js`). Neither sends a `jscadMain` run, so a
 toggle does not reset the parameters or rebuild the geometry.
 
+The viewer's clip planes follow the camera's distance from its orbit target
+(`packages/render-threejs/depthRange.js`): near is 1/100 of it and far 1000
+times it. A fixed range (1 mm to 50 m, as before) hid any model larger than
+about 30 m, because zoom to fit placed the camera beyond the far plane. The
+chat's `view` shots render with their own camera, whose planes also scale
+with distance (`src/aiViewRender.js`).
+
 ### Parameter panel
 
 The parameter tree (`packages/params-ui/src/ParamsTree.js`) is rebuilt whenever
