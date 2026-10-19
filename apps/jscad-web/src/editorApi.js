@@ -1,15 +1,21 @@
 import { docsTool, hoverTarget, lintTree, lookupName } from '@jscadui/agent-loop'
 import { javascriptLanguage } from '@codemirror/lang-javascript'
-import { syntaxTree } from '@codemirror/language'
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language'
 import { linter } from '@codemirror/lint'
 import { hoverTooltip, EditorView } from '@codemirror/view'
+
+const PARSE_BUDGET_MS = 250
 
 /**
  * The CodeMirror diagnostics of a document, from the API index.
  * @param {Array<object>} index api/index.json
  * @param {import('@codemirror/state').EditorState} state
  */
-export const apiDiagnostics = (index, state) => lintTree(index, syntaxTree(state), { text: state.doc.toString() })
+export const apiDiagnostics = (index, state) => {
+  // A partial parse marks the unparsed rest as an error, so lint only a whole tree.
+  const tree = ensureSyntaxTree(state, state.doc.length, PARSE_BUDGET_MS)
+  return tree ? lintTree(index, tree, { text: state.doc.toString() }) : []
+}
 
 const previousNonSpace = (state, pos) => {
   const text = state.doc.sliceString(0, pos)

@@ -26,6 +26,11 @@ describe('editor lint diagnostics', () => {
   it('is empty for clean code', () => {
     expect(apiDiagnostics(index, stateFor(`const { cylinder } = require('@jscad/modeling').primitives\ncylinder({ radius: 1 })`))).toEqual([])
   })
+
+  it('reports no syntax error in clean code longer than the initial parse covers', () => {
+    const doc = `const { cylinder } = require('@jscad/modeling').primitives\n` + 'cylinder({ radius: 1, height: 2 })\n'.repeat(2000)
+    expect(apiDiagnostics(index, stateFor(doc))).toEqual([])
+  })
 })
 
 describe('editor autocomplete', () => {
