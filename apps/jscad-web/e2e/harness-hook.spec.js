@@ -13,6 +13,7 @@ test('the harness hook exposes the chat handlers when the flag is set', async ({
   for (const shot of view.shots) expect(shot.image.dataUrl.startsWith('data:image/png;base64,')).toBe(true)
 
   // The boot example runs as a URL script, so the chat sees no build until a project file runs.
+  // This pins a gap, not intended behavior: backlog "The starting example has no project build".
   const unbuilt = await page.evaluate(() => globalThis.jscadHarness.measure({}))
   expect(unbuilt.error.name).toBe('NoGeometryError')
 

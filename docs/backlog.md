@@ -195,7 +195,8 @@ fixed; these remain.
   `projectBuilds` keeps the earlier good build and the next `measure` reports
   the old geometry instead of NoGeometryError. The e2e spec
   `ai-chat.spec.js` "writes, edits, builds and runs the project" dropped its
-  `refused` assertions for this.
+  `refused` assertions for this. The eval backend (`eval/backend.js` `saved`)
+  does the same; `backend.test.js` pins it with an `it.fails` case.
 - **Upstream angle checks (`@jscad/modeling`).** `star` says "startAngle must
   be greater than zero" and arc, ellipse, torus and cylinderElliptic say "must
   be positive", but all accept zero and take the angle mod TAU. Drop the

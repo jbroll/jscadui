@@ -500,6 +500,45 @@ describe('free provider', () => {
     expect(visionCapable(account.getProviderConfig())).toBe(true)
   })
 
+  // Inits the account and resolves once the init catalog load has been applied.
+  const initAndLoadCatalog = async () => {
+    const base = inferenceFetch(INFERENCE)
+    let catalogRead
+    globalThis.fetch = vi.fn(async (url, init) => {
+      const res = await base(url, init)
+      if (String(url).includes(CATALOG_URL)) {
+        const json = res.json.bind(res)
+        res.json = () => (catalogRead = json())
+      }
+      return res
+    })
+    document.body.innerHTML = '<div id="a"></div>'
+    const account = await loadAccount()
+    account.initAccount(document.getElementById('a'))
+    await vi.waitFor(() => expect(catalogRead).toBeDefined())
+    await catalogRead
+    await Promise.resolve()
+    return account
+  }
+
+  it('keeps a stored own-key model when the init catalog loads', async () => {
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'openai', model: 'stub-model' }))
+    await initAndLoadCatalog()
+    const stored = JSON.parse(localStorage.getItem('jscad-ai.selection'))
+    expect(stored).toMatchObject({ kind: 'openai', model: 'stub-model' })
+    expect(stored).not.toHaveProperty('free')
+    expect(stored).not.toHaveProperty('inference')
+  })
+
+  it('keeps an empty own-key model empty when the init catalog loads', async () => {
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'anthropic', model: '' }))
+    await initAndLoadCatalog()
+    const stored = JSON.parse(localStorage.getItem('jscad-ai.selection'))
+    expect(stored).toMatchObject({ kind: 'anthropic', model: '' })
+    expect(stored).not.toHaveProperty('free')
+    expect(stored).not.toHaveProperty('inference')
+  })
+
   it('warms the vision catalog at init when the cache is missing', async () => {
     const seen = []
     globalThis.fetch = vi.fn(async (url) => {

@@ -454,6 +454,15 @@ describe('eval backend project', () => {
       expect(res).toEqual({ ok: false, error: { name: 'NoGeometryError', message: expect.stringMatching(/^no geometry: the last build failed \(broken\); fix it first$/) } })
     }
   })
+
+  // Backlog: "A syntax-gated write leaves the previous build as the last build."
+  it.fails('answers measure after a syntax-gated write without the previous geometry', async () => {
+    const backend = createEvalBackend()
+    await writeMain(CUBE, backend)
+    const gated = await writeMain('const main (params) => {}\nmodule.exports = { main }', backend)
+    expect(gated.error.name).toBe('SyntaxError')
+    expect(await call(backend, 'measure')).toMatchObject({ ok: false, error: { name: 'NoGeometryError' } })
+  })
 })
 
 describe('eval backend run', () => {
