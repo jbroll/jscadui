@@ -12,12 +12,37 @@ test('the harness hook exposes the chat handlers when the flag is set', async ({
   expect(view.shots).toHaveLength(2)
   for (const shot of view.shots) expect(shot.image.dataUrl.startsWith('data:image/png;base64,')).toBe(true)
 
-  // The default model is not a project build, so measure answers with the chat's own no-geometry error.
-  const measure = await page.evaluate(() => globalThis.jscadHarness.measure({}))
-  expect(measure.ok).toBe(false)
-  expect(measure.error.name).toBe('NoGeometryError')
+  // The boot example runs as a URL script, so the chat sees no build until a project file runs.
+  const unbuilt = await page.evaluate(() => globalThis.jscadHarness.measure({}))
+  expect(unbuilt.error.name).toBe('NoGeometryError')
 
-  await page.evaluate(() => globalThis.jscadHarness.buildReport())
+  // A dropped folder opens as the project; running its file is a project build (as in project-ui.spec.js).
+  const header = page.locator('#editor-header .project-header')
+  await expect(header).toHaveAttribute('data-project-id', /.+/)
+  await header.evaluate((target) => {
+    const source = "const { cuboid } = require('@jscad/modeling').primitives\nmodule.exports = { main: () => cuboid({ size: [10, 10, 10] }) }\n"
+    const file = { kind: 'file', name: 'index.js', getFile: async () => new File([source], 'index.js') }
+    const dir = { kind: 'directory', name: 'cube', values: async function* () { yield file } }
+    const dataTransfer = { items: [{ kind: 'file', getAsFileSystemHandle: async () => dir }] }
+    const drop = new Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(drop, 'dataTransfer', { value: dataTransfer })
+    target.dispatchEvent(drop)
+  })
+  const node = page.locator('#editor-files .file-node[data-path="/cube/index.js"]')
+  await expect(node).toBeAttached()
+  await page.locator('#editor-file').click()
+  await node.locator('.file-open').click()
+  await page.locator('.cm-content').press('Shift+Enter')
+  await expect.poll(() => page.evaluate(() => globalThis.jscadHarness.measure({}).then((m) => m.ok))).toBe(true)
+
+  const measure = await page.evaluate(() => globalThis.jscadHarness.measure({}))
+  expect(typeof measure.volume).toBe('number')
+
+  const check = await page.evaluate(() => globalThis.jscadHarness.check({}))
+  expect(check.ok).toBe(true)
+
+  const report = await page.evaluate(() => globalThis.jscadHarness.buildReport())
+  expect(report.ok).toBe(true)
 })
 
 test('the harness hook is absent without the flag', async ({ page }) => {

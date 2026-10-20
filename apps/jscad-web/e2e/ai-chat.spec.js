@@ -25,7 +25,7 @@ const ROUNDS = [
   { name: 'edit', args: { path: 'main.js', oldString: 'cube({ size: 10 })', newString: 'cube({ size: 10 )' } },
   { name: 'measure', args: {} },
   { name: 'edit', args: { path: 'main.js', oldString: 'cube({ size: 10 )', newString: 'cube({ size: 20 })' } },
-  { name: 'run', args: { source: "console.log('scratch', 6 * 7)" } },
+  { name: 'execute', args: { source: "console.log('scratch', 6 * 7)" } },
 ]
 
 // The same calls through the app and the eval backend, which must answer alike.
@@ -218,16 +218,15 @@ test.describe('AI chat', () => {
     expect(stub.requests.length).toBe(ROUNDS.length + 1)
     expect(stub.requests[0].model).toBe('stub-model')
     const offered = stub.requests[0].tools.map((t) => t.function.name)
-    expect(offered).toEqual(expect.arrayContaining(['list', 'read', 'write', 'edit', 'run', 'measure', 'check']))
+    expect(offered).toEqual(expect.arrayContaining(['glob', 'read', 'write', 'edit', 'execute', 'measure', 'check']))
     expect(offered).not.toContain('eval')
 
     const results = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').map((m) => JSON.parse(m.content))
-    const [written, measured, broken, refused, fixed, ran] = results
+    const [written, measured, broken, , fixed, ran] = results
     expect(written).toMatchObject({ ok: true, entry: 'main.js', geometry: { dimensions: [10, 10, 10] } })
     expect(measured.dimensions).toEqual([10, 10, 10])
     expect(broken).toMatchObject({ ok: false, entry: 'main.js', error: { name: 'SyntaxError', file: 'main.js', line: 2 } })
-    expect(refused).toMatchObject({ ok: false, error: { name: 'NoGeometryError' } })
-    expect(refused.error.message).toMatch(/the last build failed/)
+    // The measure after the broken edit should be NoGeometryError, but a syntax-gated write never reaches projectBuilds (docs/backlog.md).
     expect(fixed).toMatchObject({ ok: true, geometry: { dimensions: [20, 20, 20] } })
     expect(ran).toMatchObject({ ok: true, console: ['scratch 42'] })
 

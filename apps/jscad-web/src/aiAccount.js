@@ -517,6 +517,8 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
       if (o.id) modelCapabilities.set(o.id, o.capabilities ?? null)
       if (o.model && o.model !== o.id) modelCapabilities.set(o.model, o.capabilities ?? null)
     }
+    // An own-key selection keeps its menu and model; only capabilities are recorded.
+    if (!freeActive()) return true
     syncModelControls(items.map((o) => ({ id: o.model, available: o.available })))
     syncFreeModelSelection()
     refreshEffort()
