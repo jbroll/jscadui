@@ -257,7 +257,7 @@ test.describe('AI chat tools', () => {
     test.setTimeout(60_000)
     const url = 'https://example.com/part'
     stub = await startStubRelay([
-      // Turn 1: the ungranted call is denied, so the model just closes.
+      // Turn 1: the user declines the ungranted call, so the model just closes.
       { name: 'webfetch', args: { url } },
       { text: 'Permission needed.' },
       // Turn 2, after the user grants: the same call now reaches the relay.
@@ -275,14 +275,15 @@ test.describe('AI chat tools', () => {
 
     await page.locator('.chat-input').fill(`fetch ${url}`)
     await page.locator('.chat-send').click()
+    await page.locator('.chat-question-option', { hasText: 'Not now' }).click({ timeout: 30_000 })
     await expect(page.locator('.chat-messages')).toContainText('Permission needed.', { timeout: 30_000 })
     await expect(page.locator('.chat-send')).toHaveText('Send')
 
-    // The ungranted call fired no network and rendered no tool row; the model
-    // saw the grant request instead (the second request carries that result).
+    // The declined call fired no network and rendered no tool row; the model
+    // saw the refusal instead (the second request carries that result).
     expect(fetches).toHaveLength(0)
     const denied = stub.requests[1].messages.filter((m) => m.role === 'tool').at(-1)
-    expect(denied.content).toContain("webfetch needs the user's permission")
+    expect(denied.content).toContain('webfetch: the user declined web access')
     await expect(page.locator('.chat-tool')).toHaveCount(0)
 
     // Grant the blanket permission for this conversation, then retry.

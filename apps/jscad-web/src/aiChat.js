@@ -80,33 +80,60 @@ const abortError = (message = 'turn aborted') => Object.assign(new Error(message
 // The selection stores 'off'; callers may also pass false. Both remove the tool.
 const websearchOff = (provider) => provider === false || provider === 'off'
 
-// Blanket web-search permission: granted once per conversation, not per call.
-// Ungranted websearch or webfetch short-circuits to a grant request instead of
-// reaching the network (never auto-searches); every granted call is logged so
-// spend is auditable.
-export const WEBSEARCH_GRANT_REQUEST =
-  'websearch needs the user\'s permission once per conversation, which is not granted yet. ' +
-  'Ask the user with question whether to allow web search for this conversation ' +
-  '(or tell them they can allow it in Chat settings), and only call websearch again after they agree.'
+// Blanket web permission: granted once per conversation, not per call, and
+// shared by websearch and webfetch. The first ungranted call asks the user
+// with a question card, so the grant comes from the user, never from the
+// model's say-so. Every granted call is logged so spend is auditable.
+export const WEB_ALLOW = 'Allow for this conversation'
+export const WEB_DECLINE = 'Not now'
+export const WEB_PERMISSION_QUESTION = {
+  header: 'Web access',
+  question: 'The assistant wants to search the web or fetch a page. Allow web access for this conversation?',
+  options: [WEB_ALLOW, WEB_DECLINE],
+}
+const ALLOWS = /^\s*(yes|y|ok|okay|sure|allow)\b/i
 
-// Fetching a page is the same blanket network permission, so it shares the gate.
-export const WEBFETCH_GRANT_REQUEST =
-  'webfetch needs the user\'s permission once per conversation, which is not granted yet. ' +
-  'Ask the user with question whether to allow fetching web pages for this conversation ' +
-  '(or tell them they can allow it in Chat settings), and only call webfetch again after they agree.'
+export const webDeclined = (name) => `${name}: the user declined web access for this conversation; carry on without it`
 
-export const createWebsearchGrant = ({ granted = false, log = () => {} } = {}) => {
+// No card could be shown (no chat UI, or the turn ended).
+export const webUnasked = (name) => `${name}: web access is not granted for this conversation; the user can allow it in Chat settings`
+
+export const createWebsearchGrant = ({ granted = false, log = () => {}, ask } = {}) => {
   let on = granted
+  let declined = false
+  // Parallel web calls share one card.
+  let asking = null
+  const askOnce = () => {
+    asking ??= Promise.resolve()
+      .then(() => ask(WEB_PERMISSION_QUESTION))
+      .then(
+        (answer) => answer === WEB_ALLOW || (answer !== WEB_DECLINE && ALLOWS.test(String(answer))),
+        () => null,
+      )
+      .finally(() => {
+        asking = null
+      })
+    return asking
+  }
   return {
     isGranted: () => on,
     setGranted: (next) => {
       on = next === true
+      declined = false
     },
     beforeToolCall: async (name) => {
-      if (!on && (name === 'websearch' || name === 'webfetch')) {
-        return { decision: 'deny', reason: name === 'webfetch' ? WEBFETCH_GRANT_REQUEST : WEBSEARCH_GRANT_REQUEST }
+      if (on || (name !== 'websearch' && name !== 'webfetch')) return undefined
+      if (declined) return { decision: 'deny', reason: webDeclined(name) }
+      const allowed = ask ? await askOnce() : null
+      if (allowed === true) {
+        on = true
+        return undefined
       }
-      return undefined
+      if (allowed === false) {
+        declined = true
+        return { decision: 'deny', reason: webDeclined(name) }
+      }
+      return { decision: 'deny', reason: webUnasked(name) }
     },
     afterToolCall: async (name, input, result) => {
       if (!on || (name !== 'websearch' && name !== 'webfetch')) return undefined
@@ -252,7 +279,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   // Blanket web-search grant for this chat panel: the gear dialog toggles the
   // global default for new conversations, setWebsearchGranted flips this one.
   // Revoking clears the grant, never the stored keys.
-  const websearchGrant = createWebsearchGrant({ granted: websearchGranted, log: websearchLog })
+  const websearchGrant = createWebsearchGrant({ granted: websearchGranted, log: websearchLog, ask: (input) => ask(input) })
   const gatedBeforeToolCall = async (name, input) =>
     (await websearchGrant.beforeToolCall(name, input)) ?? (await beforeToolCall?.(name, input))
   const gatedAfterToolCall = async (name, input, result) => {

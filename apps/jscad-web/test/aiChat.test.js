@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildSystemPrompt, dispatchTool, SUMMARY_PREFIX } from '@jscadui/agent-loop'
 import { TOS_VERSION } from '../src/aiConsent.js'
-import { initChat, relayBaseUrl, visionCapable } from '../src/aiChat.js'
+import { createWebsearchGrant, initChat, relayBaseUrl, visionCapable, WEB_ALLOW, WEB_DECLINE, WEB_PERMISSION_QUESTION, webDeclined, webUnasked } from '../src/aiChat.js'
 import * as modelVision from '../src/modelVision.js'
 
 // Every turn is gated on the accepted terms version, so each test here starts
@@ -37,76 +37,99 @@ describe('browser chat turn', () => {
     expect(container.querySelector('.chat-messages').textContent).toMatch(/volume 42/)
   })
 
-  it('denies websearch until the user grants it, then proceeds and logs the call', async () => {
+  // The turn stays open until `release`, so the gate's question card has a live turn to sit in.
+  const openTurn = async (logs) => {
     document.body.innerHTML = '<div id="chat"></div>'
     const container = document.getElementById('chat')
-    let captured
+    const turn = {}
     const runTurnFn = vi.fn(async (opts) => {
-      captured = opts
+      turn.opts = opts
+      await new Promise((resolve) => {
+        turn.release = resolve
+      })
       return { messages: [] }
     })
-    const requestTool = vi.fn(async () => ({ ok: true, results: [{ title: 't', url: 'https://example.com/x', snippet: 's', provider: 'exa' }] }))
-    const logs = []
-    const chat = initChat({
+    const requestTool = vi.fn(async () => ({ ok: true }))
+    turn.chat = initChat({
       container,
       requestTool,
       getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
       runTurnFn,
       websearchLog: (entry) => logs.push(entry),
     })
-    container.querySelector('.chat-input').value = 'search the web'
+    container.querySelector('.chat-input').value = 'look it up'
     container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
     await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
-    const denied = await captured.beforeToolCall('websearch', { query: 'bearing' })
-    expect(denied).toMatchObject({ decision: 'deny' })
-    expect(String(denied.reason)).toMatch(/question/)
-    expect(String(denied.reason)).toMatch(/websearch/)
-    // The grant gate is for websearch alone; another read-only tool passes through.
-    expect(await captured.beforeToolCall('question', { question: 'which size?' })).toBeUndefined()
-    expect(await captured.beforeToolCall('measure', {})).toBeUndefined()
-    expect(requestTool).not.toHaveBeenCalled()
-    chat.setWebsearchGranted(true)
-    expect(await captured.beforeToolCall('websearch', { query: 'bearing' })).toBeUndefined()
-    await captured.afterToolCall(
+    turn.container = container
+    turn.requestTool = requestTool
+    turn.choose = async (label) => {
+      await vi.waitFor(() => expect(container.querySelectorAll('.chat-question:not(.answered)')).toHaveLength(1))
+      ;[...container.querySelectorAll('.chat-question-option')].find((b) => b.textContent === label).click()
+    }
+    return turn
+  }
+
+  it('asks the user before the first web call, and a yes grants the conversation', async () => {
+    const logs = []
+    const turn = await openTurn(logs)
+    expect(await turn.opts.beforeToolCall('measure', {})).toBeUndefined()
+    const search = turn.opts.beforeToolCall('websearch', { query: 'bearing' })
+    const fetch = turn.opts.beforeToolCall('webfetch', { url: 'https://example.com/a' })
+    await turn.choose(WEB_ALLOW)
+    expect(turn.container.querySelectorAll('.chat-question')).toHaveLength(1)
+    expect(turn.container.querySelector('.chat-question-text').textContent).toBe(WEB_PERMISSION_QUESTION.question)
+    expect(await search).toBeUndefined()
+    expect(await fetch).toBeUndefined()
+    expect(turn.chat.isWebsearchGranted()).toBe(true)
+    expect(await turn.opts.beforeToolCall('websearch', { query: 'nut' })).toBeUndefined()
+    expect(turn.container.querySelectorAll('.chat-question')).toHaveLength(1)
+    expect(turn.requestTool).not.toHaveBeenCalled()
+    await turn.opts.afterToolCall(
       'websearch',
       { query: 'bearing' },
       JSON.stringify({ ok: true, results: [{ title: 't', url: 'https://example.com/x', snippet: 's', provider: 'exa' }] }),
     )
     expect(logs).toEqual([{ query: 'bearing', provider: 'exa', count: 1 }])
+    turn.release()
   })
 
-  it('gates webfetch behind the same blanket grant and logs a granted fetch', async () => {
-    document.body.innerHTML = '<div id="chat"></div>'
-    const container = document.getElementById('chat')
-    let captured
-    const runTurnFn = vi.fn(async (opts) => {
-      captured = opts
-      return { messages: [] }
-    })
+  it('remembers a no for the conversation until the settings grant web access', async () => {
     const logs = []
-    const chat = initChat({
-      container,
-      requestTool: vi.fn(async () => ({ ok: true })),
-      getProvider: () => ({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' }),
-      runTurnFn,
-      websearchLog: (entry) => logs.push(entry),
-    })
-    container.querySelector('.chat-input').value = 'fetch that page'
-    container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
-    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
-    const denied = await captured.beforeToolCall('webfetch', { url: 'https://example.com/a' })
-    expect(denied).toMatchObject({ decision: 'deny' })
-    expect(String(denied.reason)).toMatch(/question/)
-    expect(String(denied.reason)).toMatch(/webfetch/)
+    const turn = await openTurn(logs)
+    const first = turn.opts.beforeToolCall('webfetch', { url: 'https://example.com/a' })
+    await turn.choose(WEB_DECLINE)
+    expect(await first).toEqual({ decision: 'deny', reason: webDeclined('webfetch') })
+    expect(await turn.opts.beforeToolCall('websearch', { query: 'bearing' })).toEqual({ decision: 'deny', reason: webDeclined('websearch') })
+    expect(turn.container.querySelectorAll('.chat-question')).toHaveLength(1)
     // An ungranted call is not audited as a fetch.
-    await captured.afterToolCall('webfetch', { url: 'https://example.com/a' }, { ok: true, content: 'hello' })
+    await turn.opts.afterToolCall('webfetch', { url: 'https://example.com/a' }, { ok: true, content: 'hello' })
     expect(logs).toEqual([])
-    chat.setWebsearchGranted(true)
-    expect(await captured.beforeToolCall('webfetch', { url: 'https://example.com/a' })).toBeUndefined()
-    await captured.afterToolCall('webfetch', { url: 'https://example.com/a' }, JSON.stringify({ ok: true, content: 'hello' }))
+    turn.chat.setWebsearchGranted(true)
+    expect(await turn.opts.beforeToolCall('webfetch', { url: 'https://example.com/a' })).toBeUndefined()
+    turn.release()
+  })
+
+  it('denies a web call it cannot ask about, pointing at Chat settings, and audits only fetched pages', async () => {
+    const logs = []
+    const unasked = createWebsearchGrant({ log: (entry) => logs.push(entry) })
+    expect(await unasked.beforeToolCall('webfetch', { url: 'https://example.com/a' })).toEqual({ decision: 'deny', reason: webUnasked('webfetch') })
+    const dismissed = createWebsearchGrant({ ask: async () => Promise.reject(new Error('question dismissed')) })
+    expect(await dismissed.beforeToolCall('websearch', { query: 'x' })).toEqual({ decision: 'deny', reason: webUnasked('websearch') })
+    // An ungranted call is not audited as a fetch.
+    await unasked.afterToolCall('webfetch', { url: 'https://example.com/a' }, { ok: true, content: 'hello' })
+    expect(logs).toEqual([])
+    unasked.setGranted(true)
+    expect(await unasked.beforeToolCall('webfetch', { url: 'https://example.com/a' })).toBeUndefined()
+    await unasked.afterToolCall('webfetch', { url: 'https://example.com/a' }, JSON.stringify({ ok: true, content: 'hello' }))
     // A failed fetch is not audited as a fetch; only a page that came back is.
-    await captured.afterToolCall('webfetch', { url: 'https://example.com/b' }, { ok: false, error: { name: 'FetchError' } })
+    await unasked.afterToolCall('webfetch', { url: 'https://example.com/b' }, { ok: false, error: { name: 'FetchError' } })
     expect(logs).toEqual([{ url: 'https://example.com/a', bytes: 5 }])
+  })
+
+  it('reads a typed yes as allowing web access', async () => {
+    const grant = createWebsearchGrant({ ask: async () => 'yes please' })
+    expect(await grant.beforeToolCall('websearch', { query: 'x' })).toBeUndefined()
+    expect(grant.isGranted()).toBe(true)
   })
 
   it('answers the pre-rename tool names as unknown, never as a served call', async () => {
