@@ -215,6 +215,9 @@ packages/agent-loop/eval/results/
 # so `sci push` carries whatever you copy there (ci/README.md).
 /regrade-output/
 
+# ci/synth batch output; untracked files there would dirty the batch's source stamp
+/synth-results/
+
 # Local git worktrees (all locations)
 .claude/worktrees/
 .worktrees/

@@ -63,7 +63,7 @@ describe('runSession', () => {
     expect(r).toMatchObject({ userTurns: 1, accepted: true, timedOut: false, error: null, checks: null })
     expect(driver.calls.send).toEqual(['make a jeep'])
     expect(r.simUserCalls).toEqual([call])
-    expect(driver.calls.view[0]).toEqual({ views: [{ preset: 'iso-front' }, { preset: 'iso-back' }, { preset: 'top' }] })
+    expect(driver.calls.view).toEqual([{ views: [{ preset: 'iso-front' }] }, { views: [{ preset: 'iso-back' }] }, { views: [{ preset: 'top' }] }])
     expect(r.views.map((v) => [v.turn, v.name])).toEqual([[1, 'iso-front'], [1, 'iso-back'], [1, 'top']])
     expect(simUser.calls.critique[0]).toMatchObject({
       finalText: 'reply 1',
@@ -143,6 +143,33 @@ describe('runSession', () => {
     })
     await runSession({ driver, scenario, simUser: fakeSimUser({ accept: () => true }), turnTimeoutMs: 600000 })
     expect(seen).toEqual([600000])
+  })
+
+  it('a builder error at turn end ends the session with that error, uncritiqued', async () => {
+    const driver = fakeDriver({
+      async waitTurn() {
+        return { timedOut: false, error: 'builder: HTTP 502 upstream' }
+      },
+    })
+    const simUser = fakeSimUser()
+    const r = await runSession({ driver, scenario: { ...scenario, checks: () => [{ pass: true }] }, simUser })
+    expect(r).toMatchObject({ error: 'builder: HTTP 502 upstream', accepted: false, userTurns: 1, checks: null })
+    expect(simUser.calls.critique).toHaveLength(0)
+  })
+
+  it('a dropped shot does not shift the later view names', async () => {
+    const driver = fakeDriver({
+      async view(spec) {
+        const [{ preset }] = spec.views
+        if (preset === 'iso-front') return { ok: true, shots: [] }
+        if (preset === 'iso-back') throw new Error('render failed')
+        return { ok: true, shots: [{ image: { dataUrl: `data:${preset}` } }] }
+      },
+    })
+    const simUser = fakeSimUser({ accept: () => true })
+    const r = await runSession({ driver, scenario, simUser })
+    expect(r.views.map((v) => [v.name, v.dataUrl])).toEqual([['top', 'data:top']])
+    expect(simUser.calls.critique[0].images).toEqual(['data:top'])
   })
 
   it('a sim-user error ends the session with error, never throws', async () => {

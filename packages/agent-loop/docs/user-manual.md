@@ -391,9 +391,9 @@ conversation in a batch is labeled from the batch's `manifest.json`; one whose
 chat id is not in the manifest has `label: null`. A missing manifest is an
 error naming its path.
 
-Every header ends with `failed:<n> unbuilt:<n>`: the count of failed tool calls
+Every header carries `failed:<n> unbuilt:<n>`: the count of failed tool calls
 and of turns that did not end on a successful `write` or `edit`. A labeled
-conversation adds `<scenario> <builder>#<run>`.
+conversation adds `<scenario> <builder>#<run>` after it.
 
 The summary prints one block per conversation, headed by its chat id, model
 and API style, then each user message, each tool call as `ok`, `FAILED` or
@@ -420,13 +420,18 @@ and `manifest.json` go to `<logs>/synthetic/<batch>/`.
 
 `runSession` (`synth/session.js`) runs one session against a page driver:
 send the scenario's prompt, answer each question the builder asks through the
-simulated user, then render `iso-front`, `iso-back` and `top`, take the build
-report and the final assistant text, and ask the simulated user to judge. It
-ends on `ACCEPT`, after 3 user turns (the prompt included), on a turn that
-times out, or on the first error. A timed-out turn is stopped, and so is one
-whose wait failed or whose question the simulated user could not answer.
-An empty reply from
-the simulated user is an error and is never sent. Scenario `checks` then run
+simulated user, then render `iso-front`, `iso-back` and `top` (one `view` call
+each, so a failed view drops only its own image), take the build report and
+the final assistant text, and ask the simulated user to judge. It ends on
+`ACCEPT`, after 3 user turns (the prompt included), on a turn that times out,
+or on the first error. A builder turn that ends with an error row in the chat
+(a failed model request) is an error, `builder: <row text>`, and is not
+judged; a turn that hits the step cap and closes with its summary is not. A
+timed-out turn is stopped, and so is one whose wait failed or whose question
+the simulated user could not answer. The verdict counts as `ACCEPT` when the
+reply's first non-empty line is `ACCEPT`, ignoring case, markdown emphasis,
+backticks, quotes and trailing `.` or `!`. An empty reply from the simulated
+user is an error and is never sent. Scenario `checks` then run
 on the final build, after a timeout too but not after an error. The simulated
 user sees only the user's messages and answers, the questions asked and each
 turn's final text. Its model calls go straight to the Go endpoint and time out
@@ -490,8 +495,10 @@ relay day files, `manifest.json`, `views/<chatId>-t<turn>-<name>.png` for each
 rendered view, and `index.txt`, the list of every file in it, rewritten after
 each session. Each lane builds its own bundle into
 `apps/jscad-web/build_local-<port>/` (the launcher's `JSCAD_LOCAL_OUT`), since
-a bundle bakes its app and frame origins. A session that saw no chat id on
-its relay requests ends with the error `no chat id seen`. A failure while
+a bundle bakes its app and frame origins. The page aborts every relay POST
+whose body names a `model` other than the session's builder, and the session
+ends with the error `builder request used <model>`. A session that saw no
+chat id on its relay requests ends with the error `no chat id seen`. A failure while
 recording a session becomes that session's error and the lane goes on. Every
 launcher still running is stopped when the script exits or gets SIGINT or
 SIGTERM. The script exits 1 when the probe gate refuses, or when no lane

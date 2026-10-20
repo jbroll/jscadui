@@ -686,7 +686,11 @@ Parts:
 The simulated user is never the builder's own model. It runs at temperature
 0; the builder keeps the model's default. Only the free models served by the
 Go endpoint are used. Zen's free models refuse a request from outside
-OpenCode, so they are out. A batch never makes a paid call.
+OpenCode, so they are out. Two guards keep a batch off paid models: the
+runner refuses to start unless every model it will call is on the free list
+and passed the probe (`assertFree`), and the page driver aborts any builder
+request whose body names a model other than the session's builder
+(`apps/jscad-web/synth/relayGuard.js`), ending the session with an error.
 
 Data flow for a session: the runner seeds a fresh model directory and starts
 a launcher on it with `JSCAD_CHAT_LOG` pointing at the batch directory. The
@@ -712,9 +716,10 @@ Reasons for the shape:
   fact card would: it sees no code or tool calls, does not name APIs and does
   not coach a fix. Its messages after the prompt count as corrections.
 - Batches sit in `<data>/logs/synthetic/<batch>/`, two levels below `logs/`.
-  Plain `read-log` reads only the top level and `prod/`, so a batch of dozens
-  of sessions never swamps real conversations under `--since`; a batch is read
-  on request with `--batch`.
+  Plain `read-log` reads the day files at the top level and in each
+  first-level subdirectory (such as `prod/`), never deeper, so a batch of
+  dozens of sessions never swamps real conversations under `--since`; a batch
+  is read on request with `--batch`.
 - A scenario without `files` starts from the project a new production user
   gets (the two-cars `main.js` and `02-hierarchical-car.example.js`), which the
   runner copies into the model directory. The launcher's own scaffold is an

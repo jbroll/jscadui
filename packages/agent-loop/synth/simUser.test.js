@@ -31,7 +31,19 @@ describe('createSimUser', () => {
     expect(flat(req)).not.toMatch(/```/)
   })
 
-  it.each([['ACCEPT', true], ['ACCEPT.', true], [' accept ', true], ['I accept the size but...', false]])(
+  it.each([
+    ['ACCEPT', true],
+    ['ACCEPT.', true],
+    [' accept ', true],
+    ['**ACCEPT**', true],
+    ['`ACCEPT`', true],
+    ['"ACCEPT"', true],
+    ['ACCEPT\n\nlooks good', true],
+    ['\n**ACCEPT!**\nthanks', true],
+    ['I accept the size but...', false],
+    ['ACCEPTED, mostly', false],
+    ['Not yet.\nACCEPT once the wheels are round', false],
+  ])(
     'critique %j accepted=%s',
     async (reply, accepted) => {
       const user = createSimUser({ client: fakeClient(reply), model: 'm', maxTokens: 1, vision: false, scenario })

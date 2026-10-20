@@ -44,9 +44,13 @@ export async function runSession({ driver, scenario, simUser, maxUserTurns = 3, 
     }
   }
 
+  // One view per call, so a dropped or failed shot cannot shift another's name.
   const shoot = async (turn) => {
-    const shots = await driver.view({ views: VIEWS.map((preset) => ({ preset })) }).then((r) => r?.shots ?? [], () => [])
-    const taken = shots.map((s, i) => ({ turn, name: VIEWS[i], dataUrl: s?.image?.dataUrl })).filter((v) => v.dataUrl)
+    const taken = []
+    for (const name of VIEWS) {
+      const shot = await driver.view({ views: [{ preset: name }] }).then((r) => r?.shots?.[0], () => null)
+      if (shot?.image?.dataUrl) taken.push({ turn, name, dataUrl: shot.image.dataUrl })
+    }
     result.views.push(...taken)
     return taken.map((v) => v.dataUrl)
   }
@@ -54,19 +58,20 @@ export async function runSession({ driver, scenario, simUser, maxUserTurns = 3, 
   try {
     await say(scenario.prompt)
     for (;;) {
+      let turnError = null
       try {
-        const { timedOut } = await driver.waitTurn({ timeoutMs: turnTimeoutMs, onQuestion })
-        if (timedOut) result.timedOut = true
+        const turn = await driver.waitTurn({ timeoutMs: turnTimeoutMs, onQuestion })
+        if (turn.timedOut) result.timedOut = true
         if (questionError) throw questionError
+        turnError = turn.error ?? null
       } catch (e) {
         // The builder's turn may still be running in the page.
         await Promise.resolve().then(() => driver.stop()).catch(() => {})
         throw e
       }
-      if (result.timedOut) {
-        await driver.stop()
-        break
-      }
+      if (result.timedOut) await driver.stop()
+      if (turnError) throw new Error(turnError)
+      if (result.timedOut) break
       const images = await shoot(result.userTurns)
       const report = await driver.buildReport()
       const finalText = await driver.lastAssistantText()

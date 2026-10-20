@@ -1,6 +1,9 @@
 import { GO_BASE_URL } from './roles.js'
 
 export function createGoClient({ apiKey, fetchImpl = fetch, session, timeoutMs = 120000 }) {
+  // A provider can echo the request, key included, into its error text.
+  const redact = (text) => (apiKey ? text.replaceAll(apiKey, '[key]') : text)
+
   async function post(model, body) {
     const signal = AbortSignal.timeout(timeoutMs)
     try {
@@ -17,7 +20,8 @@ export function createGoClient({ apiKey, fetchImpl = fetch, session, timeoutMs =
       return { res, raw: await res.text() }
     } catch (e) {
       if (signal.aborted) throw new Error(`${model}: timeout after ${timeoutMs} ms`)
-      throw e
+      const message = String(e?.message ?? e)
+      throw apiKey && message.includes(apiKey) ? new Error(redact(message)) : e
     }
   }
 
@@ -36,7 +40,7 @@ export function createGoClient({ apiKey, fetchImpl = fetch, session, timeoutMs =
     const text = json?.choices?.[0]?.message?.content
     if (!res.ok || typeof text !== 'string') {
       const detail = json?.error?.message ?? json?.error ?? raw.slice(0, 300)
-      throw new Error(`${model}: HTTP ${res.status}: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`)
+      throw new Error(redact(`${model}: HTTP ${res.status}: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`))
     }
     return {
       text,

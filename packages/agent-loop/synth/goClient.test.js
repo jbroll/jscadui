@@ -42,6 +42,23 @@ describe('createGoClient', () => {
     expect(err.message).not.toContain(KEY)
   })
 
+  it('redacts the key when the provider echoes it', async () => {
+    const fetchImpl = async () =>
+      new Response(JSON.stringify({ error: { message: `invalid key ${KEY} for this route` } }), { status: 401 })
+    const client = createGoClient({ apiKey: KEY, fetchImpl, session: 's' })
+    const err = await client.complete({ model: 'beam-free', messages: [] }).catch((e) => e)
+    expect(err.message).toBe('beam-free: HTTP 401: invalid key [key] for this route')
+  })
+
+  it('redacts the key from a fetch failure', async () => {
+    const fetchImpl = async () => {
+      throw new TypeError(`connect failed: Bearer ${KEY}`)
+    }
+    const client = createGoClient({ apiKey: KEY, fetchImpl, session: 's' })
+    const err = await client.complete({ model: 'beam-free', messages: [] }).catch((e) => e)
+    expect(err.message).toBe('connect failed: Bearer [key]')
+  })
+
   it('rejects when content is missing', async () => {
     const fetchImpl = async () => new Response(JSON.stringify({ choices: [{ message: {} }] }), { status: 200 })
     const client = createGoClient({ apiKey: KEY, fetchImpl, session: 's' })

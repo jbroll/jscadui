@@ -97,14 +97,12 @@ try {
   fail(e.message)
 }
 
+// Stamped before the batch writes anything, which could otherwise dirty it.
+const jscaduiCommit = sourceStamp(repoRoot)
+const scenarioSetCommit = gitOut('log', '-1', '--format=%H', '--', 'packages/agent-loop/synth/scenarios')
 mkdirSync(batchDir, { recursive: true })
 writeFileSync(join(out, 'latest'), `${batch}\n`)
-const manifest = createManifest({
-  batch,
-  jscaduiCommit: sourceStamp(repoRoot),
-  scenarioSetCommit: gitOut('log', '-1', '--format=%H', '--', 'packages/agent-loop/synth/scenarios'),
-  probe,
-})
+const manifest = createManifest({ batch, jscaduiCommit, scenarioSetCommit, probe })
 
 const record = (entry) => {
   addSession(manifest, entry)

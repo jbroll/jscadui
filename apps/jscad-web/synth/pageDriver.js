@@ -2,6 +2,7 @@
 // (`runSession`): send, wait out a turn while answering its questions, stop,
 // and call the chat's own tool handlers through the harness hook.
 import { dismissWelcome, seedTos, waitForRender } from '../e2e/helpers.js'
+import { offBuilderModel } from './relayGuard.js'
 
 const LOAD_TIMEOUT_MS = 60_000
 const SEND_TIMEOUT_MS = 15_000
@@ -10,7 +11,8 @@ const POLL_MS = 250
 
 const isTimeout = (e) => e?.name === 'TimeoutError'
 
-// Runs in the page: an open question card, a finished turn, or neither.
+// Runs in the page: an open question card, a finished turn with the error rows
+// it added (a failed builder request), or neither.
 const turnState = () => {
   const card = [...document.querySelectorAll('.chat-question:not(.answered)')].at(-1)
   if (card) {
@@ -19,7 +21,11 @@ const turnState = () => {
     return { question: options.length > 0 ? `${text}\nOptions: ${options.join(' / ')}` : text }
   }
   const send = document.querySelector('.chat-send')
-  return send && !send.classList.contains('running') ? { done: true } : false
+  if (!send || send.classList.contains('running')) return false
+  const rows = [...document.querySelectorAll('.chat-messages .chat-msg')]
+  const start = rows.findLastIndex((r) => r.classList.contains('user'))
+  const errors = rows.slice(start + 1).filter((r) => r.classList.contains('error')).map((r) => r.textContent)
+  return { done: true, error: errors.join('\n') || null }
 }
 
 // Runs in the page. While a question is open a non-empty Send answers it; done
@@ -64,7 +70,17 @@ export async function openSession(browser, { url, key, model, vision }) {
     rounds++
   })
 
+  // Second zero-spend guard after assertFree: no builder request may name
+  // another model, whatever the app's selection turns out to be.
+  let offModel = null
   try {
+    await page.route('**/api/relay/**', (route) => {
+      const request = route.request()
+      const used = request.method() === 'POST' ? offBuilderModel(request.postData(), model) : null
+      if (used === null) return route.continue()
+      offModel ??= used
+      return route.abort()
+    })
     await page.goto(url)
     await dismissWelcome(page)
     await waitForRender(page, LOAD_TIMEOUT_MS)
@@ -106,18 +122,22 @@ export async function openSession(browser, { url, key, model, vision }) {
     },
 
     async waitTurn({ timeoutMs, onQuestion }) {
+      const ended = (timedOut, rowError = null) => ({
+        timedOut,
+        error: offModel ? `builder request used ${offModel}` : rowError && `builder: ${rowError}`,
+      })
       const deadline = Date.now() + timeoutMs
       for (;;) {
         const remaining = deadline - Date.now()
-        if (remaining <= 0) return { timedOut: true }
+        if (remaining <= 0) return ended(true)
         let state
         try {
           state = await (await page.waitForFunction(turnState, null, { timeout: remaining, polling: POLL_MS })).jsonValue()
         } catch (e) {
-          if (isTimeout(e)) return { timedOut: true }
+          if (isTimeout(e)) return ended(true)
           throw e
         }
-        if (state.done) return { timedOut: false }
+        if (state.done) return ended(false, state.error)
         const answer = await onQuestion(state.question)
         await page.evaluate(answerOpenQuestion, answer)
       }

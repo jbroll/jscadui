@@ -17,7 +17,11 @@ const system = (scenario) =>
 const LABEL = { user: 'You', assistant: 'Assistant', question: 'Assistant asked' }
 const transcript = (history) => history.map((h) => `${LABEL[h.role] ?? h.role}: ${h.text}`).join('\n')
 const usage = (r) => ({ ms: r.ms, inputTokens: r.inputTokens, outputTokens: r.outputTokens })
-const isAccept = (text) => text.trim().replace(/[.!\s]+$/, '').toUpperCase() === ACCEPT
+// Models wrap the verdict in markdown or quotes, or add a remark below it.
+const isAccept = (text) => {
+  const first = text.split('\n').find((line) => line.trim() !== '') ?? ''
+  return first.replace(/[*_`"'“”]/g, '').trim().replace(/[.!\s]+$/, '').toUpperCase() === ACCEPT
+}
 
 export function createSimUser({ client, model, maxTokens, vision, scenario }) {
   const ask = (content) =>
