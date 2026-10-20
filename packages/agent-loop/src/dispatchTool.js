@@ -87,6 +87,15 @@ const ROUTES = {
   webfetch: (deps, args) => deps.webfetch(args),
 }
 
+// Coding-agent habits: a model that reaches for a shell writes heredocs, and
+// one left its `EOF` in main.js.
+const SHELL_TOOL = /^(bash|sh|zsh|shell|terminal|cmd|run_command|run_shell|exec_command)$/i
+
+const unknownTool = (name) =>
+  SHELL_TOOL.test(name)
+    ? `unknown tool ${name}: there is no shell here; write and edit change files, execute runs a snippet of model code`
+    : `unknown tool ${name}`
+
 /**
  * Routes a tool call to the handler that serves it, in the app and the eval.
  * A failure is a result, never a throw, so the loop always has something to
@@ -97,7 +106,7 @@ const ROUTES = {
  *   Handlers keyed by the stable on-disk names (see the table above `ROUTES`).
  */
 export const dispatchTool = async (name, input, deps) => {
-  if (!Object.hasOwn(ROUTES, name)) return toolError('UnknownToolError', `unknown tool ${name}`)
+  if (!Object.hasOwn(ROUTES, name)) return toolError('UnknownToolError', unknownTool(name))
   const violation = validateInput(name, input ?? {})
   if (violation) return toolError('ValidationError', `${name}: ${violation}`)
   try {

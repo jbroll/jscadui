@@ -332,7 +332,9 @@ uses `search`, `delete` uses `deleteFile`, `execute` uses `run` (called as
 `edit(args)`, `measure(args)`, `check(args)`, `view(args)`, `docs(args.query)`
 and `websearch(args)`, with `input` defaulting to `{}`. A name
 outside that list answers `toolError('UnknownToolError', 'unknown tool
-<name>')`; a handler that throws or rejects answers `toolError(error.name,
+<name>')`, and a shell name (`bash`, `sh`, `shell`, `terminal`,
+`run_command` and the like) adds that there is no shell and which tools change
+files and run code; a handler that throws or rejects answers `toolError(error.name,
 error.message)` (`Error` and the thrown value's text for a non-error). It
 never throws. `toolError(name, message)` is `{ ok: false, error: { name,
 message } }`. The eval sends each answer on as JSON text; the app's chat

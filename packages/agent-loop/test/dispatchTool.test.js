@@ -120,6 +120,12 @@ describe('dispatchTool', () => {
     expect(d.skill).not.toHaveBeenCalled()
   })
 
+  it.each(['bash', 'shell', 'run_command'])('answers the shell tool %s with where files and code go instead', async (name) => {
+    expect(await dispatchTool(name, { command: 'cat > main.js << EOF' }, deps())).toEqual(
+      toolError('UnknownToolError', `unknown tool ${name}: there is no shell here; write and edit change files, execute runs a snippet of model code`),
+    )
+  })
+
   it.each(['eval', 'params', 'writeModel', 'constructor', 'toString'])('answers %s as an unknown tool', async (name) => {
     expect(await dispatchTool(name, { source: 'x' }, deps())).toEqual(toolError('UnknownToolError', `unknown tool ${name}`))
   })
