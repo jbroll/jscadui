@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyDelete, applyEdit, applyWrite, buildFiles, isTestFile, isTestOrNotesPath, listFiles, NO_ENTRY, pickEntry, projectPath, readFile, resolveEntry, SEARCH_LIMIT, searchFiles } from '../src/project.js'
+import { applyDelete, applyEdit, applyWrite, buildFiles, globMatcher, isTestFile, isTestOrNotesPath, listFiles, NO_ENTRY, pickEntry, projectPath, readFile, resolveEntry, SEARCH_LIMIT, searchFiles } from '../src/project.js'
 
 const thrown = (fn) => {
   try {
@@ -140,6 +140,16 @@ describe('listFiles', () => {
       ],
     })
   })
+
+  it('filters by pattern and by folder', () => {
+    const files = { 'main.js': '', 'jeep/body.js': '', 'jeep/parts/wheel.js': '', 'notes.md': '' }
+    const paths = (args) => listFiles(files, args).files.map((f) => f.path)
+    expect(paths({ pattern: '**/*.js' })).toEqual(['jeep/body.js', 'jeep/parts/wheel.js', 'main.js'])
+    expect(paths({ pattern: '*.md' })).toEqual(['notes.md'])
+    expect(paths({ path: 'jeep/parts' })).toEqual(['jeep/parts/wheel.js'])
+    expect(paths({ path: 'jeep', pattern: '*.js' })).toEqual(['jeep/body.js', 'jeep/parts/wheel.js'])
+    expect(paths({ pattern: '*.scad' })).toEqual([])
+  })
 })
 
 describe('readFile', () => {
@@ -268,5 +278,38 @@ describe('searchFiles', () => {
 
   it('refuses a search path that leaves the project', () => {
     expect(thrown(() => searchFiles({ 'main.js': 'cube' }, { pattern: 'cube', include: ['../x.js'] })).name).toBe('PathError')
+  })
+
+  const tree = { 'main.js': 'cube\n', 'jeep/body.js': 'cube\n', 'jeep/parts/wheel.js': 'cube\n', 'notes.md': 'cube\n' }
+
+  it('takes include as a glob string or a list of paths and globs', () => {
+    expect(searchFiles(tree, { pattern: 'cube', include: 'jeep/**/*.js' })).toBe('jeep/body.js:1: cube\njeep/parts/wheel.js:1: cube')
+    expect(searchFiles(tree, { pattern: 'cube', include: '*.md' })).toBe('notes.md:1: cube')
+    expect(searchFiles(tree, { pattern: 'cube', include: ['main.js', 'jeep/parts/*.js'] })).toBe('jeep/parts/wheel.js:1: cube\nmain.js:1: cube')
+    expect(searchFiles(tree, { pattern: 'cube', include: '*.{md,txt}' })).toBe('notes.md:1: cube')
+  })
+
+  it('searches under path, a file or a folder', () => {
+    expect(searchFiles(tree, { pattern: 'cube', path: 'jeep/parts' })).toBe('jeep/parts/wheel.js:1: cube')
+    expect(searchFiles(tree, { pattern: 'cube', path: 'main.js' })).toBe('main.js:1: cube')
+    expect(searchFiles(tree, { pattern: 'cube', path: 'jeep', include: '*.js' })).toBe('jeep/body.js:1: cube\njeep/parts/wheel.js:1: cube')
+  })
+
+  it('says when include or path names no file', () => {
+    expect(searchFiles(tree, { pattern: 'cube', include: '*.scad' })).toBe('(no files match *.scad; glob lists the files)')
+    expect(thrown(() => searchFiles(tree, { pattern: 'cube', path: 'car' }))).toEqual({ name: 'FileNotFoundError', message: 'no file or folder car in the project; glob lists the files' })
+  })
+})
+
+describe('globMatcher', () => {
+  it('matches ** across folders, * within one, ? for one character, and {a,b} alternatives', () => {
+    expect(globMatcher('**/*.js')('a/b/c.js')).toBe(true)
+    expect(globMatcher('**/*.js')('c.js')).toBe(true)
+    expect(globMatcher('jeep/*.js')('jeep/parts/w.js')).toBe(false)
+    expect(globMatcher('part?.js')('part1.js')).toBe(true)
+    expect(globMatcher('*.{js,ts}')('lib/a.ts')).toBe(true)
+    expect(globMatcher('main.js')('main.js')).toBe(true)
+    expect(globMatcher('main.js')('lib/main.js')).toBe(true)
+    expect(globMatcher('a.b')('axb')).toBe(false)
   })
 })

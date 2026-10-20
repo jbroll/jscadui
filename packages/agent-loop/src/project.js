@@ -73,12 +73,62 @@ export const resolveEntry = (files) => {
 
 const byteSize = (content) => (typeof content === 'string' ? new TextEncoder().encode(content).length : (content?.byteLength ?? 0))
 
-export const listFiles = (files) => ({
-  ok: true,
-  files: Object.keys(files)
-    .sort()
-    .map((path) => ({ path, size: byteSize(files[path]) })),
-})
+const globSource = (glob) => {
+  let out = ''
+  for (let i = 0; i < glob.length; i += 1) {
+    const c = glob[i]
+    if (c === '*' && glob[i + 1] === '*') {
+      i += 1
+      if (glob[i + 1] === '/') {
+        i += 1
+        out += '(?:[^/]*/)*'
+      } else {
+        out += '.*'
+      }
+    } else if (c === '*') {
+      out += '[^/]*'
+    } else if (c === '?') {
+      out += '[^/]'
+    } else if (c === '{' && glob.indexOf('}', i) > i) {
+      const end = glob.indexOf('}', i)
+      out += `(?:${glob.slice(i + 1, end).split(',').map(globSource).join('|')})`
+      i = end
+    } else {
+      out += c.replace(/[.+^$()|[\]\\{}]/g, '\\$&')
+    }
+  }
+  return out
+}
+
+const GLOB_CHARS = /[*?{]/
+
+/**
+ * A test for project paths: `**` spans folders, `*` and `?` stay in one, and
+ * `{a,b}` picks one. A pattern with no `/` matches the file name at any depth,
+ * as ripgrep's globs do, which is the shape models bring from other agents.
+ * @param {string} pattern
+ * @returns {(path: string) => boolean}
+ */
+export const globMatcher = (pattern) => {
+  const glob = pattern.trim().replace(/^\.?\//, '')
+  const re = new RegExp(`^${globSource(glob)}$`)
+  return glob.includes('/') ? (path) => re.test(path) : (path) => re.test(path.slice(path.lastIndexOf('/') + 1))
+}
+
+const under = (paths, folder) => {
+  const base = projectPath(folder)
+  return paths.filter((path) => path === base || path.startsWith(`${base}/`))
+}
+
+export const listFiles = (files, { pattern, path } = {}) => {
+  let paths = Object.keys(files)
+  if (typeof path === 'string' && path.trim() !== '' && path.trim() !== '.') paths = under(paths, path)
+  if (typeof pattern === 'string' && pattern.trim() !== '') paths = paths.filter(globMatcher(pattern))
+  return {
+    ok: true,
+    files: paths.sort().map((p) => ({ path: p, size: byteSize(files[p]) })),
+  }
+}
 
 const splitLines = (text) => {
   const lines = text.split('\n')
@@ -106,7 +156,26 @@ export const SEARCH_LIMIT = 60
 
 const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-export const searchFiles = (files, { pattern, include, literal = false } = {}) => {
+// `include` is a glob string, or a list of paths and globs; `path` a file or folder.
+const searchedPaths = (files, include, path) => {
+  let paths = Object.keys(files)
+  if (typeof path === 'string' && path.trim() !== '' && path.trim() !== '.') {
+    paths = under(paths, path)
+    if (paths.length === 0) throw named('FileNotFoundError', `no file or folder ${projectPath(path)} in the project; glob lists the files`)
+  }
+  const entries = [include].flat().filter((entry) => typeof entry === 'string' && entry.trim() !== '')
+  if (entries.length === 0) return paths
+  const tests = entries.map((entry) => {
+    if (GLOB_CHARS.test(entry)) return globMatcher(entry)
+    const exact = projectPath(entry)
+    return (p) => p === exact
+  })
+  const matched = paths.filter((p) => tests.some((test) => test(p)))
+  if (matched.length === 0) return { none: `(no files match ${entries.join(', ')}; glob lists the files)` }
+  return matched
+}
+
+export const searchFiles = (files, { pattern, include, path, literal = false } = {}) => {
   if (typeof pattern !== 'string' || pattern.trim() === '') {
     throw named('SearchError', 'pattern must be a non-empty string such as cube')
   }
@@ -116,7 +185,9 @@ export const searchFiles = (files, { pattern, include, literal = false } = {}) =
   } catch {
     throw named('SearchError', `pattern ${pattern} is not a valid regex; pass literal: true to search for it as text`)
   }
-  const names = (Array.isArray(include) && include.length > 0 ? include : Object.keys(files)).map((p) => projectPath(p)).sort()
+  const paths = searchedPaths(files, include, path)
+  if (!Array.isArray(paths)) return paths.none
+  const names = paths.sort()
   const hits = []
   for (const name of names) {
     const text = files[name]

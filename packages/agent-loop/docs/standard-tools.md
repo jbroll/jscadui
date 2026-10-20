@@ -38,10 +38,15 @@ candidate with its cost noted.
 
 ### 1. Search inside the project (`grep`, `glob`) — shipped
 
-Shipped as `grep(pattern, include?)`: `path:line: text` hits sorted by
-path, at most 60 per call with an overflow count, binary files skipped,
-regex or plain text, read-only. `glob` gives every path with its size each
-turn; `grep` is for the contents.
+Shipped as `grep(pattern, include?, path?, literal?)`: `path:line: text`
+hits sorted by path, at most 60 per call with an overflow count, binary
+files skipped, regex or plain text, read-only. `include` is a glob string or
+a list of paths and globs, and `path` a file or folder, OpenCode's shape,
+which models bring with them. `glob(pattern?, path?)` gives the matching
+paths with their sizes; `grep` is for the contents. Both share
+`globMatcher` (`src/project.js`): `**` spans folders, `*` and `?` stay in
+one, `{a,b}` picks one, and a pattern with no `/` matches the file name at
+any depth, as ripgrep's do.
 
 ### 2. User question / approval (`question`) — shipped
 

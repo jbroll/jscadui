@@ -444,7 +444,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
   }
 
   const tools = {
-    list: () => listFiles(files),
+    list: (args) => listFiles(files, args),
     read: (args) => readFile(files, args),
     search: (args) => searchFiles(files, args),
     write: (args) => saved(applyWrite(files, args)),

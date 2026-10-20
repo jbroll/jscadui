@@ -174,7 +174,7 @@ export const createProjectTools = ({
   const onBuild = (tool) => async (args) => (await noGeometry()) ?? tool(args)
 
   return {
-    list: async () => listFiles(await getProjectFiles()),
+    list: async (args) => listFiles(await getProjectFiles(), args),
     read: async (args) => readFile(await getProjectFiles(), args),
     search: async (args) => searchFiles(await getProjectFiles(), args),
     write: async (args) => save(applyWrite(await getProjectFiles(), args)),

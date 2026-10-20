@@ -49,12 +49,16 @@ export const buildTools = (api = DEFAULT_API, { vision = false } = {}) => [
   },
   {
     name: 'grep',
-    description: 'Search project text files for a regex or plain text; answers path:line hits, at most 60, binary files skipped; include defaults to all text files; literal=true disables regex.',
+    description: 'Search project text files for a regex or plain text; answers path:line hits, at most 60, binary files skipped; include and path narrow the files, all text files by default; literal=true disables regex.',
     inputSchema: {
       type: 'object',
       properties: {
         pattern: { type: 'string', description: 'Regex or text to find, such as cube|box' },
-        include: { type: 'array', items: { type: 'string' }, description: 'Files to search; defaults to all text files' },
+        include: {
+          anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+          description: 'A glob such as **/*.js, or a list of file paths and globs',
+        },
+        path: { type: 'string', description: 'A project file or folder to search in, such as parts' },
         literal: { type: 'boolean', description: 'Treat pattern as plain text instead of a regex' },
       },
       required: ['pattern'],
