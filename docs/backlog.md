@@ -168,7 +168,7 @@ Found by `e2e/ai-chat-tools.spec.js` (plan `docs/superpowers/plans/2026-10-17-ch
 
 From reviewing the 09-30 local and 10-19 production logs (chats bb17e98f,
 037181f1). The execute, view part-reference and negative-angle stumbles are
-fixed; these remain.
+fixed, the last in the modeling fork; these remain.
 
 - **Agent writes can destroy the user's model.** In bb17e98f about eight
   experiment writes replaced a 70-part Jeep in `main.js` with text tests, and
@@ -204,11 +204,11 @@ fixed; these remain.
   `/cube/index.js` with the boot example's source and stored it as an edit.
   Set the path only when the new text is in the view. `harness-hook.spec.js`
   waits for the text before Shift+Enter, as `project-ui.spec.js` does.
-- **Upstream angle checks (`@jscad/modeling`).** `star` says "startAngle must
-  be greater than zero" and arc, ellipse, torus and cylinderElliptic say "must
-  be positive", but all accept zero and take the angle mod TAU. Drop the
-  `isGTE(…, 0)` checks and wrap instead; `optionChecks.js` wraps on our side
-  meanwhile.
+- **`extrudeRotate` flips a sweep that crosses 2π (`@jscad/modeling`).** When
+  `startAngle + angle` passes TAU it wraps the end and swaps the two ends, so
+  the sweep lands on the opposite side. The fork's `torus` (74f2355a) passes a
+  negative `startAngle` through unwrapped to avoid it; a torus with
+  `startAngle: 1.5 * Math.PI, outerRotation: Math.PI` still hits it. Fix it in the fork and move the pin.
 - **`read-log` loses review evidence.** `view` images (sent as a following
   user message) are kept only as camera JSON; Responses-API `refusal` content
   decodes blank; the app's "Maximum steps reached" message counts as a user

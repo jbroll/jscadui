@@ -130,52 +130,11 @@ const pairRadii = ([options, ...rest]) => {
   return facts.length ? { args: [fixed, ...rest], facts } : undefined
 }
 
-// Modeling's primitives refuse a negative angle, though each takes its angles
-// mod 2π; one past 2π is wrapped the same way modeling would.
-const wrapAngle = (a) => {
-  const r = ((a % TAU) + TAU) % TAU
-  return r < TAU ? r : 0
-}
-const outsideTurn = (a) => Number.isFinite(a) && (a < 0 || a > TAU)
-
-const wrapAngles = (names) => ([options, ...rest]) => {
-  if (!isPlainObject(options)) return undefined
-  const fixed = { ...options }
-  const facts = []
-  for (const option of names) {
-    const from = options[option]
-    if (![from].flat().some(outsideTurn)) continue
-    const wrap = (a) => (outsideTurn(a) ? wrapAngle(a) : a)
-    fixed[option] = Array.isArray(from) ? from.map(wrap) : wrap(from)
-    facts.push({ option, wrapped: true, from, to: fixed[option] })
-  }
-  return facts.length ? { args: [fixed, ...rest], facts } : undefined
-}
-
-const allFixes = (...fixes) => (args) => {
-  let current = args
-  const facts = []
-  for (const fix of fixes) {
-    const fixed = fix(current)
-    if (!fixed) continue
-    current = fixed.args
-    facts.push(...fixed.facts)
-  }
-  return facts.length ? { args: current, facts } : undefined
-}
-
-const START_END = ['startAngle', 'endAngle']
-
 const fixSpecs = (prefix) => ({
   [`${prefix}roundedCuboid`]: { fix: clampRoundRadius('roundedCuboid') },
   [`${prefix}roundedRectangle`]: { fix: clampRoundRadius('roundedRectangle') },
   [`${prefix}roundedCylinder`]: { fix: clampRoundRadius('roundedCylinder') },
-  [`${prefix}cylinderElliptic`]: { fix: allFixes(pairRadii, wrapAngles(START_END)) },
-  [`${prefix}arc`]: { fix: wrapAngles(START_END) },
-  [`${prefix}circle`]: { fix: wrapAngles(START_END) },
-  [`${prefix}ellipse`]: { fix: wrapAngles(START_END) },
-  [`${prefix}star`]: { fix: wrapAngles(['startAngle']) },
-  [`${prefix}torus`]: { fix: wrapAngles(['startAngle']) },
+  [`${prefix}cylinderElliptic`]: { fix: pairRadii },
 })
 
 const BOOLEANS = ['union', 'subtract', 'intersect']
@@ -191,12 +150,7 @@ const EXTRA_SPECS = {
     ...booleanSpecs('booleans.'),
     ...fixSpecs('primitives.'),
   },
-  'jf.': {
-    polygon: { outline: pointsArea, reverse: reversedPoints },
-    cylinder: { ignored: loneOuter, fix: wrapAngles(['angle']) },
-    ...booleanSpecs(''),
-    ...fixSpecs(''),
-  },
+  'jf.': { polygon: { outline: pointsArea, reverse: reversedPoints }, cylinder: { ignored: loneOuter }, ...booleanSpecs(''), ...fixSpecs('') },
 }
 const EXTRA_METHOD_SPECS = {
   FluentGeom3: Object.fromEntries(BOOLEANS.map((op) => [op, { boolean: op, method: true }])),

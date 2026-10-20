@@ -120,18 +120,6 @@ describe('explainWarning for a fixed option', () => {
       fn: 'jf.cylinderElliptic', option: 'endRadius', hint: 'endRadius takes an [x, y] pair of radii; used [2, 2] for 2',
     })
   })
-
-  it('says an angle outside 0 to 2π was wrapped, and flags one that looks like degrees', () => {
-    expect(explainWarning({ fn: 'jf.star', option: 'startAngle', wrapped: true, from: -Math.PI / 2, to: 1.5 * Math.PI }, 'fluent')).toEqual({
-      fn: 'jf.star', option: 'startAngle', hint: 'startAngle -1.570796 is outside 0 to 2π; used 4.712389, the same direction',
-    })
-    expect(explainWarning({ fn: 'jf.cylinder', option: 'angle', wrapped: true, from: [-Math.PI, 0], to: [Math.PI, 0] }).hint).toBe(
-      'angle [-3.141593, 0] is outside 0 to 2π; used [3.141593, 0], the same direction',
-    )
-    expect(explainWarning({ fn: 'primitives.arc', option: 'endAngle', wrapped: true, from: -90, to: -90 + 15 * Math.PI }).hint).toBe(
-      `endAngle -90 is outside 0 to 2π; used ${Number((-90 + 15 * Math.PI).toFixed(6))}, the same direction; angles are radians, so if -90 is degrees use -90 * Math.PI / 180`,
-    )
-  })
 })
 
 describe('explainError', () => {

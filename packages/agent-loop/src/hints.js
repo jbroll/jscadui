@@ -126,15 +126,13 @@ const meshHint = (api) =>
  * an angle over 2π `{ fn, option, value }`, clockwise outline points
  * `{ fn, option, area, reversed? }`, an empty boolean result `{ fn, empty }` or
  * `{ points, faces }` data given to a boolean `{ fn, meshOperand }`, a
- * roundRadius reduced to fit `{ fn, option, clamped, from, to, least | height | radius }`,
- * a number radius made a pair `{ fn, option, coerced, from, to }` or an angle
- * wrapped into 0 to 2π `{ fn, option, wrapped, from, to }`.
+ * roundRadius reduced to fit `{ fn, option, clamped, from, to, least | height | radius }`
+ * or a number radius made a pair `{ fn, option, coerced, from, to }`.
  */
 export const explainWarning = (fact, api = DEFAULT_API) => {
   const { fn, option } = fact
   if (fact.clamped) return { fn, option, hint: clampHint(fact) }
   if (fact.coerced) return { fn, option, hint: pairHint(fact) }
-  if (fact.wrapped) return { fn, option, hint: wrapHint(fact) }
   if (Array.isArray(fact.suggestions)) return explainUnknown(fact, api)
   if (fact.expected) return { fn, option, hint: typeHint(fact, api) }
   if ('value' in fact) return { fn, option, hint: angleHint(fact) }
@@ -156,14 +154,6 @@ const clampHint = ({ from, to, least, height, radius }) => {
 }
 
 const pairHint = ({ option, from, to }) => `${option} takes an [x, y] pair of radii; used [${to.join(', ')}] for ${from}`
-
-const shown = (angle) => (Array.isArray(angle) ? `[${angle.map(round).join(', ')}]` : `${round(angle)}`)
-
-const wrapHint = ({ option, from, to }) => {
-  const hint = `${option} ${shown(from)} is outside 0 to 2π; used ${shown(to)}, the same direction`
-  const degrees = [from].flat().find((a) => Math.abs(a) > Math.PI * 2)
-  return degrees === undefined ? hint : `${hint}; angles are radians, so if ${degrees} is degrees use ${degrees} * Math.PI / 180`
-}
 
 const NAN_CAUSE = 'a parameter read back as NaN or an object often causes this; docs params shows how to define and read one'
 
