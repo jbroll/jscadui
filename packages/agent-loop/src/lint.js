@@ -151,6 +151,19 @@ const lintCall = (t, call, text, declared, api, push) => {
   push({ from: callee.from, to: callee.to, severity: 'warning', source: 'jscad', message: `unknown function ${name}; it is not in the API index`, fn: name })
 }
 
+const QUOTE_MAX = 60
+
+// The line holding offset `at`, by number, and its text trimmed for quoting;
+// an error past the last text quotes nothing.
+const syntaxLine = (text, at) => {
+  const start = text.lastIndexOf('\n', at - 1) + 1
+  const end = text.indexOf('\n', at)
+  const whole = text.slice(start, end < 0 ? text.length : end).trim()
+  const line = text.slice(0, start).split('\n').length
+  if (whole === '' || text.slice(at).trim() === '') return { line, quoted: '' }
+  return { line, quoted: whole.length > QUOTE_MAX ? `${whole.slice(0, QUOTE_MAX)}…` : whole }
+}
+
 /**
  * @param {Array<object>} index api/index.json
  * @param {import('@lezer/common').Tree} tree
@@ -164,9 +177,15 @@ export const lintTree = (index, tree, { api = DEFAULT_API, text = '' } = {}) => 
     if (diagnostics.length < MAX_DIAGNOSTICS) diagnostics.push(withLocation(diagnostic, text))
   }
   const cursor = tree.cursor()
+  const erredLines = new Set()
   do {
     if (cursor.type.isError) {
-      push({ from: cursor.from, to: Math.max(cursor.to, cursor.from + 1), severity: 'error', source: 'jscad', message: 'Syntax error' })
+      const { line, quoted } = syntaxLine(text, cursor.from)
+      // The parser recovers token by token, so one bad line yields an error per token.
+      if (erredLines.has(line)) continue
+      erredLines.add(line)
+      const message = quoted ? `Syntax error in: ${quoted}` : 'Syntax error: unexpected end of file'
+      push({ from: cursor.from, to: Math.max(cursor.to, cursor.from + 1), severity: 'error', source: 'jscad', message })
     } else if (cursor.name === 'CallExpression') {
       lintCall(t, cursor.node, text, declared, api, push)
     }

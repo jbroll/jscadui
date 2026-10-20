@@ -72,7 +72,12 @@ describe('unknown function names', () => {
 
 describe('syntax errors', () => {
   it('flags an incomplete statement', () => {
-    expect(lint(`const x = `)).toContainEqual(expect.objectContaining({ severity: 'error', message: 'Syntax error' }))
+    expect(lint(`const x = `)).toContainEqual(expect.objectContaining({ severity: 'error', message: 'Syntax error: unexpected end of file' }))
+  })
+
+  it('quotes the line the parser stopped on, once per line', () => {
+    const errors = lint(`const a = 1\nEOF\ncall_tool <|constrain|>write<|channel|>analysis\nconst b = 2`).filter((d) => d.severity === 'error')
+    expect(errors).toEqual([expect.objectContaining({ line: 3, column: 12, message: 'Syntax error in: call_tool <|constrain|>write<|channel|>analysis' })])
   })
 
   it('firstError returns the first severity error', async () => {

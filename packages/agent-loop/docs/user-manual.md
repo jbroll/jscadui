@@ -578,7 +578,11 @@ measured, checked and exported as itself, more as an array, as the frame
 does (`asGeometry`). A syntax
 error is located by parsing each project file with Babel, entry first, since
 the eval's `SyntaxError` carries no location; `reportError` reads the file,
-line and column from the first parse error's message, as it does for the frame's. `measure`, `check` and `export`
+line and column from the first parse error's message, as it does for the frame's.
+The static lint's own syntax diagnostic, which gates a write in the app before
+the frame sees it, quotes the line it stopped on (`Syntax error in: <line>`,
+up to 60 characters) or says `Syntax error: unexpected end of file`, once per
+line, since the parser recovers token by token. `measure`, `check` and `export`
 fail with `NoGeometryError` before the first build (`no geometry: write the
 model first`) and after a failed one (`no geometry: the last build failed
 (<message>); fix it first`). `execute` answers
