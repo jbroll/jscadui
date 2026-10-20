@@ -12,8 +12,10 @@ conversations; the eval measures a prompt change before it is kept.
 ## Scope
 
 Edit only `packages/agent-loop/prompt.md`, `packages/agent-loop/prompt/`
-(`fluent.md`, `modeling.md`, the examples and `prompt/index.js`) and
-`packages/agent-loop/eval/fixtures/` in jscadui.
+(`fluent.md`, `modeling.md`, the examples, `prompt/skills/` and
+`prompt/index.js`), `packages/agent-loop/src/tools.js` (the tools and their
+descriptions) and `packages/agent-loop/eval/fixtures/` in jscadui. Change one
+thing at a time and measure it alone.
 
 The chat teaches one API style at a time, `fluent` (the default) or
 `modeling`, set by the user's settings and by `EVAL_API` in the eval (see
@@ -80,13 +82,23 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    before the two-style split); the `--json` output carries the same value as
    `api`.
 
+   Plain `read-log` never includes synthetic logs. A synthetic batch
+   (`<data>/logs/synthetic/<batch>/`, see `packages/agent-loop/docs/user-manual.md`,
+   "Synthetic sessions") is its own pass: run
+   `npm run read-log -w @jscadui/agent-loop -- --batch <id>`, which labels each
+   conversation with its scenario and builder from the manifest, and do not
+   mix its conversations with the real ones.
+
 2. **List the stumbles.** For each conversation:
    - every failed tool call, with its error message and the source that
-     caused it;
+     caused it (the header's `failed` count, from `log/stumbles.js`);
    - every turn where the user corrected the model ("no", "that's wrong",
-     a repeat of the request, a changed dimension);
+     a repeat of the request, a changed dimension). In real logs this stays
+     a judgment. In a synthetic batch every simulated-user message after the
+     opening request is a correction, and the manifest's `corrections` holds
+     the count;
    - every turn that ended without a `write` or `edit` that built, or with
-     the project's last build failing.
+     the project's last build failing (the header's `unbuilt` count).
 
 3. **Group by cause.** Stumbles with the same cause across conversations are
    one group: the same bad import, the same misread parameter style, the same
@@ -145,7 +157,11 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    `sci push jscadui/eval` (`ci/eval`, `ci/eval.conf`) for a full-suite run
    across every model — it runs on the CI host, not this machine, and keeps
    the models running concurrently; use a local run for a quick check of one
-   model or a handful of fixtures. The default run (no `EVAL_FIXTURES`) is
+   model or a handful of fixtures. A harness change (tools, tool
+   descriptions, skills, runtime) can also be judged by a new synthetic batch
+   compared with the previous one: fetch it with
+   `npm run synth:fetch -w @jscadui/agent-loop -- JOB-ID` and compare with
+   `npm run synth:compare -w @jscadui/agent-loop -- <a> <b>`. The default run (no `EVAL_FIXTURES`) is
    the fixtures that still lose points plus three guards (see Rules). Add
    `EVAL_FIXTURES=regression` only when the change touches tools or the
    runtime. `gear` sits in the opt-in `profiles` group, kept for experiments

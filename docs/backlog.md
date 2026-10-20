@@ -218,6 +218,13 @@ fixed; these remain.
   enlargement (037181f1 built a 35 m Jeep without asking), and text on a
   vertical face came out mirrored and inside-out after ten rounds (bb17e98f).
   Neither has a fixture; `nameplate` and `luggage-tag` cover flat text only.
+- **Prune the synthetic scenario set.** The starting set is committed as
+  written. After the first full batches, drop scenarios that produce no
+  stumble on the current harness; a new one joins only when a batch shows it
+  does (`packages/agent-loop/synth/scenarios/`).
+- **Raise per-model concurrency in synthetic batches.** A lane runs one
+  session at a time per builder. Once session length is measured, run more
+  than one per model to fit the 7200 s CI cap.
 
 ## Render sweep
 
