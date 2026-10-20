@@ -255,6 +255,9 @@ const explainUndefined = (name, api, { methods, functions, namespaces, jfNames }
  */
 export const explainError = (message, { api = DEFAULT_API, index }) => {
   if (!index) return undefined
+  if (/'return' outside of function/.test(message ?? '')) {
+    return 'a file or execute snippet is a module, not a function body: console.log the value, or export it, module.exports = { main: () => shape }'
+  }
   if (CLASS_WITHOUT_NEW.test(message ?? '')) {
     return api === 'fluent'
       ? 'a class was called without new: the jf wrappers are classes, so write new jf.FluentGeom3(shape) or new jf.FluentGeom2(shape), never jf.FluentGeom3(shape)'

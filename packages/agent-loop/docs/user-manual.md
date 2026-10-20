@@ -315,7 +315,9 @@ require('@jscad/modeling').primitives`, `const { measurements } =
 require('@jscad/modeling')`), and in fluent `jf.X(...)` or `shape.X(...)`.
 "Class constructor t cannot be invoked without 'new'", whose class name the
 frame's minified bundles shorten, gets in fluent the `new jf.FluentGeom3(shape)`
-form, since the jf wrappers are the classes a model calls. The boolean hint for `{ points, faces }` data also lands on the error the
+form, since the jf wrappers are the classes a model calls. "'return' outside
+of function" gets the module form: `console.log` the value or export a
+`main`, in both styles. The boolean hint for `{ points, faces }` data also lands on the error the
 boolean throws ("only unions of the same type are supported"). `test/warningCases.js` holds the cases
 both the eval backend and the app must answer alike.
 

@@ -161,6 +161,13 @@ describe('explainError', () => {
     expect(modeling("Class constructor FooBar cannot be invoked without 'new'")).toBe('a class was called without new; call it as new Name(...)')
   })
 
+  it('says a top-level return has no function to return from', () => {
+    const message = "Babel transform failed for http://project.local/__run__.js: /http:/project.local/__run__.js: 'return' outside of function. (22:0)"
+    const hint = 'a file or execute snippet is a module, not a function body: console.log the value, or export it, module.exports = { main: () => shape }'
+    expect(fluent(message)).toBe(hint)
+    expect(modeling(message)).toBe(hint)
+  })
+
   it('points at the functional form in modeling mode', () => {
     expect(modeling('extrudeLinear(...).translate is not a function')).toBe(
       '@jscad/modeling shapes have no methods; use transforms.translate(offset, shape)',
