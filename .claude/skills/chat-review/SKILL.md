@@ -157,11 +157,7 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    `sci push jscadui/eval` (`ci/eval`, `ci/eval.conf`) for a full-suite run
    across every model — it runs on the CI host, not this machine, and keeps
    the models running concurrently; use a local run for a quick check of one
-   model or a handful of fixtures. A harness change (tools, tool
-   descriptions, skills, runtime) can also be judged by a new synthetic batch
-   compared with the previous one: fetch it with
-   `npm run synth:fetch -w @jscadui/agent-loop -- JOB-ID` and compare with
-   `npm run synth:compare -w @jscadui/agent-loop -- <a> <b>`. The default run (no `EVAL_FIXTURES`) is
+   model or a handful of fixtures. The default run (no `EVAL_FIXTURES`) is
    the fixtures that still lose points plus three guards (see Rules). Add
    `EVAL_FIXTURES=regression` only when the change touches tools or the
    runtime. `gear` sits in the opt-in `profiles` group, kept for experiments
@@ -179,6 +175,11 @@ the user the fixture count times `EVAL_RUNS` and get a yes.
    eval (and `--regrade`) refuses to start without it: run
    `scripts/eval-sandbox-setup.sh` once first
    (`packages/agent-loop/docs/user-manual.md`, "Sandbox setup").
+
+   A harness change (tools, tool descriptions, skills, runtime) can also be
+   judged by a new synthetic batch compared with the previous one: fetch it
+   with `npm run synth:fetch -w @jscadui/agent-loop -- JOB-ID` and compare
+   with `npm run synth:compare -w @jscadui/agent-loop -- <a> <b>`.
 
    The turn budget is per model: `packages/agent-loop/eval/models.json` sets
    `maxTurns` for a model, `EVAL_MAX_TURNS` overrides it for one run, and a
