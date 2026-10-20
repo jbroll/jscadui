@@ -311,7 +311,9 @@ modeling function or namespace the code never took from its package, gets,
 in modeling, the require that brings it in (`const { cuboid } =
 require('@jscad/modeling').primitives`, `const { measurements } =
 require('@jscad/modeling')`), and in fluent `jf.X(...)` or `shape.X(...)`.
-The boolean hint for `{ points, faces }` data also lands on the error the
+"Class constructor t cannot be invoked without 'new'", whose class name the
+frame's minified bundles shorten, gets in fluent the `new jf.FluentGeom3(shape)`
+form, since the jf wrappers are the classes a model calls. The boolean hint for `{ points, faces }` data also lands on the error the
 boolean throws ("only unions of the same type are supported"). `test/warningCases.js` holds the cases
 both the eval backend and the app must answer alike.
 

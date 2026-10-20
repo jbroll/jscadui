@@ -154,6 +154,13 @@ describe('explainError', () => {
     )
   })
 
+  it('says a class called without new needs new, whatever name minifying left it', () => {
+    expect(fluent("Class constructor t cannot be invoked without 'new'")).toBe(
+      'a class was called without new: the jf wrappers are classes, so write new jf.FluentGeom3(shape) or new jf.FluentGeom2(shape), never jf.FluentGeom3(shape)',
+    )
+    expect(modeling("Class constructor FooBar cannot be invoked without 'new'")).toBe('a class was called without new; call it as new Name(...)')
+  })
+
   it('points at the functional form in modeling mode', () => {
     expect(modeling('extrudeLinear(...).translate is not a function')).toBe(
       '@jscad/modeling shapes have no methods; use transforms.translate(offset, shape)',

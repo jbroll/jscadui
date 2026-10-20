@@ -229,6 +229,8 @@ const callOf = (entry) => {
 
 const NOT_A_FUNCTION = /(\S+) is not a function/
 const NOT_DEFINED = /\b([A-Za-z_$][\w$]*) is not defined\b/
+// The frame's bundles are minified, so the class name is often one letter.
+const CLASS_WITHOUT_NEW = /Class constructor [\w$]+ cannot be invoked without 'new'/
 
 // A bare modeling name the model code never took from its namespace.
 const explainUndefined = (name, api, { methods, functions, namespaces, jfNames }) => {
@@ -253,6 +255,11 @@ const explainUndefined = (name, api, { methods, functions, namespaces, jfNames }
  */
 export const explainError = (message, { api = DEFAULT_API, index }) => {
   if (!index) return undefined
+  if (CLASS_WITHOUT_NEW.test(message ?? '')) {
+    return api === 'fluent'
+      ? 'a class was called without new: the jf wrappers are classes, so write new jf.FluentGeom3(shape) or new jf.FluentGeom2(shape), never jf.FluentGeom3(shape)'
+      : 'a class was called without new; call it as new Name(...)'
+  }
   const undefinedName = NOT_DEFINED.exec(message ?? '')
   if (undefinedName) return explainUndefined(undefinedName[1], api, lookupFor(index))
   const match = NOT_A_FUNCTION.exec(message ?? '')
