@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createWebFetchHandler, FETCH_CONTENT_CHARS } from '../src/aiFetch.js'
+import { createWebFetchHandler, FETCH_CONTENT_CHARS, NO_RELAY } from '../src/aiFetch.js'
 
 const relay = (body, status = 200) => ({
   ok: status >= 200 && status < 300,
@@ -22,6 +22,20 @@ describe('page webfetch handler', () => {
     expect(JSON.parse(init.body)).toEqual({ url: 'https://example.com/a', format: 'markdown' })
     // The browser never holds a provider key for fetch, and must never attach one.
     expect(init.headers?.Authorization).toBeUndefined()
+  })
+
+  it('says once a server has no fetch relay, then answers without asking it again', async () => {
+    const fetchFn = vi.fn(async () => relay(null, 404))
+    const handler = createWebFetchHandler({ fetchFn })
+    const missing = { ok: false, error: { name: 'UnavailableError', message: NO_RELAY } }
+    expect(await handler({ url: 'https://example.com/a' })).toEqual(missing)
+    expect(await handler({ url: 'https://example.com/b' })).toEqual(missing)
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a relay 404 that carries an error as that error', async () => {
+    const fetchFn = vi.fn(async () => relay({ error: 'fetch: not here', name: 'FetchError' }, 404))
+    expect(await createWebFetchHandler({ fetchFn })({ url: 'https://e/x' })).toEqual({ ok: false, error: { name: 'FetchError', message: 'fetch: not here' } })
   })
 
   it('passes the requested text format through', async () => {

@@ -163,6 +163,14 @@ Found by `e2e/ai-chat-tools.spec.js` (plan `docs/superpowers/plans/2026-10-17-ch
   thinking for over two minutes gets a `ToolTimeoutError` that ends the turn;
   a late answer resolves into an abandoned promise. Either pass a longer
   timeout for question-bearing turns or document the cap.
+- **The local launcher has no page-fetch or search relay.** `scripts/jscad.mjs`
+  serves `/api/fs` and `/api/relay` but not `/api/fetch` or `/api/search`
+  (`server/src/fetch/routes.ts` is the server's). Locally, and in every
+  synthetic batch, `webfetch` can never work: minimax made 84 calls in
+  batch `2026-10-20T12-54-17.466Z` (enclosure-lid) before `NO_RELAY` in
+  `src/aiFetch.js` named the cause. Either serve the fetch relay from the
+  launcher, with the server's public-address and size guards, or drop
+  `webfetch` from the offered tools when the relay is absent.
 
 ## Chat review follow-ups (2026-10-19)
 

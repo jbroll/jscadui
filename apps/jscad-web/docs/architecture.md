@@ -1001,6 +1001,12 @@ conversation and lets the call through. A no is remembered, so later calls are
 refused without asking again until the Chat settings toggle sets the grant.
 A yes the model collects with its own `question` grants nothing.
 
+`webfetch` posts to `/api/fetch`, which the server serves and the local
+launcher does not. The relay answers every failure with a JSON `error`, so a
+404 without one means no relay: the handler answers `NO_RELAY` (`src/aiFetch.js`),
+telling the model to stop calling it, and answers every later call the same
+way without a request.
+
 The index (about 260 KB) is not in the app entry: `build.js` bundles it as
 `build/bundle.api-index.js` (content-hashed like the other leaf bundles), and
 `src/apiIndex.js` imports it on the first `docs` call or the first model error
