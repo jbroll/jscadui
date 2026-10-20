@@ -135,6 +135,7 @@ export const explainWarning = (fact, api = DEFAULT_API) => {
   if (fact.clamped) return { fn, option, hint: clampHint(fact) }
   if (fact.coerced) return { fn, option, hint: pairHint(fact) }
   if (fact.unwrapped) return { fn, option, hint: UNWRAP_HINT }
+  if (fact.flat) return { fn, option, hint: flatHint(fn, api) }
   if (Array.isArray(fact.suggestions)) return explainUnknown(fact, api)
   if (fact.expected) return { fn, option, hint: typeHint(fact, api) }
   if ('value' in fact) return { fn, option, hint: angleHint(fact) }
@@ -158,6 +159,12 @@ const clampHint = ({ from, to, least, height, radius }) => {
 const pairHint = ({ option, from, to }) => `${option} takes an [x, y] pair of radii; used [${to.join(', ')}] for ${from}`
 
 const UNWRAP_HINT = "jf.polygon takes the points array itself, jf.polygon([[x, y], ...]); used the object's points"
+
+const flatHint = (fn, api) => {
+  const name = api === 'modeling' ? fn : fn.split('.').pop()
+  const extruded = api === 'modeling' ? `${name}(angle, extrusions.extrudeLinear({ height }, shape))` : `shape.extrudeLinear({ height }).${name}(...)`
+  return `${name} only squashes a 2D shape, which stays flat in the XY plane; extrude it first and rotate the 3D shape: ${extruded}`
+}
 
 const NAN_CAUSE = 'a parameter read back as NaN or an object often causes this; docs params shows how to define and read one'
 

@@ -137,6 +137,22 @@ export const WARNING_CASES = [
     ],
   },
   {
+    name: 'K: tilting a 2D shape about X or Y says it only squashes, and to extrude first',
+    api: 'fluent',
+    source: fluent(
+      'module.exports = { main: () => [jf.rectangle({ size: [10, 10] }).rotateX(Math.PI / 3).extrudeLinear({ height: 2 }), jf.rectangle({ size: [10, 10] }).rotateY(Math.PI).rotateZ(1).extrudeLinear({ height: 2 })] }',
+    ),
+    warnings: [{ fn: 'FluentGeom2.rotateX', option: 'angle', hints: ['rotateX only squashes a 2D shape', 'shape.extrudeLinear({ height }).rotateX('] }],
+  },
+  {
+    name: 'K: a modeling rotate of a 2D shape about X says to extrude first',
+    api: 'modeling',
+    source: modeling(
+      'module.exports = { main: () => [extrusions.extrudeLinear({ height: 2 }, transforms.rotate([Math.PI / 3, 0, 0], primitives.rectangle({ size: [10, 10] }))), transforms.rotateX(Math.PI / 2, primitives.cube({ size: 2 }))] }',
+    ),
+    warnings: [{ fn: 'transforms.rotate', option: 'angle', hints: ['extrusions.extrudeLinear({ height }, shape)'] }],
+  },
+  {
     name: 'C: an options object to jf.polygon is unwrapped to its points, with a warning',
     api: 'fluent',
     source: fluent('module.exports = { main: () => jf.polygon({ points: [[0, 0], [10, 0], [0, 10]] }).extrudeLinear({ height: 2 }) }'),

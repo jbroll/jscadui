@@ -285,7 +285,14 @@ becomes the largest value in thousandths it accepts, a number radius becomes
 `[r, r]`, and `jf.polygon({ points })` becomes `jf.polygon(points)`, since
 each slip was a common failed build with one sensible reading and cost a
 round every time. The last one failed as `e is not iterable` in the app,
-where the manifold engine's `polygon` spread the object. `EXTRA_SPECS` and
+where the manifold engine's `polygon` spread the object. The `tilt` specs on
+`FluentGeom2`'s rotations and on `transforms.rotate*` report a 2D shape turned
+about X or Y: modeling applies the turn and keeps the shape in the XY plane,
+so it comes out squashed with no error, and a synthetic session spent most of
+its rounds probing why its text was flat. The modeling functions check their
+operands with `in`, since a manifold shape's `sides` is a lazy getter.
+`withOptionChecks` copies a namespace only on the way to a function the API
+has. `EXTRA_SPECS` and
 `EXTRA_METHOD_SPECS` in `src/optionChecks.js` add them to the table's specs,
 keyed by the table's prefix. The empty check asks a shape's `isEmpty()` first,
 because a manifold shape converts its polygons only when they are read.

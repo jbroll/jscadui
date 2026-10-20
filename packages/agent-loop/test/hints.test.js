@@ -121,6 +121,15 @@ describe('explainWarning for a fixed option', () => {
     })
   })
 
+  it('says a 2D shape tilted about X or Y is only squashed, in each style', () => {
+    expect(explainWarning({ fn: 'FluentGeom2.rotateY', option: 'angle', flat: true }, 'fluent').hint).toBe(
+      'rotateY only squashes a 2D shape, which stays flat in the XY plane; extrude it first and rotate the 3D shape: shape.extrudeLinear({ height }).rotateY(...)',
+    )
+    expect(explainWarning({ fn: 'transforms.rotateX', option: 'angle', flat: true }, 'modeling').hint).toBe(
+      'transforms.rotateX only squashes a 2D shape, which stays flat in the XY plane; extrude it first and rotate the 3D shape: transforms.rotateX(angle, extrusions.extrudeLinear({ height }, shape))',
+    )
+  })
+
   it('says an options object to jf.polygon was unwrapped to its points', () => {
     expect(explainWarning({ fn: 'jf.polygon', option: 'points', unwrapped: true }, 'fluent')).toEqual({
       fn: 'jf.polygon', option: 'points', hint: 'jf.polygon takes the points array itself, jf.polygon([[x, y], ...]); used the object\'s points',

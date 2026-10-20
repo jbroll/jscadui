@@ -144,6 +144,23 @@ const fixSpecs = (prefix) => ({
   [`${prefix}cylinderElliptic`]: { fix: pairRadii },
 })
 
+// A 2D shape has no depth, so a turn about X or Y other than a mirror (a
+// multiple of π) squashes it into its shadow in the XY plane.
+const nearMultipleOfPi = (a) => {
+  const r = Math.abs(a) % Math.PI
+  return Math.min(r, Math.PI - r) <= 1e-9
+}
+const tilts = (angle) => Number.isFinite(angle) && !nearMultipleOfPi(angle)
+const tilted = (axis, angle) => (axis === 'xyz' ? Array.isArray(angle) && angle.slice(0, 2).some(tilts) : tilts(angle))
+
+const isGeom2 = (shape) =>
+  shape !== null &&
+  typeof shape === 'object' &&
+  (shape.isManifoldGeom2 === true || (shape.isTreeNode === true && shape.dim === 2) || 'sides' in shape || 'outlines' in shape)
+
+const TILTS = { rotateX: 'x', rotateY: 'y', rotate: 'xyz' }
+const tiltSpecs = (prefix, method) => Object.fromEntries(Object.entries(TILTS).map(([name, axis]) => [`${prefix}${name}`, { tilt: axis, ...(method ? { method } : {}) }]))
+
 const BOOLEANS = ['union', 'subtract', 'intersect']
 const booleanSpecs = (prefix) => Object.fromEntries(BOOLEANS.map((op) => [`${prefix}${op}`, { boolean: op }]))
 
@@ -156,12 +173,13 @@ const EXTRA_SPECS = {
     'geometries.geom2.fromPoints': { outline: pointsArea, reverse: reversedPoints },
     ...booleanSpecs('booleans.'),
     ...fixSpecs('primitives.'),
+    ...tiltSpecs('transforms.'),
   },
   'jf.': { polygon: { fix: unwrapPoints, outline: pointsArea, reverse: reversedPoints }, cylinder: { ignored: loneOuter }, ...booleanSpecs(''), ...fixSpecs('') },
 }
 const EXTRA_METHOD_SPECS = {
   FluentGeom3: Object.fromEntries(BOOLEANS.map((op) => [op, { boolean: op, method: true }])),
-  FluentGeom2: Object.fromEntries(BOOLEANS.map((op) => [op, { boolean: op, method: true }])),
+  FluentGeom2: { ...Object.fromEntries(BOOLEANS.map((op) => [op, { boolean: op, method: true }])), ...tiltSpecs('', true) },
 }
 
 // Manifold shapes convert their polygons lazily, so ask them first.
@@ -254,6 +272,9 @@ const checked = (fnName, fn, spec, warn) => {
         const reversed = area < 0 ? spec.reverse?.(args) : undefined
         if (reversed) args = reversed
         if (area < 0) report({ fn: fnName, option: 'points', area, ...(reversed ? { reversed: true } : {}) })
+      }
+      if (spec.tilt && tilted(spec.tilt, first) && (spec.method || args.slice(1).flat(Infinity).some(isGeom2))) {
+        report({ fn: fnName, option: 'angle', flat: true })
       }
       const ignored = spec.ignored?.(args)
       if (ignored) report({ fn: fnName, ...ignored, ignored: true })
@@ -353,27 +374,24 @@ export const withOptionChecks = (api, table, warn) => {
   for (const [path, spec] of specsOf(table)) {
     const keys = path.split('.')
     const last = keys.pop()
+    const target = keys.reduce((node, key) => (node?.[key] !== null && typeof node?.[key] === 'object' ? node[key] : null), api)
+    // A namespace is copied only on the way to a function it has.
+    if (typeof target?.[last] !== 'function') continue
     let original = api
     let copy = root
     for (const key of keys) {
-      const child = original?.[key]
-      if (child === null || typeof child !== 'object') {
-        original = null
-        break
-      }
+      const child = original[key]
       if (!copies.has(child)) copies.set(child, copyOf(child))
       setValue(copy, key, copies.get(child))
       original = child
       copy = copies.get(child)
     }
-    if (typeof original?.[last] === 'function') {
-      const wrapped = checked(table.prefix + path, original[last], spec, warn)
-      setValue(copy, last, wrapped)
-      // Manifold also re-exports namespaced functions at the top level as the
-      // same function object; keep both bindings pointing at one wrapper.
-      for (const key of Object.keys(api)) {
-        if (api[key] === original[last]) setValue(root, key, wrapped)
-      }
+    const wrapped = checked(table.prefix + path, target[last], spec, warn)
+    setValue(copy, last, wrapped)
+    // Manifold also re-exports namespaced functions at the top level as the
+    // same function object; keep both bindings pointing at one wrapper.
+    for (const key of Object.keys(api)) {
+      if (api[key] === target[last]) setValue(root, key, wrapped)
     }
   }
   if (api.default === api) setValue(root, 'default', root)
