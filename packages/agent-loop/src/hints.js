@@ -127,12 +127,14 @@ const meshHint = (api) =>
  * `{ fn, option, area, reversed? }`, an empty boolean result `{ fn, empty }` or
  * `{ points, faces }` data given to a boolean `{ fn, meshOperand }`, a
  * roundRadius reduced to fit `{ fn, option, clamped, from, to, least | height | radius }`
- * or a number radius made a pair `{ fn, option, coerced, from, to }`.
+ * a number radius made a pair `{ fn, option, coerced, from, to }` or a
+ * jf.polygon options object unwrapped to its points `{ fn, option, unwrapped }`.
  */
 export const explainWarning = (fact, api = DEFAULT_API) => {
   const { fn, option } = fact
   if (fact.clamped) return { fn, option, hint: clampHint(fact) }
   if (fact.coerced) return { fn, option, hint: pairHint(fact) }
+  if (fact.unwrapped) return { fn, option, hint: UNWRAP_HINT }
   if (Array.isArray(fact.suggestions)) return explainUnknown(fact, api)
   if (fact.expected) return { fn, option, hint: typeHint(fact, api) }
   if ('value' in fact) return { fn, option, hint: angleHint(fact) }
@@ -154,6 +156,8 @@ const clampHint = ({ from, to, least, height, radius }) => {
 }
 
 const pairHint = ({ option, from, to }) => `${option} takes an [x, y] pair of radii; used [${to.join(', ')}] for ${from}`
+
+const UNWRAP_HINT = "jf.polygon takes the points array itself, jf.polygon([[x, y], ...]); used the object's points"
 
 const NAN_CAUSE = 'a parameter read back as NaN or an object often causes this; docs params shows how to define and read one'
 

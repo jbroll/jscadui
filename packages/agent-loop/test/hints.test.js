@@ -120,6 +120,12 @@ describe('explainWarning for a fixed option', () => {
       fn: 'jf.cylinderElliptic', option: 'endRadius', hint: 'endRadius takes an [x, y] pair of radii; used [2, 2] for 2',
     })
   })
+
+  it('says an options object to jf.polygon was unwrapped to its points', () => {
+    expect(explainWarning({ fn: 'jf.polygon', option: 'points', unwrapped: true }, 'fluent')).toEqual({
+      fn: 'jf.polygon', option: 'points', hint: 'jf.polygon takes the points array itself, jf.polygon([[x, y], ...]); used the object\'s points',
+    })
+  })
 })
 
 describe('explainError', () => {

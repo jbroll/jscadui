@@ -268,6 +268,7 @@ turns each into the warning the model sees, worded for the chat's API style
 | `jf.cylinder` given `outer` with neither `inner` nor `wall`, which fluent ignores | `{ fn, option: 'outer', hint }`: "outer takes effect only with inner or wall; use radius for a solid cylinder" |
 | a `roundRadius` to `roundedCuboid`, `roundedRectangle` or `roundedCylinder` (modeling or `jf`) past the limit modeling throws at (half the smallest size; for a cylinder half the height or the radius): the check lowers it to the largest value in thousandths modeling accepts before the call | `{ fn, option: 'roundRadius', hint }`: "roundRadius 2 is too big: it must be under half the smallest size, 2.4 / 2 = 1.2; used 1.199" |
 | a number `startRadius` or `endRadius` to `cylinderElliptic` (modeling or `jf`), which takes an `[x, y]` pair: the check makes it `[r, r]` before the call | `{ fn, option, hint }`: "startRadius takes an [x, y] pair of radii; used [5, 5] for 5" |
+| `jf.polygon` given modeling's `{ points }` options object instead of the points array, with no other option: the check passes `points` itself before the call | `{ fn, option: 'points', hint }`: "jf.polygon takes the points array itself, jf.polygon([[x, y], ...]); used the object's points" |
 
 Each warning also names the `file` and `line` of the model's call, taken
 from the stack when the collector has the project base, as the eval and the

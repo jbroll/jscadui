@@ -130,6 +130,13 @@ const pairRadii = ([options, ...rest]) => {
   return facts.length ? { args: [fixed, ...rest], facts } : undefined
 }
 
+// jf.polygon takes the points array; given modeling's { points } it passes
+// the object on as the points, which no engine reads.
+const unwrapPoints = ([options, ...rest]) =>
+  isPlainObject(options) && Array.isArray(options.points) && Object.keys(options).length === 1
+    ? { args: [options.points, ...rest], facts: [{ option: 'points', unwrapped: true }] }
+    : undefined
+
 const fixSpecs = (prefix) => ({
   [`${prefix}roundedCuboid`]: { fix: clampRoundRadius('roundedCuboid') },
   [`${prefix}roundedRectangle`]: { fix: clampRoundRadius('roundedRectangle') },
@@ -150,7 +157,7 @@ const EXTRA_SPECS = {
     ...booleanSpecs('booleans.'),
     ...fixSpecs('primitives.'),
   },
-  'jf.': { polygon: { outline: pointsArea, reverse: reversedPoints }, cylinder: { ignored: loneOuter }, ...booleanSpecs(''), ...fixSpecs('') },
+  'jf.': { polygon: { fix: unwrapPoints, outline: pointsArea, reverse: reversedPoints }, cylinder: { ignored: loneOuter }, ...booleanSpecs(''), ...fixSpecs('') },
 }
 const EXTRA_METHOD_SPECS = {
   FluentGeom3: Object.fromEntries(BOOLEANS.map((op) => [op, { boolean: op, method: true }])),

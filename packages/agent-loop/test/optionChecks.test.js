@@ -530,6 +530,25 @@ describe('outline winding and boolean results', () => {
     expect(facts(warn)).toEqual([{ fn: 'jf.polygon', option: 'points', area: -50, reversed: true }])
   })
 
+  it('unwraps an options object given to jf.polygon, then reverses clockwise points as for an array', () => {
+    const warn = vi.fn()
+    const wrapped = withOptionChecks(jf, OPTION_TABLES['@jbroll/jscad-fluent'], warn)
+    expect(wrapped.polygon({ points: CCW }).measureArea()).toBeCloseTo(50, 6)
+    expect(wrapped.polygon({ points: CW }).extrudeLinear({ height: 1 }).measureVolume()).toBeGreaterThan(0)
+    expect(facts(warn)).toEqual([
+      { fn: 'jf.polygon', option: 'points', unwrapped: true },
+      { fn: 'jf.polygon', option: 'points', unwrapped: true },
+      { fn: 'jf.polygon', option: 'points', area: -50, reversed: true },
+    ])
+  })
+
+  it('leaves a jf.polygon options object with other options alone', () => {
+    const warn = vi.fn()
+    const wrapped = withOptionChecks(jf, OPTION_TABLES['@jbroll/jscad-fluent'], warn)
+    expect(() => wrapped.polygon({ points: CCW, paths: [[0, 1, 2]] })).toThrow()
+    expect(facts(warn).filter((f) => f.unwrapped)).toEqual([])
+  })
+
   it('reports a subtract or intersect that leaves nothing of a shape', () => {
     const warn = vi.fn()
     const { booleans, primitives, transforms } = modelingWith(warn)

@@ -519,7 +519,10 @@ const normalizeWinding = (points, shouldBeCCW = true) => {
 export const polygon = (options = {}) => {
   const { points, paths } = options
 
-  if (!points || points.length < 3) {
+  if (!Array.isArray(points) || (paths !== undefined && !Array.isArray(paths))) {
+    throw new Error('points and paths must be arrays')
+  }
+  if (points.length < 3) {
     throw new Error(`polygon requires at least 3 points, got: ${JSON.stringify(points)}`)
   }
 

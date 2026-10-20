@@ -16,6 +16,7 @@ import {
   measureVolume,
   isManifoldGeom3,
   rectangle,
+  polygon,
   extrudeLinear,
   isManifoldGeom2,
   setUseGpuNormals,
@@ -52,6 +53,13 @@ describe('@jscadui/manifold', () => {
       const cyl = cylinder({ radius: 3, height: 10 })
       expect(isManifoldGeom3(cyl)).toBe(true)
       expect(cyl.polygons.length).toBeGreaterThan(0)
+    })
+
+    it('refuses polygon points or paths that are not arrays, as modeling does', () => {
+      const points = [[0, 0], [10, 0], [0, 10]]
+      expect(() => polygon({ points: { points } })).toThrow('points and paths must be arrays')
+      expect(() => polygon({ points, paths: 'abc' })).toThrow('points and paths must be arrays')
+      expect(isManifoldGeom2(polygon({ points }))).toBe(true)
     })
   })
 

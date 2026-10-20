@@ -137,6 +137,12 @@ export const WARNING_CASES = [
     ],
   },
   {
+    name: 'C: an options object to jf.polygon is unwrapped to its points, with a warning',
+    api: 'fluent',
+    source: fluent('module.exports = { main: () => jf.polygon({ points: [[0, 0], [10, 0], [0, 10]] }).extrudeLinear({ height: 2 }) }'),
+    warnings: [{ fn: 'jf.polygon', option: 'points', hints: ['jf.polygon takes the points array itself'] }],
+  },
+  {
     name: 'I: a method on plain modeling geometry, fluent mode',
     api: 'fluent',
     source: `${modeling('')}const jf = require('@jbroll/jscad-fluent')
