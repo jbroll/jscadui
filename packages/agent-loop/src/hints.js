@@ -231,6 +231,9 @@ const NOT_A_FUNCTION = /(\S+) is not a function/
 const NOT_DEFINED = /\b([A-Za-z_$][\w$]*) is not defined\b/
 // The frame's bundles are minified, so the class name is often one letter.
 const CLASS_WITHOUT_NEW = /Class constructor [\w$]+ cannot be invoked without 'new'/
+// Operations a model reaches for as jf.op(a, b) to combine several shapes.
+const COMBINES = new Set(['hull', 'hullChain', 'union', 'subtract', 'intersect'])
+const POINTS_AS_GEOM2 = /FluentGeom2 expected a geom2 \(fluent or raw\), got an array/
 
 // A bare modeling name the model code never took from its namespace.
 const explainUndefined = (name, api, { methods, functions, namespaces, jfNames }) => {
@@ -258,6 +261,9 @@ export const explainError = (message, { api = DEFAULT_API, index }) => {
   if (/'return' outside of function/.test(message ?? '')) {
     return 'a file or execute snippet is a module, not a function body: console.log the value, or export it, module.exports = { main: () => shape }'
   }
+  if (api === 'fluent' && POINTS_AS_GEOM2.test(message ?? '')) {
+    return 'an array of [x, y] points is not a shape: make one with jf.polygon(points); for several shapes, jf.geom2Array(...shapes)'
+  }
   if (CLASS_WITHOUT_NEW.test(message ?? '')) {
     return api === 'fluent'
       ? 'a class was called without new: the jf wrappers are classes, so write new jf.FluentGeom3(shape) or new jf.FluentGeom2(shape), never jf.FluentGeom3(shape)'
@@ -284,7 +290,8 @@ export const explainError = (message, { api = DEFAULT_API, index }) => {
         `Make it with jf.*, or wrap it: new jf.FluentGeom3(shape) (new jf.FluentGeom2 for 2D), jf.geom3Array(...shapes) for a list; then use shape.${name}(...)`
       )
     }
-    return `${head}: use shape.${name}(...)`
+    const array = COMBINES.has(name) && classes.includes('FluentGeom3Array') ? `, or for several shapes jf.geom3Array(a, b).${name}()` : ''
+    return `${head}: use shape.${name}(...)${array}`
   }
   const entries = functions.get(name)
   if (!entries) return undefined

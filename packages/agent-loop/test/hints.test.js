@@ -161,6 +161,18 @@ describe('explainError', () => {
     expect(modeling("Class constructor FooBar cannot be invoked without 'new'")).toBe('a class was called without new; call it as new Name(...)')
   })
 
+  it('names the array form when a method that several shapes share is called on jf', () => {
+    expect(fluent('jf.hull is not a function')).toBe(
+      'hull is a method of FluentGeom2, FluentGeom3, FluentPath2, FluentGeom2Array, FluentGeom3Array, FluentPath2Array: use shape.hull(...), or for several shapes jf.geom3Array(a, b).hull()',
+    )
+  })
+
+  it('points a points array given to FluentGeom2 at jf.polygon', () => {
+    expect(fluent('FluentGeom2 expected a geom2 (fluent or raw), got an array')).toBe(
+      'an array of [x, y] points is not a shape: make one with jf.polygon(points); for several shapes, jf.geom2Array(...shapes)',
+    )
+  })
+
   it('says a top-level return has no function to return from', () => {
     const message = "Babel transform failed for http://project.local/__run__.js: /http:/project.local/__run__.js: 'return' outside of function. (22:0)"
     const hint = 'a file or execute snippet is a module, not a function body: console.log the value, or export it, module.exports = { main: () => shape }'
