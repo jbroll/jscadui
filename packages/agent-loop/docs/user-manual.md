@@ -356,7 +356,7 @@ either gives the `notGeometryError()` report. `params` are params-core
 definitions.
 
 ```js
-reportError(error, { api, index })
+reportError(error, { api, index, files })
 ```
 
 A model error as a report or `execute` result carries it:
@@ -367,6 +367,13 @@ try a smaller case` for an allocation failure, and the error hint for `api`
 when `index` (the API index) is given. The location comes from `errorLocation`
 with `PROJECT_BASE`, or from a Babel message whose first line names
 `<PROJECT_BASE><path>:` and ends with `(line:column)`.
+
+With the project's `files`, a relative require that names no project file
+gets `missingModuleHint`'s line: the file of the same name it likely meant,
+with the require that reaches it, and every other file making the same miss.
+The loader stops at the first miss, so a model told only about one file
+fixes the rest one build at a time. The app passes the files from its file
+cache, the eval its own.
 
 `PROJECT_BASE` (`http://project.local/`) is the URL base project files load
 under, and `RUN_FILE` (`__run__.js`) the file an `execute` snippet runs as beside

@@ -162,7 +162,7 @@ export const createProjectTools = ({
     }
     const out = { warnings: result.warnings ?? [], console: result.console ?? [] }
     const diagnostics = await lint(source)
-    if (result.error) return mergeStatic({ ok: false, error: reportError(result.error, { api, index: await indexFor(loadIndex) }), ...out }, diagnostics)
+    if (result.error) return mergeStatic({ ok: false, error: reportError(result.error, { api, index: await indexFor(loadIndex), files }), ...out }, diagnostics)
     return mergeStatic({
       ok: true,
       ...out,

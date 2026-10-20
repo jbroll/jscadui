@@ -186,7 +186,7 @@ const getOpenscad = () => {
 
 requireHandlers.set('scad', createScadHandler({ getOpenscad, getAppOrigin: () => APP_ORIGIN }).handle)
 
-const modelError = (error, api) => reportError(error, { api, index: API_INDEX })
+const modelError = (error, api, files) => reportError(error, { api, index: API_INDEX, files })
 
 // The project's `test/` `.js` files run in-process: Node has no test-worker
 // bundle, so each file goes through Task 4's `runTestFile` the way the
@@ -335,7 +335,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
     const modelFiles = buildFiles(files)
     const loaded = await runModel(modelFiles, entry, api)
     if (started !== generation) return null
-    const error = loaded.error ? modelError(loaded.error, api) : loaded.hasMain ? undefined : noMainError(entry)
+    const error = loaded.error ? modelError(loaded.error, api, modelFiles) : loaded.hasMain ? undefined : noMainError(entry)
     const geometry = [loaded.value].flat(Infinity)
     const report = await assembleReport({
       entry,
@@ -394,7 +394,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
     const loaded = await runModel({ ...files, [RUN_FILE]: source }, RUN_FILE, api, { wrapRequire: withProjectMains })
     const { warnings: warned, console: lines } = loaded
     const diagnostics = await lintSource(API_INDEX, source, { api })
-    if (loaded.error) return mergeStatic({ ok: false, error: modelError(loaded.error, api), warnings: warned, console: lines }, diagnostics)
+    if (loaded.error) return mergeStatic({ ok: false, error: modelError(loaded.error, api, files), warnings: warned, console: lines }, diagnostics)
     const summary = summarizeRun({ hasMain: loaded.hasMain, value: loaded.hasMain ? loaded.value : loaded.exports }, measure, check)
     return mergeStatic({ ok: true, warnings: warned, console: lines, ...summary }, diagnostics)
   }

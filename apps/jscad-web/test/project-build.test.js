@@ -131,6 +131,14 @@ describe('createProjectBuilds', () => {
     })
   })
 
+  it('names the file a missed relative require meant, from the project files', async () => {
+    const files = { 'main.js': "require('./parts/a')", 'lib/dims.js': '', 'parts/a.js': "require('./dims')" }
+    const b = builds({ getFiles: async () => files })
+    const error = new Error('failed to load module ./dims\n  Error: file not found http://project.local/parts/dims.js')
+    b.recordLoad('http://project.local/main.js', { error })
+    expect((await b.report()).error.message).toContain("parts/dims.js is not in the project. lib/dims.js is: from parts/ require it as '../lib/dims'.")
+  })
+
   it('reports a project with no entry file', async () => {
     const b = builds()
     b.recordNoEntry()

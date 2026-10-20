@@ -359,6 +359,7 @@ const projectBuilds = createProjectBuilds({
   check: () => workerApi.jscadCheck({ options: {} }),
   getApi: getChatApi,
   loadIndex: loadApiIndex,
+  getFiles: () => fileSystem.projectFiles(),
 })
 
 // The frame names its own bundles; the app names only the engine.

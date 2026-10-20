@@ -1,3 +1,5 @@
+import { PROJECT_BASE } from './projectUrl.js'
+
 // The project file operations behind the list, read, write, edit and delete
 // tools, shared by the eval backend and the app so both answer the same way. A
 // project is a map of project-relative paths to file text.
@@ -302,4 +304,63 @@ export const deleteReport = (path, report) => {
   if (report.ok && report.entry === null) note = `deleted; ${report.note}`
   else if (!report.ok && typeof report.entry === 'string') note = `${path} is deleted; the build of ${report.entry} failed`
   return { deleted: path, ...report, ...(note ? { note } : {}) }
+}
+
+export const RELATIVE_SPEC = /(?:\brequire\s*\(\s*|\bfrom\s*|\bimport\s*)(['"])(\.{1,2}\/[^'"]*)\1/g
+
+export const joinPath = (dir, spec) => {
+  const parts = []
+  for (const part of [...dir.split('/'), ...spec.split('/')]) {
+    if (part === '' || part === '.') continue
+    if (part === '..') parts.pop()
+    else parts.push(part)
+  }
+  return parts.join('/')
+}
+
+export const dirOf = (file) => (file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : '')
+
+// The project file a relative require from `file` loads, or undefined.
+export const resolveRequire = (files, file, spec) => {
+  const base = joinPath(dirOf(file), spec)
+  return [base, `${base}.js`, `${base}/index.js`].find((path) => typeof files[path] === 'string')
+}
+
+const stem = (path) => path.slice(path.lastIndexOf('/') + 1).replace(/\.[cm]?[jt]s$/, '')
+
+const specFrom = (file, target) => {
+  const from = dirOf(file).split('/').filter(Boolean)
+  const to = target.replace(/\.js$/, '').split('/')
+  let shared = 0
+  while (shared < from.length && shared < to.length - 1 && from[shared] === to[shared]) shared += 1
+  const up = from.length - shared
+  return `${up > 0 ? '../'.repeat(up) : './'}${to.slice(shared).join('/')}`
+}
+
+const MISSING_MODULE = new RegExp(`failed to load module \\.{1,2}/\\S*\\n\\s*Error: file not found ${escapeRegex(PROJECT_BASE)}(\\S+)`)
+
+/**
+ * For a relative require that names no project file: the file of that name
+ * it likely meant, and every file making the same miss, since the loader
+ * stops at the first and a model otherwise fixes them one build at a time.
+ * Null for any other message.
+ * @param {string} message
+ * @param {Record<string, unknown>} files
+ * @returns {string | null}
+ */
+export const missingModuleHint = (message, files) => {
+  const missing = MISSING_MODULE.exec(message)?.[1]
+  if (!missing) return null
+  const texts = Object.keys(files).filter((path) => typeof files[path] === 'string').sort()
+  const meant = texts.find((path) => path !== missing && stem(path) === stem(missing))
+  const missers = texts.filter((file) =>
+    [...files[file].matchAll(RELATIVE_SPEC)].some(([, , spec]) => {
+      const base = joinPath(dirOf(file), spec)
+      return (base === missing || `${base}.js` === missing) && !resolveRequire(files, file, spec)
+    }),
+  )
+  const lines = [`${missing} is not in the project.`]
+  if (meant && missers.length > 0) lines.push(`${meant} is: from ${dirOf(missers[0]) || '.'}/ require it as '${specFrom(missers[0], meant)}'.`)
+  if (missers.length > 1) lines.push(`The same require misses in ${missers.join(', ')}; fix them all before the next build.`)
+  return lines.join(' ')
 }

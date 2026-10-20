@@ -1,4 +1,4 @@
-import { assembleReport, DEFAULT_API, noEntryReport, noGeometryError, noMainError, notGeometryError, PROJECT_BASE, projectPath, reportError, resolveEntry } from '@jscadui/agent-loop'
+import { assembleReport, DEFAULT_API, noEntryReport, noGeometryError, noMainError, notGeometryError, PROJECT_BASE, projectPath, RELATIVE_SPEC, reportError, resolveEntry, resolveRequire } from '@jscadui/agent-loop'
 
 const textFile = (files, path) => {
   if (!path) return null
@@ -21,18 +21,6 @@ const EXPORTS_MAIN = [
 
 const exportsMain = (text) => EXPORTS_MAIN.some((pattern) => pattern.test(text))
 
-const RELATIVE_SPEC = /(?:\brequire\s*\(\s*|\bfrom\s*|\bimport\s*)(['"])(\.{1,2}\/[^'"]*)\1/g
-
-const joinPath = (dir, spec) => {
-  const parts = []
-  for (const part of [...dir.split('/'), ...spec.split('/')]) {
-    if (part === '' || part === '.') continue
-    if (part === '..') parts.pop()
-    else parts.push(part)
-  }
-  return parts.join('/')
-}
-
 // The project files `entry` requires or imports, directly or through others.
 const requireClosure = (files, entry) => {
   const seen = new Set([entry])
@@ -41,10 +29,8 @@ const requireClosure = (files, entry) => {
     const file = queue.shift()
     const text = files[file]
     if (typeof text !== 'string') continue
-    const dir = file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : ''
     for (const [, , spec] of text.matchAll(RELATIVE_SPEC)) {
-      const base = joinPath(dir, spec)
-      const found = [base, `${base}.js`, `${base}/index.js`].find((path) => typeof files[path] === 'string')
+      const found = resolveRequire(files, file, spec)
       if (found && !seen.has(found)) {
         seen.add(found)
         queue.push(found)
@@ -84,16 +70,16 @@ export const indexFor = async (loadIndex) => {
  * last, whether the editor, a project switch or the chat started it. Its
  * report is measured only when asked for, so the editor's own runs pay for no
  * measure or check unless the chat reads them.
- * @param {{measure:() => Promise<object>, check:() => Promise<object>, getApi?:() => string, loadIndex?:() => Promise<Array<object>|undefined>}} deps
+ * @param {{measure:() => Promise<object>, check:() => Promise<object>, getApi?:() => string, loadIndex?:() => Promise<Array<object>|undefined>, getFiles?:() => Promise<Record<string, unknown>|undefined>}} deps
  */
-export const createProjectBuilds = ({ measure, check, getApi = () => DEFAULT_API, loadIndex = async () => undefined }) => {
+export const createProjectBuilds = ({ measure, check, getApi = () => DEFAULT_API, loadIndex = async () => undefined, getFiles = async () => undefined }) => {
   let last = null
 
   // The worker's own wording of these two, as the eval words them.
   const buildError = async (entry, error) => {
     if (error?.name === 'NoMainError') return noMainError(entry)
     if (/invalid jscad geometry, not an object/.test(String(error?.message))) return notGeometryError()
-    return reportError(error, { api: getApi(), index: await indexFor(loadIndex) })
+    return reportError(error, { api: getApi(), index: await indexFor(loadIndex), files: await getFiles() })
   }
 
   const assemble = async ({ entry, error, result }) => {

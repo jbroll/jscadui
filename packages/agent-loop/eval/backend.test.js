@@ -400,6 +400,18 @@ describe('eval backend project', () => {
     expect(backend.files()).toEqual({ 'main.js': MAIN_WITH_HELPER })
   })
 
+  it('names the file a missed relative require meant, and the other files that miss it', async () => {
+    const backend = createEvalBackend()
+    await call(backend, 'write', { path: 'lib/dims.js', content: 'module.exports = { size: 20 }' })
+    const part = `const { size } = require('./dims')\nmodule.exports = { part: () => size }`
+    await call(backend, 'write', { path: 'parts/a.js', content: part })
+    await call(backend, 'write', { path: 'parts/b.js', content: part })
+    const res = await writeMain(`const a = require('./parts/a')\nconst b = require('./parts/b')\n${CUBE}`, backend)
+    expect(res.ok).toBe(false)
+    expect(res.error.message).toContain("lib/dims.js is: from parts/ require it as '../lib/dims'")
+    expect(res.error.message).toContain('The same require misses in parts/a.js, parts/b.js')
+  })
+
   it('answers the no-entry report when the delete removes the entry', async () => {
     const backend = createEvalBackend()
     await writeMain(CUBE, backend)
