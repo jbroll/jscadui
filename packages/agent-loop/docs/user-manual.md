@@ -503,7 +503,7 @@ images.
 | `SYNTH_BUILDERS` | all three | Comma list of builder models |
 | `SYNTH_SCENARIOS` | all | Comma list of scenario names |
 | `SYNTH_RUNS` | `2` | Runs per scenario and builder |
-| `SYNTH_DEADLINE_S` | `6600` | No session starts this many seconds after the batch started; the rest are recorded with `skipped: true` |
+| `SYNTH_DEADLINE_S` | `6600` | A lane starts no session that its longest session so far would carry past this many seconds after the batch started; the rest are recorded with `skipped: true`, since a session the CI job timeout (7200 s) kills is never recorded |
 | `SYNTH_TURN_TIMEOUT_MS` | `1800000` | Wait per builder turn before it is stopped |
 | `SYNTH_PORT` | `5170` | First lane's app port; lane *n* (from 0) uses `SYNTH_PORT + 10n` and the port above it for the frame |
 

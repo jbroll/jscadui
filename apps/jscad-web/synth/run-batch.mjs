@@ -209,14 +209,19 @@ async function runLane(role, port) {
   await ensureLocalBuild({ webDir, port, outName: laneBuildName(port) })
   let ran = 0
   let clean = 0
+  // A session the job timeout kills goes unrecorded, so a lane starts one only
+  // when its longest yet would still end by the deadline.
+  let longest = 0
   for (const scenario of scenarios) {
     for (let run = 1; run <= runs; run++) {
-      if (Date.now() - startedAt > deadlineS * 1000) {
+      if (Date.now() - startedAt + longest > deadlineS * 1000) {
         record(skipped(role, scenario, run))
         continue
       }
       console.log(`synth: ${role.builder} ${scenario.name}#${run} start`)
+      const began = Date.now()
       const r = await runOne(role, scenario, run, port)
+      longest = Math.max(longest, Date.now() - began)
       ran++
       if (!r.error) clean++
       console.log(`synth: ${role.builder} ${scenario.name}#${run} turns=${r.userTurns} accepted=${r.accepted} timedOut=${r.timedOut}${r.error ? ` error=${r.error}` : ''}`)

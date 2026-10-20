@@ -2,9 +2,9 @@ export const GO_BASE_URL = 'https://opencode.ai/zen/go/v1'
 
 export const FREE_MODELS = ['longcat-2.5-preview-free', 'minimax-m3.1-flash-free', 'beam-free']
 
-// minimax reasons before it answers, and 1500 tokens ran out mid-reasoning.
+// minimax and longcat reason before they answer, and 1500 and 600 tokens ran out mid-reasoning.
 export const SIM_USER_MAX_TOKENS = {
-  'longcat-2.5-preview-free': 600,
+  'longcat-2.5-preview-free': 4000,
   'minimax-m3.1-flash-free': 4000,
   'beam-free': 1500,
 }
