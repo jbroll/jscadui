@@ -237,6 +237,15 @@ See `apps/jscad-web/e2e/RENDER-TESTING.md`.
   `Asset_SCAD/` parts. The fourth, `voronoi_melon.scad`, OpenSCAD cannot
   render either: dotSCAD's `_delaunayBoundaries` recurses without end on its
   point set.
+- **`multi-model.spec.js` "models from several projects" times out.** Since
+  4dc14d1f (10-10) a load from another source ends the frame's worker pool,
+  and an example's source is its url, so each of the four models runs on a
+  cold worker. Both `screws.scad` loads take 10-13 s, the test runs about
+  27.6 s alone against a 30 s limit, and with parallel workers (CI, or
+  `--repeat-each=3` locally) it exceeds it; main f2987939 fails 3 of 3 that
+  way. The spec's premise, a second model on a warm worker, no longer holds:
+  give it a budget (`test.setTimeout`) or a lighter model, and decide whether
+  it should test the cache within one source instead.
 
 ## Combined ALL.js grids
 
