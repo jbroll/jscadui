@@ -163,7 +163,7 @@ export const WARNING_CASES = [
     api: 'fluent',
     source: `${modeling('')}const jf = require('@jbroll/jscad-fluent')
 module.exports = { main: () => primitives.cube({ size: 2 }).translate([1, 0, 0]) }`,
-    error: ['translate is not a function', 'plain @jscad/modeling shapes have no methods, so make the shape with jf.*', 'shape.translate(...)'],
+    error: ['translate is not a function', 'is not a jf shape', 'new jf.FluentGeom3(shape)', 'shape.translate(...)'],
   },
   {
     name: 'I: a method on plain modeling geometry, modeling mode',

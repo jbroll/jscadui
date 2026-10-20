@@ -269,7 +269,10 @@ export const explainError = (message, { api = DEFAULT_API, index }) => {
     if (!classes) return undefined
     const head = `${name} is a method of ${classes.join(', ')}`
     if (receiver && receiver !== 'jf') {
-      return `${head}; plain @jscad/modeling shapes have no methods, so make the shape with jf.* and use shape.${name}(...)`
+      return (
+        `${head}; the value it is called on is not a jf shape: a plain @jscad/modeling shape, such as an .scad library or jscad-text gives, or a plain array has no methods. ` +
+        `Make it with jf.*, or wrap it: new jf.FluentGeom3(shape) (new jf.FluentGeom2 for 2D), jf.geom3Array(...shapes) for a list; then use shape.${name}(...)`
+      )
     }
     return `${head}: use shape.${name}(...)`
   }

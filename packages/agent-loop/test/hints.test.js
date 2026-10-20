@@ -146,10 +146,12 @@ describe('explainError', () => {
   })
 
   it('points a method called on plain modeling geometry at jf shapes in fluent mode', () => {
-    const hint = fluent('extrudeLinear(...).translate is not a function')
-    expect(hint).toContain('plain @jscad/modeling shapes have no methods')
-    expect(hint).toContain('make the shape with jf.*')
-    expect(hint).toContain('shape.translate(...)')
+    const hint = fluent('ball_bearing(...).translate is not a function')
+    expect(hint).toBe(
+      'translate is a method of FluentGeom2, FluentGeom3, FluentPath2, FluentGeometryArray; the value it is called on is not a jf shape: ' +
+        'a plain @jscad/modeling shape, such as an .scad library or jscad-text gives, or a plain array has no methods. ' +
+        'Make it with jf.*, or wrap it: new jf.FluentGeom3(shape) (new jf.FluentGeom2 for 2D), jf.geom3Array(...shapes) for a list; then use shape.translate(...)',
+    )
   })
 
   it('points at the functional form in modeling mode', () => {
