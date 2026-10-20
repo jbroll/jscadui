@@ -17,6 +17,8 @@ export const effortOptionsForModel = ({ kind, modelId = '', capabilities = null 
   return levels
 }
 
-// The level a model gets until the user picks one. Not the first option: that
-// is `none` for openai-style lists, which some models (beam-free) refuse.
-export const defaultEffort = (options) => (options.includes('medium') ? 'medium' : (options[0] ?? ''))
+// The level a model gets until the user picks one. An own-key kind skips the
+// first option: that is `none` for openai-style lists, which beam-free refuses.
+// The free kind keeps the first option.
+export const defaultEffort = (options, kind) =>
+  kind !== 'jscad-web' && options.includes('medium') ? 'medium' : (options[0] ?? '')

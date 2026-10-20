@@ -280,7 +280,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
       state.effort = ''
     } else {
       effortWrap.style.display = ''
-      effortSelect.value = options.includes(state.effort) ? state.effort : defaultEffort(options)
+      effortSelect.value = options.includes(state.effort) ? state.effort : defaultEffort(options, state.kind)
       state.effort = effortSelect.value
     }
     persistSelection()

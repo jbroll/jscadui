@@ -861,9 +861,10 @@ shows the count or the HTTP failure, and a custom model id stays available
 either way. Effort options come from `src/aiEffort.js`: Anthropic's list
 carries per-model effort support, the other kinds get their documented level
 set, and Meta Muse models drop `none`, which Meta answers with a 400. Until
-the user picks a level, a model gets `medium` when its list offers it, else
-the first level (`defaultEffort`); the first level of an openai-style list is
-`none`, which `beam-free` refuses on every request.
+the user picks a level, an own-key model gets `medium` when its list offers
+it, else the first level (`defaultEffort`); the first level of an
+openai-style list is `none`, which `beam-free` refuses on every request. A
+free `jscad-web` model gets the first level.
 
 ### Chat UI states
 

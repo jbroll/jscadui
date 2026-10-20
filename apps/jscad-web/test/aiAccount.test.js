@@ -776,11 +776,18 @@ describe('aiEffort', () => {
     expect(effortOptionsForModel({ kind: 'meta', modelId: 'muse-spark-1.3', capabilities: null })).not.toContain('none')
   })
 
-  it('defaults to medium when offered, else the first option, never none first', async () => {
+  it('defaults an own-key kind to medium when offered, else the first option', async () => {
     const { defaultEffort, OPENAI_STYLE_EFFORTS } = await import('../src/aiEffort.js')
-    expect(defaultEffort(OPENAI_STYLE_EFFORTS)).toBe('medium')
-    expect(defaultEffort(['low', 'high'])).toBe('low')
-    expect(defaultEffort([])).toBe('')
+    expect(defaultEffort(OPENAI_STYLE_EFFORTS, 'opencode-go')).toBe('medium')
+    expect(defaultEffort(OPENAI_STYLE_EFFORTS, 'openai')).toBe('medium')
+    expect(defaultEffort(['low', 'high'], 'opencode-go')).toBe('low')
+    expect(defaultEffort([], 'opencode-go')).toBe('')
+  })
+
+  it('defaults the free kind to the first option', async () => {
+    const { defaultEffort, OPENAI_STYLE_EFFORTS } = await import('../src/aiEffort.js')
+    expect(defaultEffort(OPENAI_STYLE_EFFORTS, 'jscad-web')).toBe('none')
+    expect(defaultEffort([], 'jscad-web')).toBe('')
   })
 })
 
@@ -797,6 +804,14 @@ describe('effort default in the dialog', () => {
     document.body.innerHTML = '<div id="a"></div>'
     initAccount(document.getElementById('a'))
     expect(JSON.parse(localStorage.getItem('jscad-ai.selection')).effort).toBe('medium')
+  })
+
+  it('stores the first level for a free model with no effort chosen', async () => {
+    const { initAccount } = await loadAccount()
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'jscad-web', model: 'deepseek-v4.1-flash', inference: 'deepseek-v4.1-flash', free: true }))
+    document.body.innerHTML = '<div id="a"></div>'
+    initAccount(document.getElementById('a'))
+    expect(JSON.parse(localStorage.getItem('jscad-ai.selection')).effort).toBe('none')
   })
 
   it('keeps a stored effort the model offers', async () => {
