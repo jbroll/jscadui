@@ -9,6 +9,7 @@ import {
   subtract,
   intersect,
   translate,
+  center,
   rotate as _rotate,
   scale,
   mirror,
@@ -137,6 +138,23 @@ describe('@jscadui/manifold', () => {
       expect(dims[0]).toBeCloseTo(20, 1)
       expect(dims[1]).toBeCloseTo(10, 1)
       expect(dims[2]).toBeCloseTo(10, 1)
+    })
+
+    it('centers a 2D shape as a 2D shape that still extrudes', () => {
+      const r = rectangle({ size: [10, 4], center: [20, 7] })
+      const centered = center({ axes: [true, true] }, r)
+      expect(isManifoldGeom2(centered)).toBe(true)
+      expect(centered.boundingBox()).toEqual([[-5, -2], [5, 2]])
+      expect(measureBoundingBox(extrudeLinear({ height: 3 }, centered))).toEqual([[-5, -2, 0], [5, 2, 3]])
+      expect(center({ axes: [true, false] }, r).boundingBox()).toEqual([[-5, 5], [5, 9]])
+    })
+
+    it('centers a plain jscad geom2 and each of several shapes on its own', () => {
+      const plain = { sides: [[[0, 0], [4, 0]], [[4, 0], [4, 2]], [[4, 2], [0, 2]], [[0, 2], [0, 0]]], transforms: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }
+      expect(center({}, plain).boundingBox()).toEqual([[-2, -1], [2, 1]])
+      const [a, b] = center({ relativeTo: [1, 1, 1] }, cube({ size: 2, center: [10, 0, 0] }), cube({ size: 4, center: [0, 10, 0] }))
+      expect(measureBoundingBox(a)).toEqual([[0, 0, 0], [2, 2, 2]])
+      expect(measureBoundingBox(b)).toEqual([[-1, -1, -1], [3, 3, 3]])
     })
   })
 

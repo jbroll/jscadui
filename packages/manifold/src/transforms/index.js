@@ -411,42 +411,23 @@ export const center = (options, ...geometries) => {
 
   const axes = options?.axes ?? [true, true, true]
   const relativeTo = options?.relativeTo ?? [0, 0, 0]
+  const offset = (min, max) => min.map((lo, i) => (axes[i] ? (relativeTo[i] ?? 0) - (lo + max[i]) / 2 : 0))
 
-  // Fast path: all ManifoldGeom3 objects - use native bbox
-  const allManifold = geoms.every(g => isManifoldGeom3(g))
-  if (allManifold) {
-    const results = geoms.map(g => {
-      const [[minX, minY, minZ], [maxX, maxY, maxZ]] = g.boundingBox()
-      const offset = [
-        axes[0] ? relativeTo[0] - (minX + maxX) / 2 : 0,
-        axes[1] ? relativeTo[1] - (minY + maxY) / 2 : 0,
-        axes[2] ? relativeTo[2] - (minZ + maxZ) / 2 : 0
-      ]
-      const result = new ManifoldGeom3(g.manifold.translate(offset))
-      if (g.color) result.color = g.color
-      return result
-    })
-    return results.length === 1 ? results[0] : results
-  }
-
-  // Slow path: mixed geometries - use JSCAD's implementation
-  const path2Indices = []
-  const jscadGeoms = geoms.map((g, i) => {
-    if (g.points !== undefined && g.sides === undefined) {
-      path2Indices.push(i)
-      return g  // path2 - pass through as-is
+  // Each shape centers on its own bounds, as JSCAD's center does; a 2D shape stays 2D.
+  const results = geoms.map(g => {
+    if (g.points !== undefined && g.sides === undefined) return jscadTransforms.center(options, g)
+    if (isManifoldGeom2(g) || g.sides !== undefined) {
+      const section = toCrossSection(g)
+      const { min, max } = section.bounds()
+      freeSection(section, g)
+      return translate(offset(min, max), g)
     }
-    return isManifoldGeom3(g) ? manifoldToGeom3(g.manifold) : g
-  })
-
-  const centered = jscadTransforms.center(options, ...jscadGeoms)
-  const centeredArray = Array.isArray(centered) ? centered : [centered]
-  const results = centeredArray.map((g, i) => {
-    if (path2Indices.includes(i)) return g
-    const result = new ManifoldGeom3(geom3ToManifold(g))
-    if (isManifoldGeom3(geoms[i]) && geoms[i].color) result.color = geoms[i].color
-    return result
-  })
+    const manifold = toManifold(g)
+    if (manifold == null) return null
+    const { min, max } = manifold.boundingBox()
+    freeManifold(manifold, g)
+    return translate(offset(min, max), g)
+  }).filter(r => r != null)
 
   return results.length === 1 ? results[0] : results
 }
