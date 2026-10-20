@@ -197,6 +197,13 @@ fixed; these remain.
   `ai-chat.spec.js` "writes, edits, builds and runs the project" dropped its
   `refused` assertions for this. The eval backend (`eval/backend.js` `saved`)
   does the same; `backend.test.js` pins it with an `it.fails` case.
+- **Opening a file renames the editor's buffer before its text loads.**
+  `openTreeFile` (`src/editor.js`) sets `currentFile` to the new path, then
+  awaits `readSource`. A Shift+Enter or Ctrl+S in that window runs and records
+  the previous file's text under the new path: CI job `307e742294b99116` ran
+  `/cube/index.js` with the boot example's source and stored it as an edit.
+  Set the path only when the new text is in the view. `harness-hook.spec.js`
+  waits for the text before Shift+Enter, as `project-ui.spec.js` does.
 - **Upstream angle checks (`@jscad/modeling`).** `star` says "startAngle must
   be greater than zero" and arc, ellipse, torus and cylinderElliptic say "must
   be positive", but all accept zero and take the angle mod TAU. Drop the

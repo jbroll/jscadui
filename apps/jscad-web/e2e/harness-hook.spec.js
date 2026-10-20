@@ -33,6 +33,8 @@ test('the harness hook exposes the chat handlers when the flag is set', async ({
   await expect(node).toBeAttached()
   await page.locator('#editor-file').click()
   await node.locator('.file-open').click()
+  // Backlog "Opening a file renames the editor's buffer before its text loads".
+  await expect(page.locator('.cm-content')).toContainText('cuboid({ size: [10, 10, 10] })')
   await page.locator('.cm-content').press('Shift+Enter')
   await expect.poll(() => page.evaluate(() => globalThis.jscadHarness.measure({}).then((m) => m.ok))).toBe(true)
 
