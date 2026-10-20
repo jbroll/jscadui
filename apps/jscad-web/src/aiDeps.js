@@ -1,4 +1,4 @@
-import { applyDelete, applyEdit, applyWrite, buildFiles, buildReport, DEFAULT_API, deleteReport, firstError, isCodePath, lintSource, listFiles, PROJECT_BASE, readFile, reportError, resolveEntry, RUN_FILE, runTimeoutError, summarizeTestRun, withUnits, writeReport } from '@jscadui/agent-loop'
+import { applyDelete, applyEdit, applyWrite, buildFiles, buildReport, DEFAULT_API, deleteReport, firstError, isCodePath, lintSource, listFiles, PROJECT_BASE, readFile, reportError, resolveEntry, RUN_FILE, runTimeoutError, searchFiles, summarizeTestRun, withUnits, writeReport } from '@jscadui/agent-loop'
 import { indexFor } from './projectBuild.js'
 import { sendScript } from './scriptRuns.js'
 import { defaultCreateWorker, runProjectTests } from './testWorker.js'
@@ -176,6 +176,7 @@ export const createProjectTools = ({
   return {
     list: async () => listFiles(await getProjectFiles()),
     read: async (args) => readFile(await getProjectFiles(), args),
+    search: async (args) => searchFiles(await getProjectFiles(), args),
     write: async (args) => save(applyWrite(await getProjectFiles(), args)),
     edit: async (args) => save(applyEdit(await getProjectFiles(), args)),
     deleteFile: remove,

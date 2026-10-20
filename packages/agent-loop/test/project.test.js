@@ -23,6 +23,14 @@ describe('projectPath', () => {
     expect(thrown(() => projectPath('./')).name).toBe('PathError')
     expect(thrown(() => projectPath(undefined)).name).toBe('PathError')
   })
+
+  it('refuses a path with a line break or quote, naming only its first line', () => {
+    expect(thrown(() => projectPath('main.js">\n// a jeep\nconst jf = 1'))).toEqual({
+      name: 'PathError',
+      message: 'path main.js"> is not a file path: it holds a line break or a quote; pass just the file name, such as main.js, and the text as content',
+    })
+    expect(thrown(() => projectPath('main.js"')).name).toBe('PathError')
+  })
 })
 
 describe('pickEntry', () => {
@@ -231,11 +239,17 @@ describe('searchFiles', () => {
     expect(out).not.toContain('lib.js')
   })
 
-  it('sorts by path, searches only the named paths, and skips binary files', () => {
+  it('sorts by path, searches only the included paths, and skips binary files', () => {
     const files = { 'b.js': 'cube\n', 'a.js': 'cube\n', 'part.stl': new ArrayBuffer(4) }
     expect(searchFiles(files, { pattern: 'cube' })).toBe('a.js:1: cube\nb.js:1: cube')
-    expect(searchFiles(files, { pattern: 'cube', paths: ['b.js'] })).toBe('b.js:1: cube')
+    expect(searchFiles(files, { pattern: 'cube', include: ['b.js'] })).toBe('b.js:1: cube')
     expect(searchFiles(files, { pattern: 'nomatch' })).toBe('(no hits for nomatch)')
+  })
+
+  it('matches a literal pattern as plain text', () => {
+    const files = { 'main.js': 'size: [1, 2]\nsize: 1\n' }
+    expect(searchFiles(files, { pattern: '[1, 2]', literal: true })).toBe('main.js:1: size: [1, 2]')
+    expect(searchFiles(files, { pattern: 'size|box', literal: true })).toBe('(no hits for size|box)')
   })
 
   it('caps hits at SEARCH_LIMIT and says how many more', () => {
@@ -253,6 +267,6 @@ describe('searchFiles', () => {
   })
 
   it('refuses a search path that leaves the project', () => {
-    expect(thrown(() => searchFiles({ 'main.js': 'cube' }, { pattern: 'cube', paths: ['../x.js'] })).name).toBe('PathError')
+    expect(thrown(() => searchFiles({ 'main.js': 'cube' }, { pattern: 'cube', include: ['../x.js'] })).name).toBe('PathError')
   })
 })

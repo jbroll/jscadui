@@ -10,6 +10,10 @@ const named = (name, message) => Object.assign(new Error(message), { name })
 // `./a/b.js`, `/a/b.js` and `a//b.js` are all `a/b.js`; nothing leaves the project.
 export const projectPath = (path) => {
   if (typeof path !== 'string' || path.trim() === '') throw named('PathError', 'path must be a project file path such as main.js')
+  // A model that mangles its call can put the whole file in path.
+  if (/[\n\r"]/.test(path)) {
+    throw named('PathError', `path ${path.split(/[\n\r]/)[0]} is not a file path: it holds a line break or a quote; pass just the file name, such as main.js, and the text as content`)
+  }
   const parts = path.trim().split('/').filter((part) => part !== '' && part !== '.')
   if (parts.includes('..')) throw named('PathError', `path ${path} leaves the project; use a path inside it such as main.js`)
   if (parts.length === 0) throw named('PathError', `path ${path} names no file`)
@@ -100,17 +104,19 @@ export const readFile = (files, { path, offset, limit } = {}) => {
 
 export const SEARCH_LIMIT = 60
 
-export const searchFiles = (files, { pattern, paths } = {}) => {
+const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+export const searchFiles = (files, { pattern, include, literal = false } = {}) => {
   if (typeof pattern !== 'string' || pattern.trim() === '') {
     throw named('SearchError', 'pattern must be a non-empty string such as cube')
   }
   let re
   try {
-    re = new RegExp(pattern, 'g')
+    re = new RegExp(literal === true ? escapeRegex(pattern) : pattern, 'g')
   } catch {
-    throw named('SearchError', `pattern ${pattern} is not a valid regex; use plain text`)
+    throw named('SearchError', `pattern ${pattern} is not a valid regex; pass literal: true to search for it as text`)
   }
-  const names = (Array.isArray(paths) && paths.length > 0 ? paths : Object.keys(files)).map((p) => projectPath(p)).sort()
+  const names = (Array.isArray(include) && include.length > 0 ? include : Object.keys(files)).map((p) => projectPath(p)).sort()
   const hits = []
   for (const name of names) {
     const text = files[name]

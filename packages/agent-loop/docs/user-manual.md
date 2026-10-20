@@ -338,6 +338,11 @@ never throws. `toolError(name, message)` is `{ ok: false, error: { name,
 message } }`. The eval sends each answer on as JSON text; the app's chat
 stringifies it.
 
+Every file tool reads its path through `projectPath`, which answers a
+`PathError` for a path that leaves the project, names no file, or holds a
+line break or a double quote. The last is a mangled call that put the file
+text in `path`; the error names only the path's first line.
+
 ```js
 assembleReport({ entry, error, warnings, console, params, measure, check })
 ```

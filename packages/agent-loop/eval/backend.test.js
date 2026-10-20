@@ -434,6 +434,13 @@ describe('eval backend project', () => {
     expect((await call(backend, 'read', { path: 'gone.js' })).error.name).toBe('FileNotFoundError')
   })
 
+  it('greps the project files', async () => {
+    const backend = createEvalBackend()
+    await backend.reset({ 'main.js': 'a\nmodule.exports = { main }\n', 'lib/part.js': 'main\n' })
+    expect(await call(backend, 'grep', { pattern: 'main' })).toBe('lib/part.js:1: main\nmain.js:2: module.exports = { main }')
+    expect(await call(backend, 'grep', { pattern: '{ main }', literal: true, include: ['main.js'] })).toBe('main.js:2: module.exports = { main }')
+  })
+
   it('reset seeds the project, and builds it when asked', async () => {
     const backend = createEvalBackend()
     expect(await backend.reset({ 'main.js': CUBE })).toBeNull()

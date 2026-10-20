@@ -22,7 +22,7 @@ import { reportError } from '../src/modelError.js'
 import { createWarningCollector, withOptionChecks, wrapFluentMethods } from '../src/optionChecks.js'
 import { asGeometry, assembleReport, buildReport, noEntryReport, noGeometryError, noMainError, summarizeRun, writeReport } from '../src/buildReport.js'
 import { exportConfig, exportedSize } from '../src/exportFormat.js'
-import { applyDelete, applyEdit, applyWrite, buildFiles, deleteReport, isCodePath, isTestFile, listFiles, readFile, resolveEntry } from '../src/project.js'
+import { applyDelete, applyEdit, applyWrite, buildFiles, deleteReport, isCodePath, isTestFile, listFiles, readFile, resolveEntry, searchFiles } from '../src/project.js'
 import { createReadFile, PROJECT_BASE, RUN_FILE } from '../src/projectUrl.js'
 import { runTestFile, summarizeTestRun, TEST_API } from '../src/testPackage.js'
 import { withUnits } from '../src/units.js'
@@ -446,6 +446,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
   const tools = {
     list: () => listFiles(files),
     read: (args) => readFile(files, args),
+    search: (args) => searchFiles(files, args),
     write: (args) => saved(applyWrite(files, args)),
     edit: (args) => saved(applyEdit(files, args)),
     deleteFile: (args) => {

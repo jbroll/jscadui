@@ -987,7 +987,7 @@ Tools and where they run:
 | `glob`, `read` | page: the project's file cache, through agent-loop's `listFiles` and `readFile` |
 | `write`, `edit` | page: the file cache and the editor (`applyWrite`, `applyEdit`), then a build of the project in the compute frame; answers the build report |
 | `delete` | page: the file cache, the frame's copy of the module and the editor (`applyDelete`), then a build of the project in the compute frame; answers the build report headed by `deleted` |
-| `grep` | page: `searchFiles` over the project's text files, `path:line` hits |
+| `grep` | page: `searchFiles` over the project's text files (or the `include` list), `path:line` hits; `literal` searches for the pattern as text. The eval serves the same function. Until 2026-10-20 neither wired it, so every call answered `deps.search is not a function` |
 | `execute` | compute frame: a scratch run beside the project's files that leaves the project, its build and the drawn model alone |
 | `measure`, `check`, `export` | compute frame, on the current build |
 | `docs` | page: `docsTool` over `@jscadui/agent-loop/api/index.json` for the chat's API style, no frame round trip |

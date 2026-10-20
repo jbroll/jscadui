@@ -67,6 +67,12 @@ describe('list and read', () => {
     expect(await t.read({ path: 'main.js' })).toBe('     1\ta\n     2\tb')
     await expect(t.read({ path: 'nope.js' })).rejects.toMatchObject({ name: 'FileNotFoundError' })
   })
+
+  it('grep answers path:line hits through the dispatcher, as the eval does', async () => {
+    const { tools: t } = tools({ project: fakeProject({ 'main.js': 'const main = () => 1\nmodule.exports = { main }\n', 'lib/a.js': 'x\n' }) })
+    expect(await dispatchTool('grep', { pattern: 'function main|exports' }, t)).toBe('main.js:2: module.exports = { main }')
+    expect(await dispatchTool('grep', { pattern: '{ main }', literal: true, include: ['main.js'] }, t)).toBe('main.js:2: module.exports = { main }')
+  })
 })
 
 describe('write and edit', () => {
