@@ -72,6 +72,7 @@ export {
   polygon,
   roundedRectangle,
   star,
+  triangle,
   // Paths
   arc,
   line
@@ -118,6 +119,7 @@ export {
   extrudeRotate,
   extrudeHelical,
   extrudeFromSlices,
+  extrudeRectangular,
   project
 } from './extrusions/index.js'
 

@@ -188,6 +188,23 @@ export const extrudeFromSlices = (options, ...geometries) => {
 }
 
 /**
+ * Rectangular extrusion - a wall of `size` around a path or a 2D outline,
+ * `height` tall, through JSCAD.
+ *
+ * @param {Object} options - Options: size, height, corners, segments
+ * @param {...Object} geometries - path2 or 2D geometries
+ * @returns {Object|Array} Extruded 3D geometry/geometries
+ */
+export const extrudeRectangular = (options, ...geometries) => {
+  const geoms = geometries.flat(Infinity).filter(g => g != null)
+  const results = geoms.map(geom => {
+    const source = geom.points !== undefined && geom.sides === undefined ? geom : toJscadGeom2(geom)
+    return new ManifoldGeom3(geom3ToManifold(jscadExtrusions.extrudeRectangular(options, source)))
+  })
+  return results.length === 1 ? results[0] : results
+}
+
+/**
  * Project a 3D geometry to 2D (XY plane projection).
  *
  * @param {Object} options - Options
@@ -231,6 +248,7 @@ export default {
   extrudeRotate,
   extrudeHelical,
   extrudeFromSlices,
+  extrudeRectangular,
   project,
   slice
 }

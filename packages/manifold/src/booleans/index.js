@@ -359,6 +359,9 @@ export const minkowski = (...geometries) => {
   return new ManifoldGeom3(r ?? minkowskiConvex(hullA, hullB, Manifold))
 }
 
+// Modeling's minkowski is a namespace holding minkowskiSum; here it is the function itself.
+minkowski.minkowskiSum = minkowski
+
 /**
  * Compute minkowski sum of non-convex A with convex B.
  *

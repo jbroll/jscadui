@@ -171,6 +171,12 @@ export const measureEpsilon = (...args) => {
   return jscadMeasurements.measureEpsilon(...args)
 }
 
+// A manifold shape reads as a JSCAD one through its lazy polygons, sides and transforms.
+export const measureCenterOfMass = (...args) => jscadMeasurements.measureCenterOfMass(...args)
+export const measureAggregateArea = (...args) => jscadMeasurements.measureAggregateArea(...args)
+export const measureAggregateVolume = (...args) => jscadMeasurements.measureAggregateVolume(...args)
+export const measureAggregateEpsilon = (...args) => jscadMeasurements.measureAggregateEpsilon(...args)
+
 export default {
   measureBoundingBox,
   measureVolume,
@@ -180,5 +186,9 @@ export default {
   measureIsEmpty,
   measureAggregateBoundingBox,
   measureBoundingSphere,
-  measureEpsilon
+  measureEpsilon,
+  measureCenterOfMass,
+  measureAggregateArea,
+  measureAggregateVolume,
+  measureAggregateEpsilon
 }

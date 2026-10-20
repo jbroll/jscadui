@@ -589,6 +589,14 @@ export const star = (options = {}) => {
   return new ManifoldGeom2(geom2ToCrossSection(jscadStar))
 }
 
+/**
+ * Create a triangle from sides and angles (type SSS, SAS, ASA, AAS, SSA or AAA), through JSCAD.
+ *
+ * @param {Object} options - Options: type and values
+ * @returns {ManifoldGeom2} The triangle geometry
+ */
+export const triangle = (options = {}) => new ManifoldGeom2(geom2ToCrossSection(jscadPrimitives.triangle(options)))
+
 // ============================================================================
 // Path primitives (fallback to JSCAD - these return path2, not geom2)
 // ============================================================================
@@ -634,6 +642,7 @@ export default {
   polyhedron,
   // 2D
   rectangle,
+  triangle,
   square,
   circle,
   ellipse,
