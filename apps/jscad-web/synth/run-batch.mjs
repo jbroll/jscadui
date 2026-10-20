@@ -15,7 +15,7 @@ import { countStumbles } from '@jscadui/agent-loop/log/stumbles.js'
 import { createGoClient } from '@jscadui/agent-loop/synth/goClient.js'
 import { addSession, createManifest, sessionEntry, writeManifest } from '@jscadui/agent-loop/synth/manifest.js'
 import { probeModels } from '@jscadui/agent-loop/synth/modelProbe.js'
-import { assertFree, ROLES } from '@jscadui/agent-loop/synth/roles.js'
+import { assertFree, pickSimUser, ROLES, SIM_USER_MAX_TOKENS } from '@jscadui/agent-loop/synth/roles.js'
 import { loadScenarios } from '@jscadui/agent-loop/synth/scenarios/index.js'
 import { runSession } from '@jscadui/agent-loop/synth/session.js'
 import { createSimUser } from '@jscadui/agent-loop/synth/simUser.js'
@@ -86,11 +86,13 @@ const batchDir = join(out, batch)
 const key = readKey()
 
 const probeClient = createGoClient({ apiKey: key, session: randomUUID() })
-const probe = await probeModels(probeClient, [...new Set(roles.flatMap((r) => [r.builder, r.simUser]))])
+const probe = await probeModels(probeClient, [...new Set(roles.flatMap((r) => [r.builder, ...r.simUsers]))])
 for (const [model, p] of Object.entries(probe)) {
   console.log(`synth: probe ${model} available=${p.available} vision=${p.vision}${p.error ? ` (${p.error})` : ''}`)
 }
-const lanes = roles.filter((r) => probe[r.builder].available && probe[r.simUser].available)
+const resolved = roles.map((r) => ({ ...r, simUser: pickSimUser(r, probe) }))
+const lanes = resolved.filter((r) => probe[r.builder].available && r.simUser)
+for (const r of lanes) if (r.simUser !== r.simUsers[0]) console.log(`synth: ${r.builder} falls back to simulated user ${r.simUser}`)
 try {
   assertFree([...new Set(lanes.flatMap((r) => [r.builder, r.simUser]))], probe)
 } catch (e) {
@@ -112,7 +114,7 @@ const record = (entry) => {
 
 const skipped = (role, scenario, run) => ({ scenario: scenario.name, builder: role.builder, simUser: role.simUser, run, skipped: true })
 
-for (const role of roles.filter((r) => !lanes.includes(r))) {
+for (const role of resolved.filter((r) => !lanes.includes(r))) {
   console.log(`synth: skipping ${role.builder}: builder or simulated user unavailable`)
   for (const scenario of scenarios) for (let run = 1; run <= runs; run++) record(skipped(role, scenario, run))
 }
@@ -160,7 +162,7 @@ async function runOne(role, scenario, run, port) {
     const simUser = createSimUser({
       client: createGoClient({ apiKey: key, session: randomUUID() }),
       model: role.simUser,
-      maxTokens: role.simUserMaxTokens,
+      maxTokens: SIM_USER_MAX_TOKENS[role.simUser],
       vision: probe[role.simUser].vision,
       scenario,
     })

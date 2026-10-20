@@ -36,6 +36,38 @@ describe('probeModel', () => {
     expect(r.error).toMatch(/Insufficient/)
     expect(client.calls.every((c) => !c.image)).toBe(true)
   })
+  it('does not retry a 4xx refusal', async () => {
+    const client = fakeClient({ textFails: true })
+    await probeModel(client, 'paid')
+    expect(client.calls).toHaveLength(1)
+  })
+})
+
+describe('probeModel retries', () => {
+  it('retries a failed availability call before giving up', async () => {
+    let calls = 0
+    const client = {
+      async complete({ messages }) {
+        if (hasImage(messages)) return { text: 'red square, blue circle' }
+        calls++
+        if (calls < 3) throw new Error('m: timeout after 120000 ms')
+        return { text: 'OK' }
+      },
+    }
+    expect(await probeModel(client, 'm')).toEqual({ available: true, vision: true })
+    expect(calls).toBe(3)
+  })
+  it('reports the last error after every attempt times out', async () => {
+    let calls = 0
+    const client = {
+      async complete() {
+        calls++
+        throw new Error(`m: timeout after 120000 ms (${calls})`)
+      },
+    }
+    expect(await probeModel(client, 'm')).toEqual({ available: false, vision: false, error: 'm: timeout after 120000 ms (3)' })
+    expect(calls).toBe(3)
+  })
 })
 
 describe('probeModels', () => {

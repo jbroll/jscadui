@@ -53,11 +53,19 @@ export function shapesPng() {
 const seesBoth = (answer) =>
   /red/i.test(answer) && /square|rectangle/i.test(answer) && /blue/i.test(answer) && /circle/i.test(answer)
 
+const PROBE_ATTEMPTS = 3
+
+// A free model times out now and then; a 4xx is a refusal that a retry won't change.
+const refused = (err) => /HTTP 4\d\d/.test(err.message)
+
 export async function probeModel(client, model) {
-  try {
-    await client.complete({ model, messages: [{ role: 'user', content: 'Reply with OK.' }], maxTokens: 2000 })
-  } catch (err) {
-    return { available: false, vision: false, error: err.message }
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await client.complete({ model, messages: [{ role: 'user', content: 'Reply with OK.' }], maxTokens: 2000 })
+      break
+    } catch (err) {
+      if (refused(err) || attempt === PROBE_ATTEMPTS) return { available: false, vision: false, error: err.message }
+    }
   }
   const image = `data:image/png;base64,${shapesPng().toString('base64')}`
   try {

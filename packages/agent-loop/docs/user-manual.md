@@ -466,8 +466,11 @@ SYNTH_BUILDERS=beam-free SYNTH_SCENARIOS=nameplate SYNTH_RUNS=1 npm run synth -w
 `apps/jscad-web/synth/run-batch.mjs` reads the `opencode-go` key from
 `$JSCAD_CHAT_KEYS` or `~/.config/jscad-chat/keys.json`, probes every model the
 chosen roles use, and refuses to start unless each model it will call is a
-free model the probe found available. A builder whose model or simulated user
-fails the probe is skipped; its sessions are recorded with `skipped: true`. A
+free model the probe found available. The probe tries a model three times
+unless it answers 4xx. A builder whose simulated user fails the probe takes the
+next one in its role, and the manifest's `simUser` names the one that ran. A
+builder whose model, or every simulated user, fails the probe is skipped; its
+sessions are recorded with `skipped: true`. A
 simulated user that fails the image probe critiques from text only. Then it
 runs one lane per builder, the lanes at the same time and the sessions in a
 lane one after another. Each session gets a fresh model directory, seeded with
