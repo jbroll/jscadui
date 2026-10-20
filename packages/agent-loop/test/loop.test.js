@@ -97,6 +97,19 @@ describe('runTurn', () => {
     expect(error.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'tool'])
   })
 
+  it('sends an empty round that stopped normally once more, and fails on a second in a row', async () => {
+    const empty = [{ type: 'done', stopReason: 'stop' }]
+    const call = [{ type: 'tool_use', id: 't1', name: 'measure', input: {} }, { type: 'done', stopReason: 'tool_calls' }]
+    const answered = roundsProvider([call, empty, [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'stop' }]])
+    const conversation = { messages: [{ role: 'user', content: 'hi' }] }
+    const { messages } = await runTurn({ conversation, provider: answered, requestTool: vi.fn(async () => '{"ok":true}') })
+    expect(messages.at(-1)).toMatchObject({ role: 'assistant', content: 'done' })
+    expect(answered.sent[2]).toEqual(answered.sent[1])
+    const silent = roundsProvider([call, empty, empty])
+    const error = await runTurn({ conversation, provider: silent, requestTool: vi.fn(async () => '{"ok":true}') }).catch((e) => e)
+    expect(error).toMatchObject({ name: 'EmptyReplyError', stopReason: 'stop' })
+  })
+
   it('rejects a refused round with the provider refusal, not as an empty reply', async () => {
     const provider = roundsProvider([
       [{ type: 'refusal', text: "I'm sorry, " }, { type: 'refusal', text: "but I can't help with that request." }, { type: 'done', stopReason: 'completed' }],

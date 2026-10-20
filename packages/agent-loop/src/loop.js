@@ -121,6 +121,8 @@ export class ToolTimeoutError extends Error {
   }
 }
 
+const OUT_OF_TOKENS = new Set(['length', 'max_tokens'])
+
 // A provider round with neither text nor a tool call (a reply that is all
 // reasoning, or a stop on the length limit) leaves the user with nothing.
 export class EmptyReplyError extends Error {
@@ -308,6 +310,7 @@ export const runTurn = (options) => {
         if (cancelled || text.length === 0) return
         messages.push({ role: 'assistant', content: text.join(''), toolCalls: [] })
       }
+      let resent = false
       try {
         for (;;) {
           rounds += 1
@@ -364,8 +367,16 @@ export const runTurn = (options) => {
           if (cancelled) throw abortError('turn aborted')
           if (text.length === 0 && toolCalls.length === 0) {
             if (refusal.length > 0 || stopReason === 'refusal') throw new RefusalError(refusal.join(''))
+            // Free models sometimes end a round with nothing; the same request
+            // usually answers. A length stop would only run out again.
+            if (!resent && !OUT_OF_TOKENS.has(stopReason)) {
+              resent = true
+              rounds -= 1
+              continue
+            }
             throw new EmptyReplyError(stopReason)
           }
+          resent = false
           messages.push({
             role: 'assistant',
             content: text.length > 0 ? text.join('') : null,

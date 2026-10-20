@@ -87,7 +87,9 @@ characters) of results in one turn (an eval run is one turn), each further
 result is replaced by `[tool result omitted: this turn's tool results passed
 120000 characters]` and the turn goes on. A turn that rejects carries the
 messages so far as `error.messages`. A provider round with neither text nor a
-tool call (only reasoning, or a stop at the length limit) rejects the turn
+tool call (only reasoning, or a stop at the length limit) is sent once more
+unchanged, uncounted against `maxRounds`, unless it stopped at the length
+limit (`length`, `max_tokens`); a second such round in a row rejects the turn
 with `EmptyReplyError`, whose `stopReason` is the provider's and whose message
 is `the model stopped without answering (stop reason: length)`; the app shows
 it in the chat as an error. A round the provider refused instead rejects with
