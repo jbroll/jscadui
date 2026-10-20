@@ -111,8 +111,14 @@ describe('errorLocation', () => {
 
   it('reads the first project frame of a stack, in V8 and Firefox formats', () => {
     const v8 = { stack: 'Error: bad\n    at helper (/repo/node_modules/x.js:1:1)\n    at main (http://project.local/lib/part.js:12:5)\n    at http://project.local/main.js:3:1' }
-    expect(errorLocation(v8, BASE)).toEqual({ file: 'lib/part.js', line: 12, column: 5 })
+    expect(errorLocation(v8, BASE)).toEqual({ file: 'lib/part.js', line: 12, column: 5, calledFrom: ['main.js:3'] })
     expect(errorLocation({ stack: 'main@http://project.local/main.js:4:9\n' }, BASE)).toEqual({ file: 'main.js', line: 4, column: 9 })
+  })
+
+  it('lists the project callers below the first frame, once each and at most four', () => {
+    const frames = ['lib/box.js:9:10', 'lib/box.js:9:10', 'base.js:12:3', 'x.js:1:1', 'y.js:2:2', 'z.js:3:3', 'main.js:20:5']
+    const stack = `Error: bad\n${frames.map((f) => `    at f (http://project.local/${f})`).join('\n')}\n    at run (/repo/node_modules/r.js:1:1)`
+    expect(errorLocation({ stack }, BASE)).toEqual({ file: 'lib/box.js', line: 9, column: 10, calledFrom: ['base.js:12', 'x.js:1', 'y.js:2', 'z.js:3'] })
   })
 
   it('is empty when nothing names a project file', () => {

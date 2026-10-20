@@ -362,13 +362,16 @@ reportError(error, { api, index, files })
 ```
 
 A model error as a report or `execute` result carries it:
-`{ name, message, file?, line?, column? }`, the name cut to 200 characters
+`{ name, message, file?, line?, column?, calledFrom? }`, the name cut to 200 characters
 and the message to 4,000, without the frame worker's `jscadMain failed: `
 prefix or the loader's ` / failed loading module …` note, `out of memory;
 try a smaller case` for an allocation failure, and the error hint for `api`
 when `index` (the API index) is given. The location comes from `errorLocation`
 with `PROJECT_BASE`, or from a Babel message whose first line names
-`<PROJECT_BASE><path>:` and ends with `(line:column)`.
+`<PROJECT_BASE><path>:` and ends with `(line:column)`. `calledFrom` lists the
+project-file frames below the first, as `path:line`, once each and at most
+four: a throw inside a shared helper is usually a caller's bad argument, and
+the first frame alone names only the helper.
 
 With the project's `files`, a relative require that names no project file
 gets `missingModuleHint`'s line: the file of the same name it likely meant,

@@ -40,24 +40,31 @@ export const errorLocation = (error, base) => {
     const file = error.file ?? new RegExp(`^${project}:`).exec(String(error.message ?? ''))?.[1]
     if (file) return { file, line: error.loc.line, column: error.loc.column + 1 }
   }
-  const at = new RegExp(`${project}:(\\d+):(\\d+)`).exec(typeof error?.stack === 'string' ? error.stack : '')
-  return at ? { file: at[1], line: Number(at[2]), column: Number(at[3]) } : {}
+  const frames = [...(typeof error?.stack === 'string' ? error.stack : '').matchAll(new RegExp(`${project}:(\\d+):(\\d+)`, 'g'))]
+  if (frames.length === 0) return {}
+  const [[, file, line, column], ...callers] = frames
+  // A throw in a shared helper is usually the caller's bad argument, so name the callers too.
+  const calledFrom = [...new Set(callers.map(([, f, l]) => `${f}:${l}`))].filter((at) => at !== `${file}:${line}`).slice(0, MAX_CALLERS)
+  return { file, line: Number(line), column: Number(column), ...(calledFrom.length > 0 ? { calledFrom } : {}) }
 }
+
+const MAX_CALLERS = 4
 
 // The loader appends this to an error thrown while a module loads; the
 // location already names the file, and a snippet's own name misleads.
 export const withoutLoaderNote = (message) => String(message).replace(/ \/ failed loading module \S+/g, '')
 
-const reportError = ({ name, message, file, line, column }) => ({
+const reportError = ({ name, message, file, line, column, calledFrom }) => ({
   ...(name ? { name: String(name) } : {}),
   message: String(message ?? ''),
   ...(file ? { file } : {}),
   ...(Number.isFinite(line) ? { line } : {}),
   ...(Number.isFinite(column) ? { column } : {}),
+  ...(Array.isArray(calledFrom) && calledFrom.length > 0 ? { calledFrom } : {}),
 })
 
 /**
- * @param {{entry:string|null, error?:{name?:string,message:string,file?:string,line?:number,column?:number},
+ * @param {{entry:string|null, error?:{name?:string,message:string,file?:string,line?:number,column?:number,calledFrom?:string[]},
  *   warnings?:Array<object>, console?:Array<string>, params?:Array<object>, measured?:object, checked?:object}} build
  */
 export const buildReport = ({ entry = null, error, warnings = [], console: lines = [], params = [], measured, checked }) => {
