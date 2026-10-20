@@ -18,12 +18,14 @@ import {
   rectangle,
   polygon,
   extrudeLinear,
+  extrudeHelical,
   isManifoldGeom2,
   setUseGpuNormals,
   fromManifold,
   getManifold,
   getModule
 } from '../src/index.js'
+import { geom3ToManifold } from '../src/conversions/index.js'
 
 describe('@jscadui/manifold', () => {
   beforeAll(async () => {
@@ -53,6 +55,26 @@ describe('@jscadui/manifold', () => {
       const cyl = cylinder({ radius: 3, height: 10 })
       expect(isManifoldGeom3(cyl)).toBe(true)
       expect(cyl.polygons.length).toBeGreaterThan(0)
+    })
+
+    it('says why a helical sweep whose profile reaches the axis is not manifold', () => {
+      const onAxis = polygon({ points: [[0, 0], [1.2, 0], [1.8, 1.2], [1.2, 2.4], [0, 2.4]] })
+      const sweep = () => extrudeHelical({ angle: Math.PI * 6, pitch: 3, height: 9, segmentsPerRotation: 48 }, onAxis)
+      expect(sweep).toThrow(expect.objectContaining({ name: 'ManifoldError' }))
+      expect(sweep).toThrow(
+        'Not manifold: extrudeHelical made a mesh with open edges or crossing faces, which manifold refuses; ' +
+          'its profile reaches x = 0, on the axis it sweeps around: keep the profile at x > 0',
+      )
+      const offAxis = polygon({ points: [[20, 0], [21.2, 0], [21.8, 1.2], [21.2, 2.4], [20, 2.4]] })
+      expect(() => extrudeHelical({ angle: Math.PI * 6, pitch: 3, height: 9, segmentsPerRotation: 48 }, offAxis)).not.toThrow()
+    })
+
+    it('names the usual causes when a converted mesh is not manifold', () => {
+      const open = { polygons: [{ vertices: [[0, 0, 0], [1, 0, 0], [0, 1, 0]] }], transforms: null }
+      expect(() => geom3ToManifold(open)).toThrow(
+        'Not manifold: the mesh has open edges or crossing faces, which manifold refuses; ' +
+          'a sweep whose profile touches or crosses its axis, a polyhedron with faces wound both ways, or a part with no thickness does this',
+      )
     })
 
     it('refuses polygon points or paths that are not arrays, as modeling does', () => {

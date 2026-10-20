@@ -9,13 +9,28 @@ import { getModule } from '../init.js'
 import { ManifoldGeom3, toManifold } from '../geometries/ManifoldGeom3.js'
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- toCrossSection may be used later
 import { ManifoldGeom2, isManifoldGeom2, toCrossSection, toJscadGeom2 } from '../geometries/ManifoldGeom2.js'
-import { geom2ToCrossSection, geom3ToManifold } from '../conversions/index.js'
+import { geom2ToCrossSection, geom3ToManifold, notManifold } from '../conversions/index.js'
 import * as jscadModule from '@jscad/modeling-for-manifold'
 
 // Handle both ESM default export (Node.js) and bundled named exports (vitest/bundler)
 const jscad = jscadModule.default || jscadModule
 
 const jscadExtrusions = jscad.extrusions
+
+// A modeling sweep's mesh, as a manifold; when manifold refuses it, a profile
+// reaching the axis is the usual cause, so the error says where the profile is.
+const sweptToManifold = (op, extruded, profile) => {
+  try {
+    return geom3ToManifold(extruded)
+  } catch (error) {
+    if (error?.name !== 'ManifoldError') throw error
+    const minX = jscad.measurements.measureBoundingBox(profile)[0][0]
+    const where = minX <= 1e-6
+      ? `its profile reaches x = ${+minX.toFixed(3) || 0}, on the axis it sweeps around: keep the profile at x > 0`
+      : 'keep its profile on one side of the axis and its turns from overlapping'
+    throw notManifold(`${op} made a mesh with open edges or crossing faces, which manifold refuses; ${where}`)
+  }
+}
 
 /**
  * Check if a geometry has JSCAD as source (for ManifoldGeom2).
@@ -90,7 +105,7 @@ export const extrudeRotate = (options, ...geometries) => {
     if (hasJscadSource(geom)) {
       const geom2 = toJscadGeom2(geom)
       const extruded = jscadExtrusions.extrudeRotate(options, geom2)
-      return new ManifoldGeom3(geom3ToManifold(extruded))
+      return new ManifoldGeom3(sweptToManifold('extrudeRotate', extruded, geom2))
     }
 
     // Use Manifold's native revolve
@@ -142,7 +157,7 @@ export const extrudeHelical = (options, ...geometries) => {
     const geom2 = toJscadGeom2(geom)
 
     const extruded = jscadExtrusions.extrudeHelical(options, geom2)
-    return new ManifoldGeom3(geom3ToManifold(extruded))
+    return new ManifoldGeom3(sweptToManifold('extrudeHelical', extruded, geom2))
   })
 
   return results.length === 1 ? results[0] : results

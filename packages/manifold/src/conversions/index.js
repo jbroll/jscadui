@@ -285,8 +285,20 @@ export const geom3ToManifold = (geom) => {
 
   // Create Manifold from mesh
   // Note: Mesh is a plain data object, not a WASM class - no delete() needed
-  return Manifold.ofMesh(mesh)
+  try {
+    return Manifold.ofMesh(mesh)
+  } catch (error) {
+    if (error?.message !== 'Not manifold') throw error
+    throw notManifold(
+      'the mesh has open edges or crossing faces, which manifold refuses; ' +
+        'a sweep whose profile touches or crosses its axis, a polyhedron with faces wound both ways, or a part with no thickness does this',
+    )
+  }
 }
+
+// manifold-3d's own error says only "Not manifold", and model code that hits it
+// usually built the mesh several calls earlier.
+export const notManifold = (detail) => Object.assign(new Error(`Not manifold: ${detail}`), { name: 'ManifoldError' })
 
 /**
  * Convert a Manifold object to a JSCAD geom3.
