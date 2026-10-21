@@ -317,10 +317,9 @@ require('@jscad/modeling')`), and in fluent `jf.X(...)` or `shape.X(...)`.
 frame's minified bundles shorten, gets in fluent the `new jf.FluentGeom3(shape)`
 form, since the jf wrappers are the classes a model calls. "'return' outside
 of function" gets the module form: `console.log` the value or export a
-`main`, in both styles. In fluent, `jf.hull`, `jf.union` and the other
-operations that combine shapes add the `jf.geom3Array(a, b).hull()` form,
-and "FluentGeom2 expected a geom2 …, got an array", a points array wrapped as
-a shape, gets `jf.polygon(points)`. The boolean hint for `{ points, faces }` data also lands on the error the
+`main`, in both styles. In fluent, "FluentGeom2 expected a geom2 …, got
+an array" says the constructor takes a geom2 or three or more `[x, y]`
+points, as `jf.polygon(points)` does. The boolean hint for `{ points, faces }` data also lands on the error the
 boolean throws ("only unions of the same type are supported"). `test/warningCases.js` holds the cases
 both the eval backend and the app must answer alike.
 
