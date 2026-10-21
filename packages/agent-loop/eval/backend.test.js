@@ -400,6 +400,16 @@ describe('eval backend project', () => {
     expect(backend.files()).toEqual({ 'main.js': MAIN_WITH_HELPER })
   })
 
+  it('quotes the expression behind a NaN option, from the file the error names', async () => {
+    const backend = createEvalBackend()
+    const content = `const jf = require('@jbroll/jscad-fluent')
+const part = (c) => jf.cuboid({ size: [c.length - 4, c.width, 3] })
+module.exports = { main: () => part({ width: 10 }) }`
+    const res = await writeMain(content, backend)
+    expect(res.ok).toBe(false)
+    expect(res.error.message).toContain('size[0] is c.length - 4 at main.js:2; c.length is undefined or NaN there')
+  })
+
   it('names the file a missed relative require meant, and the other files that miss it', async () => {
     const backend = createEvalBackend()
     await call(backend, 'write', { path: 'lib/dims.js', content: 'module.exports = { size: 20 }' })
@@ -409,7 +419,7 @@ describe('eval backend project', () => {
     const res = await writeMain(`const a = require('./parts/a')\nconst b = require('./parts/b')\n${CUBE}`, backend)
     expect(res.ok).toBe(false)
     expect(res.error.message).toContain("lib/dims.js is: from parts/ require it as '../lib/dims'")
-    expect(res.error.message).toContain('The same require misses in parts/a.js, parts/b.js')
+    expect(res.error.message).toContain('parts/dims.js is not in the project; parts/a.js, parts/b.js require it.')
   })
 
   it('answers the no-entry report when the delete removes the entry', async () => {

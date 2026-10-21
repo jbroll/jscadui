@@ -359,8 +359,10 @@ export const missingModuleHint = (message, files) => {
       return (base === missing || `${base}.js` === missing) && !resolveRequire(files, file, spec)
     }),
   )
-  const lines = [`${missing} is not in the project.`]
-  if (meant && missers.length > 0) lines.push(`${meant} is: from ${dirOf(missers[0]) || '.'}/ require it as '${specFrom(missers[0], meant)}'.`)
-  if (missers.length > 1) lines.push(`The same require misses in ${missers.join(', ')}; fix them all before the next build.`)
+  if (missers.length === 0) return `${missing} is not in the project.`
+  const lines = [`${missing} is not in the project; ${missers.join(', ')} require${missers.length > 1 ? '' : 's'} it.`]
+  if (meant) lines.push(`${meant} is: from ${dirOf(missers[0]) || '.'}/ require it as '${specFrom(missers[0], meant)}'.`)
+  else lines.push('Change that require, or write the file.')
+  if (missers.length > 1) lines.push('Fix every one of them before the next build.')
   return lines.join(' ')
 }

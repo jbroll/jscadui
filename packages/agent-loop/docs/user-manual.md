@@ -383,11 +383,16 @@ four: a throw inside a shared helper is usually a caller's bad argument, and
 the first frame alone names only the helper.
 
 With the project's `files`, a relative require that names no project file
-gets `missingModuleHint`'s line: the file of the same name it likely meant,
-with the require that reaches it, and every other file making the same miss.
-The loader stops at the first miss, so a model told only about one file
-fixes the rest one build at a time. The app passes the files from its file
-cache, the eval its own.
+gets `missingModuleHint`'s line: the files that require it, the file of the
+same name it likely meant with the require that reaches it, or else to change
+the require or write the file. The loader stops at the first miss, so a model
+told only about one file fixes the rest one build at a time. A NaN option
+gets `nanSourceHint`'s line (`src/nanSource.js`): the expression written for
+each NaN element at the line the error names, and the names it reads, as in
+`size[0] is c.length - 4 at main.js:2; c.length is undefined or NaN there`.
+It reads up to ten lines from that line for the option, and adds nothing
+when the option is not written out there (`{ size }`). The app passes the
+files from its file cache, the eval its own.
 
 `PROJECT_BASE` (`http://project.local/`) is the URL base project files load
 under, and `RUN_FILE` (`__run__.js`) the file an `execute` snippet runs as beside

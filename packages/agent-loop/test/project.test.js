@@ -321,12 +321,12 @@ describe('missingModuleHint', () => {
   it('names the file the require meant and every file making the same miss', () => {
     const files = { 'main.js': req('./parts/wheels'), 'lib/dims.js': '', 'parts/wheels.js': req('./dims'), 'parts/body.js': req('./dims.js'), 'parts/ok.js': req('../lib/dims') }
     expect(missingModuleHint(miss('./dims', 'parts/dims.js'), files)).toBe(
-      "parts/dims.js is not in the project. lib/dims.js is: from parts/ require it as '../lib/dims'. The same require misses in parts/body.js, parts/wheels.js; fix them all before the next build.",
+      "parts/dims.js is not in the project; parts/body.js, parts/wheels.js require it. lib/dims.js is: from parts/ require it as '../lib/dims'. Fix every one of them before the next build.",
     )
   })
 
   it('says only that the file is missing when nothing shares its name', () => {
-    expect(missingModuleHint(miss('./tools', 'jeep/parts/tools.js'), { 'main.js': req('./jeep/parts/tools') })).toBe('jeep/parts/tools.js is not in the project.')
+    expect(missingModuleHint(miss('./tools', 'jeep/parts/tools.js'), { 'main.js': req('./jeep/parts/tools') })).toBe('jeep/parts/tools.js is not in the project; main.js requires it. Change that require, or write the file.')
   })
 
   it('answers null for a package or any other error', () => {
