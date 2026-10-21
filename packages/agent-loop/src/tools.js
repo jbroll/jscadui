@@ -17,7 +17,7 @@ const BUILDS =
 const VIEW_TOOL = {
   name: 'view',
   description:
-    "Render the current model and look at it: ask for one to four views (each a preset, a lookAt point or part, or a position with an offset) and get back an image per view with the camera finally used. The render is off-screen for this call only, so the user's own view never moves. Images are resent in later rounds, so ask for the fewest views that answer the question.",
+    "Render the current model and look at it: ask for one to four views (each a preset or a position with an offset for the direction, a lookAt point or part to aim at, or one of each) and get back an image per view with the camera finally used. The render is off-screen for this call only, so the user's own view never moves. Images are resent in later rounds, so ask for the fewest views that answer the question.",
   inputSchema: viewInputSchema,
 }
 

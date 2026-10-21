@@ -65,7 +65,7 @@ export const buildAnchorFrames = (result) => {
 // so a preset or point call never pays for it. Index aims are checked against
 // the part count first, so measure never answers its own out-of-range error.
 const partContext = async (views, measure) => {
-  const aims = views.filter((view) => view.kind === 'lookAtPart').map((view) => view.part)
+  const aims = views.map((view) => (view.kind === 'lookAtPart' ? view : view.target)).filter((aim) => aim?.kind === 'lookAtPart').map((aim) => aim.part)
   if (aims.length === 0 || !measure) return {}
   const measured = await measure({ anchors: true })
   const ctx = { anchorFrames: buildAnchorFrames(measured), partCount: measured?.anchors?.length ?? 0 }
@@ -122,7 +122,7 @@ export const createViewHandler = ({ getMesh, noGeometry, render, measure, env })
   for (const view of views) {
     if (view.kind === 'preset') {
       const dirs = PRESET_DIRS[view.preset]
-      shots.push({ dir: dirs.dir, up: dirs.up })
+      shots.push(view.target ? { dir: dirs.dir, up: dirs.up, target: resolveLookAt(view.target, parts) } : { dir: dirs.dir, up: dirs.up })
     } else if (view.kind === 'lookAtPart') {
       // A part aim shoots iso-front auto-fit to that part's center or frame origin.
       const iso = PRESET_DIRS['iso-front']
@@ -133,9 +133,9 @@ export const createViewHandler = ({ getMesh, noGeometry, render, measure, env })
       const iso = PRESET_DIRS['iso-front']
       shots.push({ dir: iso.dir, up: iso.up, target: resolveLookAt(view) })
     } else {
-      // A position aim looks from the requested point (plus its offset) back at
-      // the model centre; the renderer owns the distance, so the model auto-fits.
-      const target = modelCenter(mesh)
+      // A position aim looks from the requested point (plus its offset) at its
+      // lookAt, else the model centre; the renderer owns the distance, so the model auto-fits.
+      const target = view.target ? resolveLookAt(view.target, parts) : modelCenter(mesh)
       shots.push({ dir: unit(sub(add(view.position, view.offset), target)), up: [0, 0, 1], target })
     }
   }

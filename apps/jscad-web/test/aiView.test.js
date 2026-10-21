@@ -200,4 +200,20 @@ describe('view handler', () => {
     expect(plans[0].shots[0].dir[1]).toBe(0)
     expect(plans[0].shots[0].dir[2]).toBe(0)
   })
+
+  it('aims a preset direction at a lookAt point or part given beside it', async () => {
+    const plans = []
+    const measure = vi.fn(async () => ({ anchors: [{ part: '0', anchors: { lid: { origin: [0, 0, 30] } } }] }))
+    await handler({ render: renderOf(plans), measure })({ views: [{ preset: 'top', lookAt: [3, -4, 5] }, { preset: 'left', lookAt: 'lid' }] })
+    expect(plans[0].shots).toEqual([
+      { dir: PRESET_DIRS.top.dir, up: PRESET_DIRS.top.up, target: [3, -4, 5] },
+      { dir: PRESET_DIRS.left.dir, up: PRESET_DIRS.left.up, target: [0, 0, 30] },
+    ])
+  })
+
+  it('looks from a position at a lookAt point given beside it', async () => {
+    const plans = []
+    await handler({ render: renderOf(plans) })({ views: [{ position: [10, 0, 5], lookAt: [0, 0, 5] }] })
+    expect(plans[0].shots[0]).toEqual({ dir: [1, 0, 0], up: [0, 0, 1], target: [0, 0, 5] })
+  })
 })

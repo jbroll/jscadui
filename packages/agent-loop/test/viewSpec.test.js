@@ -87,9 +87,18 @@ describe('normalizeViewRequest', () => {
     expect(MAX_VIEW_SIZE).toBe(768)
   })
 
-  it('rejects a spec that names no aim, or more than one', () => {
+  it('takes a lookAt beside a preset or a position as the point that direction aims at', () => {
+    expect(normalizeViewRequest({ views: [{ preset: 'top', lookAt: [1, 2, 3] }, { position: [9, 0, 0], lookAt: 'lid' }] }).views).toEqual([
+      { kind: 'preset', preset: 'top', target: { kind: 'lookAt', point: [1, 2, 3] } },
+      { kind: 'position', position: [9, 0, 0], offset: [0, 0, 0], target: { kind: 'lookAtPart', part: 'lid' } },
+    ])
+  })
+
+  it('rejects a spec that names no aim, or two directions', () => {
     expect(() => normalizeViewRequest({ views: [{}] })).toThrowError(/preset, lookAt/)
-    expect(() => normalizeViewRequest({ views: [{ preset: 'top', lookAt: [1, 2, 3] }] })).toThrowError(/one aim/)
+    expect(() => normalizeViewRequest({ views: [{ preset: 'top', position: [1, 2, 3] }] })).toThrowError(
+      'views[0] names both preset and position, two camera directions; use one, and lookAt for the point it aims at',
+    )
     expect(() => normalizeViewRequest({ views: [{ preset: 'top' }], lookAt: [1, 2, 3] })).toThrowError(/inside views/)
   })
 

@@ -1150,7 +1150,11 @@ model list, which the relay free catalog serves per model), a manual per-model
 override for providers whose lists carry no capability fields, or the cached
 models.dev prune; `vision: true` in `eval/models.json` covers the eval. No
 hardcoded table: a static list lags every catalog rotation, so live data and
-the user's own override decide. A part look-at takes the part references
+the user's own override decide. A camera spec names a direction (`preset`, or
+`position` with an optional `offset`), a `lookAt`, or a direction and the
+`lookAt` it aims at; `lookAt` alone looks from iso-front, and a direction
+alone aims at the whole model. Only `preset` with `position`, two directions,
+is refused. A part look-at takes the part references
 `measure` and `check` report: an index (`57` or `"57"`) or index range
 (`"51-54"`) aims at that selection's bounding-box center (`measure({parts})`),
 and a name resolves through the build's auto-attached anchors (a dotted param

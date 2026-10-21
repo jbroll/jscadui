@@ -17,7 +17,7 @@ export const MAX_VIEWS = 4
 export const DEFAULT_VIEW_SIZE = { w: 640, h: 480 }
 export const MAX_VIEW_SIZE = 768
 
-// The aim keys a spec may carry; exactly one of them names the camera.
+// The aim keys a spec may carry: a direction (preset or position), a point (lookAt), or one of each.
 const AIM_FORMS = ['preset', 'lookAt', 'position']
 
 // The part references measure and check report, which a lookAt also takes.
@@ -39,31 +39,41 @@ const triple = (value, label) => {
   return [value[0], value[1], value[2]]
 }
 
+const lookAtSpec = (value, at) => {
+  if (Number.isInteger(value) && value >= 0) return { kind: 'lookAtPart', part: String(value) }
+  if (typeof value === 'string') {
+    const part = value.trim()
+    if (part === '') throw named('ArgumentsError', `${at} lookAt part is empty; ${PART_FORMS}`)
+    return { kind: 'lookAtPart', part }
+  }
+  if (!Array.isArray(value)) throw named('ArgumentsError', `${at} lookAt must be three finite numbers [x, y, z]; ${PART_FORMS}`)
+  return { kind: 'lookAt', point: triple(value, `${at} lookAt`) }
+}
+
+// preset and position each set the camera direction; lookAt sets the point
+// aimed at, alone (from iso-front) or beside either of them.
 const normalizeSpec = (input, index) => {
   const at = `views[${index}]`
   if (!isPlainObject(input)) throw named('ArgumentsError', `${at} must be a camera spec object`)
   const forms = AIM_FORMS.filter((key) => input[key] !== undefined)
   if (forms.length === 0) throw named('ArgumentsError', `${at} needs one of preset, lookAt or position`)
-  if (forms.length > 1) throw named('ArgumentsError', `${at} names more than one aim (${forms.join(', ')}); use exactly one aim`)
-  if (forms[0] === 'preset') {
+  if (input.preset !== undefined && input.position !== undefined) {
+    throw named('ArgumentsError', `${at} names both preset and position, two camera directions; use one, and lookAt for the point it aims at`)
+  }
+  const target = input.lookAt === undefined ? undefined : lookAtSpec(input.lookAt, at)
+  const aimed = target ? { target } : {}
+  if (input.preset !== undefined) {
     if (!VIEW_PRESETS.includes(input.preset)) {
       throw named('ArgumentsError', `${at} preset ${JSON.stringify(input.preset)} is unknown; use one of ${VIEW_PRESETS.join(', ')}`)
     }
-    return { kind: 'preset', preset: input.preset }
+    return { kind: 'preset', preset: input.preset, ...aimed }
   }
-  if (forms[0] === 'lookAt') {
-    if (Number.isInteger(input.lookAt) && input.lookAt >= 0) return { kind: 'lookAtPart', part: String(input.lookAt) }
-    if (typeof input.lookAt === 'string') {
-      const part = input.lookAt.trim()
-      if (part === '') throw named('ArgumentsError', `${at} lookAt part is empty; ${PART_FORMS}`)
-      return { kind: 'lookAtPart', part }
-    }
-    if (!Array.isArray(input.lookAt)) throw named('ArgumentsError', `${at} lookAt must be three finite numbers [x, y, z]; ${PART_FORMS}`)
-    return { kind: 'lookAt', point: triple(input.lookAt, `${at} lookAt`) }
+  if (input.position !== undefined) {
+    const position = triple(input.position, `${at} position`)
+    const offset = input.offset === undefined ? [0, 0, 0] : triple(input.offset, `${at} offset`)
+    return { kind: 'position', position, offset, ...aimed }
   }
-  const position = triple(input.position, `${at} position`)
-  const offset = input.offset === undefined ? [0, 0, 0] : triple(input.offset, `${at} offset`)
-  return { kind: 'position', position, offset }
+  return target
 }
 
 const normalizeViews = (views) => {
@@ -95,6 +105,7 @@ const normalizeSize = (size) => {
  *   | {kind: 'lookAt', point: [number, number, number]}
  *   | {kind: 'lookAtPart', part: string} // an index, an index range or a part name
  *   | {kind: 'position', position: [number, number, number], offset: [number, number, number]}} ViewSpec
+ * A preset or position spec may also carry `target`, a lookAt or lookAtPart spec it aims at.
  */
 
 /**
@@ -102,9 +113,9 @@ const normalizeSize = (size) => {
  *
  * Accepts the default call (undefined or `{}`), one bare camera spec
  * (`{preset: 'top'}`), or the full shape `{views: [spec...], size: {w, h}}`.
- * An omitted or empty `views` means one iso-front auto-fit; a spec names
- * exactly one aim, as a preset, a lookAt point or part reference, or a position
- * with an optional world offset.
+ * An omitted or empty `views` means one iso-front auto-fit; a spec names a
+ * direction (a preset, or a position with an optional world offset), a lookAt
+ * point or part reference, or a direction and a lookAt it aims at.
  * @param {unknown} input the tool arguments as received
  * @returns {{views: Array<ViewSpec>, size: {w: number, h: number}}}
  * @throws {Error} a named `ArgumentsError` on any violation
@@ -128,7 +139,8 @@ export const normalizeViewRequest = (input) => {
 
 const CAMERA_SPEC_SCHEMA = {
   type: 'object',
-  description: 'One camera aim: a preset, a lookAt point or part, or a position with an offset. Name exactly one of preset, lookAt or position.',
+  description:
+    'One camera: a direction (preset, or position with an optional offset) and/or the point it aims at (lookAt). lookAt alone looks from iso-front; a direction alone aims at the whole model. Not both preset and position.',
   properties: {
     preset: { type: 'string', enum: [...VIEW_PRESETS], description: 'A named view direction, auto-fit to the whole model' },
     lookAt: {
