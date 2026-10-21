@@ -320,7 +320,8 @@ require('@jscad/modeling')`), and in fluent `jf.X(...)` or `shape.X(...)`.
 frame's minified bundles shorten, gets in fluent the `new jf.FluentGeom3(shape)`
 form, since the jf wrappers are the classes a model calls. "'return' outside
 of function" gets the module form: `console.log` the value or export a
-`main`, in both styles. In fluent, "FluentGeom2 expected a geom2 …, got
+`main`, in both styles. "EOF is not defined" says the line is left from a
+shell heredoc. In fluent, "FluentGeom2 expected a geom2 …, got
 an array" says the constructor takes a geom2 or three or more `[x, y]`
 points, as `jf.polygon(points)` does. The boolean hint for `{ points, faces }` data also lands on the error the
 boolean throws ("only unions of the same type are supported"). `test/warningCases.js` holds the cases
@@ -391,8 +392,12 @@ gets `nanSourceHint`'s line (`src/nanSource.js`): the expression written for
 each NaN element at the line the error names, and the names it reads, as in
 `size[0] is c.length - 4 at main.js:2; c.length is undefined or NaN there`.
 It reads up to ten lines from that line for the option, and adds nothing
-when the option is not written out there (`{ size }`). The app passes the
-files from its file cache, the eval its own.
+when the option is not written out there (`{ size }`). A name Babel refuses
+as already declared gets `duplicateDeclarationHint`'s line, every line of the
+file that declares it (`const`, `let`, `var`, `function`, `class` or a
+destructured binding), since Babel names only the second and a model's edit
+usually left the old one in place. The app passes the files from its file
+cache, the eval its own, each with an `execute` snippet as `__run__.js`.
 
 `PROJECT_BASE` (`http://project.local/`) is the URL base project files load
 under, and `RUN_FILE` (`__run__.js`) the file an `execute` snippet runs as beside

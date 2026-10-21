@@ -280,6 +280,7 @@ export const explainError = (message, { api = DEFAULT_API, index }) => {
       : 'a class was called without new; call it as new Name(...)'
   }
   const undefinedName = NOT_DEFINED.exec(message ?? '')
+  if (undefinedName?.[1] === 'EOF') return 'EOF is a line left from a shell heredoc (cat <<EOF); there is no shell here, so write the file content without it'
   if (undefinedName) return explainUndefined(undefinedName[1], api, lookupFor(index))
   const match = NOT_A_FUNCTION.exec(message ?? '')
   if (!match) return undefined

@@ -394,7 +394,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
     const loaded = await runModel({ ...files, [RUN_FILE]: source }, RUN_FILE, api, { wrapRequire: withProjectMains })
     const { warnings: warned, console: lines } = loaded
     const diagnostics = await lintSource(API_INDEX, source, { api })
-    if (loaded.error) return mergeStatic({ ok: false, error: modelError(loaded.error, api, files), warnings: warned, console: lines }, diagnostics)
+    if (loaded.error) return mergeStatic({ ok: false, error: modelError(loaded.error, api, { ...files, [RUN_FILE]: source }), warnings: warned, console: lines }, diagnostics)
     const summary = summarizeRun({ hasMain: loaded.hasMain, value: loaded.hasMain ? loaded.value : loaded.exports }, measure, check)
     return mergeStatic({ ok: true, warnings: warned, console: lines, ...summary }, diagnostics)
   }

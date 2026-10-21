@@ -186,6 +186,12 @@ describe('explainError', () => {
     )
   })
 
+  it('says a stray EOF line is left from a shell heredoc, in both styles', () => {
+    const hint = 'EOF is a line left from a shell heredoc (cat <<EOF); there is no shell here, so write the file content without it'
+    expect(fluent('EOF is not defined')).toBe(hint)
+    expect(modeling('EOF is not defined')).toBe(hint)
+  })
+
   it('says a top-level return has no function to return from', () => {
     const message = "Babel transform failed for http://project.local/__run__.js: /http:/project.local/__run__.js: 'return' outside of function. (22:0)"
     const hint = 'a file or execute snippet is a module, not a function body: console.log the value, or export it, module.exports = { main: () => shape }'

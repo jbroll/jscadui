@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyDelete, applyEdit, applyWrite, buildFiles, globMatcher, isTestFile, isTestOrNotesPath, listFiles, missingModuleHint, NO_ENTRY, pickEntry, projectPath, readFile, resolveEntry, SEARCH_LIMIT, searchFiles } from '../src/project.js'
+import { applyDelete, applyEdit, applyWrite, buildFiles, duplicateDeclarationHint, globMatcher, isTestFile, isTestOrNotesPath, listFiles, missingModuleHint, NO_ENTRY, pickEntry, projectPath, readFile, resolveEntry, SEARCH_LIMIT, searchFiles } from '../src/project.js'
 
 const thrown = (fn) => {
   try {
@@ -332,5 +332,24 @@ describe('missingModuleHint', () => {
   it('answers null for a package or any other error', () => {
     expect(missingModuleHint('failed to load module @jscad/primitives\n  Error: file not found https://cdn.jsdelivr.net/npm/@jscad/primitives', {})).toBe(null)
     expect(missingModuleHint('x is not defined', {})).toBe(null)
+  })
+})
+
+describe('duplicateDeclarationHint', () => {
+  const text = ['const jf = 1', 'const glass = a', 'function make() {}', 'const { glass: g, frame } = parts', 'const glass = b'].join('\n')
+
+  it('names every line that declares the name', () => {
+    expect(duplicateDeclarationHint("Identifier 'glass' has already been declared. (5:6)", { 'main.js': text }, 'main.js')).toBe(
+      'glass is declared on main.js lines 2 and 5; an edit that adds a new version must replace the old one, so remove or rename one of them',
+    )
+    expect(duplicateDeclarationHint("Identifier 'frame' has already been declared", { 'main.js': `${text}\nlet frame = 2` }, 'main.js')).toBe(
+      'frame is declared on main.js lines 4 and 6; an edit that adds a new version must replace the old one, so remove or rename one of them',
+    )
+  })
+
+  it('answers null for one declaration, another error, or a file it does not have', () => {
+    expect(duplicateDeclarationHint("Identifier 'jf' has already been declared", { 'main.js': text }, 'main.js')).toBe(null)
+    expect(duplicateDeclarationHint('x is not defined', { 'main.js': text }, 'main.js')).toBe(null)
+    expect(duplicateDeclarationHint("Identifier 'glass' has already been declared", {}, 'main.js')).toBe(null)
   })
 })

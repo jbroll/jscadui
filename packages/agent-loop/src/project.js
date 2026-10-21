@@ -366,3 +366,30 @@ export const missingModuleHint = (message, files) => {
   if (missers.length > 1) lines.push('Fix every one of them before the next build.')
   return lines.join(' ')
 }
+
+const DUPLICATE = /Identifier '([A-Za-z_$][\w$]*)' has already been declared/
+
+/**
+ * Where a name the parser refused as declared twice is declared, since Babel
+ * names only the second place and a model's edit usually added a copy above
+ * or below the old one. Null for any other message or a single declaration.
+ * @param {string} message
+ * @param {Record<string, unknown>} files
+ * @param {string} file the file the error names
+ * @returns {string | null}
+ */
+export const duplicateDeclarationHint = (message, files, file) => {
+  const name = DUPLICATE.exec(String(message ?? ''))?.[1]
+  const text = files?.[file]
+  if (!name || typeof text !== 'string') return null
+  const id = name.replace(/\$/g, '\\$')
+  const declares = [
+    new RegExp(`\\b(?:const|let|var|class|function\\*?)\\s+${id}\\b`),
+    // A destructured binding: { name }, { a, name = 1 }, { key: name }.
+    new RegExp(`\\b(?:const|let|var)\\s*\\{(?:[^}]*,)?\\s*(?:[\\w$]+\\s*:\\s*)?${id}\\s*[,}=]`),
+  ]
+  const lines = text.split('\n').flatMap((line, i) => (declares.some((re) => re.test(line)) ? [i + 1] : []))
+  if (lines.length < 2) return null
+  const listed = lines.length > 2 ? `${lines.slice(0, -1).join(', ')} and ${lines.at(-1)}` : lines.join(' and ')
+  return `${name} is declared on ${file} lines ${listed}; an edit that adds a new version must replace the old one, so remove or rename one of them`
+}

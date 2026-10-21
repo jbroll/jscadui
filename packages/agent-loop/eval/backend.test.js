@@ -410,6 +410,15 @@ module.exports = { main: () => part({ width: 10 }) }`
     expect(res.error.message).toContain('size[0] is c.length - 4 at main.js:2; c.length is undefined or NaN there')
   })
 
+  it('lists the lines that declare a name twice, in a file and in an execute snippet', async () => {
+    const backend = createEvalBackend()
+    const twice = `const jf = require('@jbroll/jscad-fluent')\nconst glass = jf.cube({ size: 1 })\nconst glass = jf.cube({ size: 2 })\nmodule.exports = { main: () => glass }`
+    const res = await writeMain(twice, backend)
+    expect(res.error.message).toContain('glass is declared on main.js lines 2 and 3')
+    const run = await call(backend, 'execute', { source: twice })
+    expect(run.error.message).toContain('glass is declared on __run__.js lines 2 and 3')
+  })
+
   it('names the file a missed relative require meant, and the other files that miss it', async () => {
     const backend = createEvalBackend()
     await call(backend, 'write', { path: 'lib/dims.js', content: 'module.exports = { size: 20 }' })
