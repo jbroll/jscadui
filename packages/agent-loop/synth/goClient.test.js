@@ -59,6 +59,21 @@ describe('createGoClient', () => {
     expect(err.message).toBe('connect failed: Bearer [key]')
   })
 
+  it('sends reasoning_effort when given', async () => {
+    const calls = []
+    const client = createGoClient({ apiKey: KEY, fetchImpl: okFetch(calls), session: 's' })
+    await client.complete({ model: 'm', messages: [], reasoningEffort: 'low' })
+    expect(JSON.parse(calls[0].init.body).reasoning_effort).toBe('low')
+  })
+
+  it('rejects a reply cut off by the token limit as a LengthError', async () => {
+    const fetchImpl = async () =>
+      new Response(JSON.stringify({ choices: [{ finish_reason: 'length', message: { content: null, reasoning_content: 'hmm' } }] }), { status: 200 })
+    const client = createGoClient({ apiKey: KEY, fetchImpl, session: 's' })
+    const err = await client.complete({ model: 'm', messages: [], maxTokens: 10 }).catch((e) => e)
+    expect(err).toMatchObject({ name: 'LengthError', message: 'm: the reply ran out of its 10 tokens before answering' })
+  })
+
   it('rejects when content is missing', async () => {
     const fetchImpl = async () => new Response(JSON.stringify({ choices: [{ message: {} }] }), { status: 200 })
     const client = createGoClient({ apiKey: KEY, fetchImpl, session: 's' })
@@ -71,6 +86,7 @@ describe('createGoClient', () => {
     const client = createGoClient({ apiKey: KEY, fetchImpl, session: 's', timeoutMs: 20 })
     const err = await client.complete({ model: 'beam-free', messages: [] }).catch((e) => e)
     expect(err).toBeInstanceOf(Error)
+    expect(err.name).toBe('TimeoutError')
     expect(err.message).toContain('beam-free')
     expect(err.message).toContain('timeout')
   })

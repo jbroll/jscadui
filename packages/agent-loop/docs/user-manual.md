@@ -457,7 +457,12 @@ timed-out turn is stopped, and so is one whose wait failed or whose question
 the simulated user could not answer. The verdict counts as `ACCEPT` when the
 reply's first non-empty line is `ACCEPT`, ignoring case, markdown emphasis,
 backticks, quotes and trailing `.` or `!`. An empty reply from the simulated
-user is an error and is never sent. Scenario `checks` then run
+user is an error and is never sent. The simulated user asks at temperature 0
+with `reasoning_effort: "low"` and its model's `SIM_USER_MAX_TOKENS` cap
+(`synth/roles.js`). A reply that ran out of tokens before any answer
+(`LengthError`) or passed the client's 120 s timeout (`TimeoutError`) is
+asked again, up to 3 attempts, the token cap doubling after each cut-off one;
+any other failure ends the session at once. Scenario `checks` then run
 on the final build, after a timeout too but not after an error. The simulated
 user sees only the user's messages and answers, the questions asked and each
 turn's final text. Its model calls go straight to the Go endpoint and time out

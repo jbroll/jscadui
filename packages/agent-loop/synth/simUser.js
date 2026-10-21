@@ -10,6 +10,9 @@ export const SYSTEM_RULES = [
 ].join('\n')
 
 const REPORT_LIMIT = 4000
+const ATTEMPTS = 3
+// A cut-off or slow reply usually comes back on a second asking; a cut-off one with more room.
+const RETRIED = new Set(['LengthError', 'TimeoutError'])
 
 const system = (scenario) =>
   `${SYSTEM_RULES}\n\nPerson: ${scenario.persona}\nFacts:\n${scenario.facts.map((f) => `- ${f}`).join('\n')}`
@@ -24,16 +27,27 @@ const isAccept = (text) => {
 }
 
 export function createSimUser({ client, model, maxTokens, vision, scenario }) {
-  const ask = (content) =>
-    client.complete({
-      model,
-      temperature: 0,
-      maxTokens,
-      messages: [
-        { role: 'system', content: system(scenario) },
-        { role: 'user', content },
-      ],
-    })
+  const ask = async (content) => {
+    let budget = maxTokens
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await client.complete({
+          model,
+          temperature: 0,
+          maxTokens: budget,
+          // The verdict needs little thought, and reasoning is what ran the budget out.
+          reasoningEffort: 'low',
+          messages: [
+            { role: 'system', content: system(scenario) },
+            { role: 'user', content },
+          ],
+        })
+      } catch (error) {
+        if (attempt >= ATTEMPTS || !RETRIED.has(error?.name)) throw error
+        if (error.name === 'LengthError' && budget !== undefined) budget *= 2
+      }
+    }
+  }
 
   return {
     async answer(question, history) {

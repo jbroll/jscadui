@@ -24,11 +24,42 @@ describe('createSimUser', () => {
     const r = await user.answer('How long?', history)
     expect(r).toEqual({ text: 'about 340 mm', call: { ms: 5, inputTokens: 7, outputTokens: 2 } })
     const req = client.calls[0]
-    expect(req).toMatchObject({ model: 'mm', temperature: 0, maxTokens: 600 })
+    expect(req).toMatchObject({ model: 'mm', temperature: 0, maxTokens: 600, reasoningEffort: 'low' })
     expect(flat(req)).toContain('hobbyist building a display shelf model')
     expect(flat(req)).toContain('about 340 mm long')
     expect(flat(req)).toContain('How long?')
     expect(flat(req)).not.toMatch(/```/)
+  })
+
+  it('asks again with twice the tokens after a cut-off reply, and again after a timeout', async () => {
+    const failures = [Object.assign(new Error('cut'), { name: 'LengthError' }), Object.assign(new Error('slow'), { name: 'TimeoutError' })]
+    const client = {
+      calls: [],
+      async complete(req) {
+        this.calls.push(req)
+        if (failures.length) throw failures.shift()
+        return { text: 'about 340 mm', ms: 5, inputTokens: 7, outputTokens: 2, status: 200 }
+      },
+    }
+    const user = createSimUser({ client, model: 'mm', maxTokens: 600, vision: false, scenario })
+    expect((await user.answer('How long?', history)).text).toBe('about 340 mm')
+    expect(client.calls.map((c) => c.maxTokens)).toEqual([600, 1200, 1200])
+  })
+
+  it('gives up after three attempts, and at once on any other error', async () => {
+    const failing = (name) => ({
+      calls: 0,
+      async complete() {
+        this.calls += 1
+        throw Object.assign(new Error(name), { name })
+      },
+    })
+    const cut = failing('LengthError')
+    await expect(createSimUser({ client: cut, model: 'mm', maxTokens: 600, scenario }).answer('?', history)).rejects.toThrow('LengthError')
+    expect(cut.calls).toBe(3)
+    const refused = failing('Error')
+    await expect(createSimUser({ client: refused, model: 'mm', maxTokens: 600, scenario }).answer('?', history)).rejects.toThrow('Error')
+    expect(refused.calls).toBe(1)
   })
 
   it.each([
