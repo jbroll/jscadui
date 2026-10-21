@@ -1,6 +1,6 @@
 // packages/agent-loop/test/providers.test.js
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createProvider, fetchWithRetry, parseAnthropicStream, parseOpenAIStream, streamWithRetry } from '../src/providers.js'
+import { createProvider, fetchWithRetry, parseAnthropicStream, parseOpenAIStream, STREAM_IDLE_MS, STREAM_STALLED, streamWithRetry } from '../src/providers.js'
 import { parseResponsesStream } from '../src/responses.js'
 import { buildMessages } from '../src/context.js'
 
@@ -609,6 +609,61 @@ describe.each(STREAMS)('$name: a stream that dies', ({ config, metadata, content
     await expect(done).rejects.toThrow(/stream terminated before content on all 4 attempts \(terminated\)/)
     expect(fetchMock).toHaveBeenCalledTimes(4)
     expect(events.filter((e) => e.type === 'retry').map((e) => e.attempt)).toEqual([1, 2, 3])
+  })
+
+  // Never sends anything after `text`, and never ends.
+  const silentBody = (text = '') =>
+    new ReadableStream({
+      start(controller) {
+        if (text) controller.enqueue(new TextEncoder().encode(text))
+      },
+    })
+
+  it('that goes silent before content is dropped at the idle limit and asked again', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(silentBody(metadata))).mockResolvedValueOnce(new Response(sseBody(complete)))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(STREAM_IDLE_MS + 30_000)
+    await done
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(events.filter((e) => e.type === 'retry')).toEqual([expect.objectContaining({ attempt: 1, reason: `${STREAM_STALLED} (no data for ${STREAM_IDLE_MS / 1000} s)` })])
+    expect(events.filter((e) => e.type === 'text')).toEqual([{ type: 'text', text: 'Hi' }])
+  })
+
+  it('whose response never arrives is asked again at the idle limit', async () => {
+    fetchMock
+      .mockImplementationOnce((_url, init) => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason))))
+      .mockResolvedValueOnce(new Response(sseBody(complete)))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(STREAM_IDLE_MS + 30_000)
+    await done
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(events.filter((e) => e.type === 'text')).toEqual([{ type: 'text', text: 'Hi' }])
+  })
+
+  it('that goes silent after content is not asked again and says it stalled', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(silentBody(metadata + content)))
+    const { done } = send()
+    await vi.advanceTimersByTimeAsync(STREAM_IDLE_MS + 1000)
+    await expect(done).rejects.toThrow(/stream stalled after the reply began \(no data for 240 s\)/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('that keeps sending stays open past the idle limit', async () => {
+    let n = 0
+    const trickle = new ReadableStream({
+      async pull(controller) {
+        await new Promise((resolve) => setTimeout(resolve, STREAM_IDLE_MS / 2))
+        n += 1
+        controller.enqueue(new TextEncoder().encode(n < 4 ? metadata : complete))
+        if (n >= 4) controller.close()
+      },
+    })
+    fetchMock.mockResolvedValueOnce(new Response(trickle))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(STREAM_IDLE_MS * 3)
+    await done
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(events.filter((e) => e.type === 'retry')).toEqual([])
   })
 
   it('shares the attempt budget with retries before the response', async () => {

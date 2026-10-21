@@ -52,7 +52,15 @@ back, so a second attempt would show the reply twice. It ends the call with
 `<adapter>: stream terminated after the reply began (<cause>)`, and an
 exhausted budget with `<adapter>: stream terminated before content on all 4
 attempts (<cause>)`. An error event the provider sends inside the stream
-(`error`, `response.failed`) is never retried. Each retry
+(`error`, `response.failed`) is never retried.
+
+A request that sends nothing for `STREAM_IDLE_MS` (240 s) is treated the
+same way: no response headers, or no body chunk, within that time aborts the
+request, and it is asked again under the same rules, with `stream stalled`
+in place of `stream terminated` in the messages and `reason`. Every retry
+and every chunk restarts the timer, so a slow but steady stream is never cut.
+The free models in the synthetic batches had single requests sit for 11 and
+22 minutes; their 90th percentile was 65 to 115 s. Each retry
 yields a `{type: 'retry', attempt, maxAttempts, status, reason, delayMs}` event
 (for a cut stream `status` is `null` and `reason` is
 `stream terminated before content (<cause>)`)

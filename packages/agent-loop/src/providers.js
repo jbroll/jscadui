@@ -140,59 +140,124 @@ export async function fetchWithRetry(fetchImpl, url, init, { onRetry, sleep = de
 }
 
 export const STREAM_TERMINATED = 'stream terminated before content'
+export const STREAM_STALLED = 'stream stalled before content'
+// Free models have sat 11 and 22 minutes on one request; normal ones answer
+// within about a minute, even those that think before their first token.
+export const STREAM_IDLE_MS = 240_000
 
 const isContent = (event) => event.type === 'text' || event.type === 'tool_use'
 
+// One attempt's idle timer: every retry and body chunk restarts it, and when
+// it runs out the request is aborted and `stalled` rejects, which also ends a
+// read the abort cannot reach.
+const stallWatch = (idleMs, outer) => {
+  const controller = new AbortController()
+  const onOuter = () => controller.abort(outer.reason)
+  if (outer?.aborted) onOuter()
+  else outer?.addEventListener('abort', onOuter, { once: true })
+  let fail
+  const stalled = new Promise((_, reject) => {
+    fail = reject
+  })
+  stalled.catch(() => {})
+  let timer
+  const touch = () => {
+    clearTimeout(timer)
+    timer = setTimeout(() => {
+      const error = Object.assign(new Error(`no data for ${idleMs / 1000} s`), { name: 'StallError' })
+      fail(error)
+      controller.abort(error)
+    }, idleMs)
+  }
+  const stop = () => {
+    clearTimeout(timer)
+    outer?.removeEventListener('abort', onOuter)
+  }
+  touch()
+  return { signal: controller.signal, stalled, touch, stop }
+}
+
+const watchedBody = (body, watch) => {
+  if (!body) return body
+  const reader = body.getReader()
+  return new ReadableStream({
+    async pull(controller) {
+      try {
+        const { done, value } = await Promise.race([reader.read(), watch.stalled])
+        if (done) controller.close()
+        else {
+          watch.touch()
+          controller.enqueue(value)
+        }
+      } catch (error) {
+        reader.cancel(error).catch(() => {})
+        controller.error(error)
+      }
+    },
+    cancel: (reason) => reader.cancel(reason),
+  })
+}
+
 /**
  * POSTs through `fetchWithRetry` and yields `parse(res.body)`. A body that
- * fails with a network error (undici's `TypeError: terminated`, a reset)
- * before any text or tool call has been yielded is requested again, within
- * the same attempt budget and backoff; one that fails after is not, since the
- * caller has already shown that output. Every retry is yielded as a `retry`
- * event. A refused request throws an Error carrying its `status` and `body`.
+ * fails with a network error (undici's `TypeError: terminated`, a reset), or
+ * that sends nothing for `idleMs`, before any text or tool call has been
+ * yielded is requested again, within the same attempt budget and backoff; one
+ * that fails after is not, since the caller has already shown that output.
+ * Every retry is yielded as a `retry` event. A refused request throws an Error
+ * carrying its `status` and `body`.
  */
-export async function* streamWithRetry(label, url, init, parse, { fetchImpl = fetch, sleep = defaultSleep, maxAttempts = MAX_PROVIDER_ATTEMPTS } = {}) {
+export async function* streamWithRetry(label, url, init, parse, { fetchImpl = fetch, sleep = defaultSleep, maxAttempts = MAX_PROVIDER_ATTEMPTS, idleMs = STREAM_IDLE_MS } = {}) {
   let attempt = 1
   for (;;) {
-    // Each retry is yielded as it happens, during its backoff, so a caller can show it.
-    const retries = []
-    let wake = () => {}
-    const response = fetchWithRetry(fetchImpl, url, init, {
-      onRetry: (event) => {
-        retries.push(event)
-        wake()
-      },
-      sleep,
-      maxAttempts,
-      firstAttempt: attempt,
-    }).then((value) => ({ value }))
-    let res
-    while (!res) {
-      const woken = new Promise((resolve) => {
-        wake = resolve
-      })
-      if (retries.length === 0) res = (await Promise.race([response, woken]))?.value
-      while (retries.length > 0) {
-        attempt += 1
-        yield { type: 'retry', ...retries.shift() }
-      }
-    }
-    if (!res.ok) throw Object.assign(new Error(`${label}: ${res.text} (status ${res.status})`), { status: res.status, body: res.text })
+    const watch = stallWatch(idleMs, init?.signal)
     let replied = false
     try {
-      for await (const event of parse(res.body)) {
+      // Each retry is yielded as it happens, during its backoff, so a caller can show it.
+      const retries = []
+      let wake = () => {}
+      const response = fetchWithRetry(fetchImpl, url, { ...init, signal: watch.signal }, {
+        onRetry: (event) => {
+          watch.touch()
+          retries.push(event)
+          wake()
+        },
+        sleep,
+        maxAttempts,
+        firstAttempt: attempt,
+      }).then((value) => ({ value }))
+      response.catch(() => {})
+      let res
+      while (!res) {
+        const woken = new Promise((resolve) => {
+          wake = resolve
+        })
+        if (retries.length === 0) res = (await Promise.race([response, woken, watch.stalled]))?.value
+        while (retries.length > 0) {
+          attempt += 1
+          yield { type: 'retry', ...retries.shift() }
+        }
+      }
+      if (!res.ok) throw Object.assign(new Error(`${label}: ${res.text} (status ${res.status})`), { status: res.status, body: res.text })
+      watch.touch()
+      for await (const event of parse(watchedBody(res.body, watch))) {
         if (isContent(event)) replied = true
         yield event
       }
       return
     } catch (err) {
-      if (!isRetryableNetworkError(err)) throw err
-      if (replied) throw new Error(`${label}: stream terminated after the reply began (${err.message})`, { cause: err })
-      if (attempt >= maxAttempts) throw new Error(`${label}: ${STREAM_TERMINATED} on all ${maxAttempts} attempts (${err.message})`, { cause: err })
+      const stalled = err?.name === 'StallError'
+      if (!stalled && !isRetryableNetworkError(err)) throw err
+      const what = stalled ? 'stalled' : 'terminated'
+      if (replied) throw new Error(`${label}: stream ${what} after the reply began (${err.message})`, { cause: err })
+      const before = stalled ? STREAM_STALLED : STREAM_TERMINATED
+      if (attempt >= maxAttempts) throw new Error(`${label}: ${before} on all ${maxAttempts} attempts (${err.message})`, { cause: err })
       const delayMs = backoffDelayMs(attempt, null)
-      yield { type: 'retry', attempt, maxAttempts, status: null, reason: `${STREAM_TERMINATED} (${err.message})`, delayMs }
+      yield { type: 'retry', attempt, maxAttempts, status: null, reason: `${before} (${err.message})`, delayMs }
       await sleep(delayMs)
       attempt += 1
+    } finally {
+      watch.stop()
     }
   }
 }
