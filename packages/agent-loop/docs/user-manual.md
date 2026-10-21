@@ -297,10 +297,13 @@ clears the suggestions. A taper option on `cylinder` (`radiusStart`, `r1`,
 modeling, with start at the -Z end.
 
 When the wrapped call throws, its hints go on new lines of the error's
-message, and so does the cause of a number or array option that is NaN or an object ("height is
-NaN: a parameter read back as NaN or an object often causes this; docs params
-shows how to define and read one"), since modeling's own error ("height must
-be greater then zero") hides it. params-core defines a section assigned as
+message, and so does the cause of a number or array option that is NaN or an
+object, since modeling's own error ("height must be greater then zero") hides
+it. A NaN names each element (`center[1], center[2] are NaN`) and the usual
+cause, an undefined value in the arithmetic: a property the object does not
+have, a misspelled name, or a parameter read back as an object. An object
+names its keys, and one with `default`, `initial`, `type`, `min`, `max` or
+`step` among them is called a parameter definition passed instead of its value. params-core defines a section assigned as
 one object (`params.box = { wall: { default: 3 } }`) member by member, and
 throws for one that mixes definitions with plain values, naming the
 parameter and the per-member form. A "X is not a

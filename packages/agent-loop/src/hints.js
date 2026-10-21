@@ -166,17 +166,29 @@ const flatHint = (fn, api) => {
   return `${name} only squashes a 2D shape, which stays flat in the XY plane; extrude it first and rotate the 3D shape: ${extruded}`
 }
 
-const NAN_CAUSE = 'a parameter read back as NaN or an object often causes this; docs params shows how to define and read one'
+// Most NaN options come from arithmetic on a value that was undefined: a
+// property the object lacks, a misspelled name, a parameter read as an object.
+const NAN_CAUSE = 'an undefined or NaN value in the arithmetic that made it gives NaN: a property the object does not have, a misspelled name, or a parameter read back as an object (docs params)'
+const PARAM_KEYS = ['default', 'initial', 'type', 'min', 'max', 'step']
+const PARAM_DEF = 'a parameter definition, not its value: read the value from the values main is given; docs params shows how'
 
 const isNaNNumber = (value) => typeof value === 'number' && Number.isNaN(value)
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
 
-const nanOf = (value, type) => {
-  if (type === 'number' && isNaNNumber(value)) return 'is NaN'
-  if (type === 'number' && isObject(value)) return 'is an object, not a number'
+const objectWhat = (name, value) => {
+  const keys = Object.keys(value)
+  const shown = keys.length ? `an object with { ${keys.slice(0, 6).join(', ')} }` : 'an empty object'
+  return keys.some((key) => PARAM_KEYS.includes(key)) ? `${name} is ${shown}: ${PARAM_DEF}` : `${name} is ${shown}, not a number`
+}
+
+const nanOf = (option, value, type) => {
+  if (type === 'number' && isNaNNumber(value)) return `${option} is NaN: ${NAN_CAUSE}`
+  if (type === 'number' && isObject(value)) return objectWhat(option, value)
   if (type === 'array' && Array.isArray(value)) {
-    if (value.some(isNaNNumber)) return 'holds NaN'
-    if (value.some(isObject)) return 'holds an object'
+    const nan = value.flatMap((v, i) => (isNaNNumber(v) ? [`${option}[${i}]`] : []))
+    if (nan.length) return `${nan.join(', ')} ${nan.length > 1 ? 'are' : 'is'} NaN: ${NAN_CAUSE}`
+    const at = value.findIndex(isObject)
+    if (at >= 0) return objectWhat(`${option}[${at}]`, value[at])
   }
   return undefined
 }
@@ -190,8 +202,8 @@ const nanOf = (value, type) => {
 export const explainNaN = (options, types) => {
   if (!isObject(options) || !types) return undefined
   for (const [option, type] of Object.entries(types)) {
-    const what = nanOf(options[option], type)
-    if (what) return `${option} ${what}: ${NAN_CAUSE}`
+    const what = nanOf(option, options[option], type)
+    if (what) return what
   }
   return undefined
 }

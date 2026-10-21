@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { explainError, explainWarning, TAPER, withErrorHint } from '../src/hints.js'
+import { explainError, explainNaN, explainWarning, TAPER, withErrorHint } from '../src/hints.js'
 
 const index = JSON.parse(readFileSync(new URL('../api/index.json', import.meta.url), 'utf8'))
 
@@ -134,6 +134,25 @@ describe('explainWarning for a fixed option', () => {
     expect(explainWarning({ fn: 'jf.polygon', option: 'points', unwrapped: true }, 'fluent')).toEqual({
       fn: 'jf.polygon', option: 'points', hint: 'jf.polygon takes the points array itself, jf.polygon([[x, y], ...]); used the object\'s points',
     })
+  })
+})
+
+describe('explainNaN', () => {
+  it('names each NaN element and the usual cause', () => {
+    expect(explainNaN({ center: [1, NaN, NaN] }, { center: 'array' })).toBe(
+      'center[1], center[2] are NaN: an undefined or NaN value in the arithmetic that made it gives NaN: a property the object does not have, a misspelled name, or a parameter read back as an object (docs params)',
+    )
+  })
+
+  it('names a parameter definition passed as a number by its keys', () => {
+    expect(explainNaN({ roundRadius: { type: 'slider', default: 2 } }, { roundRadius: 'number' })).toBe(
+      'roundRadius is an object with { type, default }: a parameter definition, not its value: read the value from the values main is given; docs params shows how',
+    )
+    expect(explainNaN({ size: [2, { x: 1 }, 2] }, { size: 'array' })).toBe('size[1] is an object with { x }, not a number')
+  })
+
+  it('says nothing when every option is a number', () => {
+    expect(explainNaN({ size: [1, 2, 3] }, { size: 'array' })).toBe(undefined)
   })
 })
 

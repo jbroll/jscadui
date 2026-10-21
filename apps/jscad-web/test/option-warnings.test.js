@@ -42,7 +42,7 @@ describe('frame option warnings', () => {
     const node = { op: 'primitives.cube', isTreeNode: true }
     const cube = vi.fn(() => node)
     const wrapped = wrapper('@jscad/modeling', { primitives: { cube } }).primitives.cube
-    expect(() => wrapped({ size: NaN })).toThrow('size is NaN: a parameter read back as NaN or an object')
+    expect(() => wrapped({ size: NaN })).toThrow('size is NaN: an undefined or NaN value in the arithmetic')
     expect(cube).toHaveBeenCalledTimes(1)
   })
 })
