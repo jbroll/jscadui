@@ -40,6 +40,7 @@ describe('createGoClient', () => {
     expect(err.message).toContain('400')
     expect(err.message).toContain('Beam supports text input only')
     expect(err.message).not.toContain(KEY)
+    expect(err.status).toBe(400)
   })
 
   it('redacts the key when the provider echoes it', async () => {

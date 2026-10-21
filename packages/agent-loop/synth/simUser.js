@@ -11,8 +11,10 @@ export const SYSTEM_RULES = [
 
 const REPORT_LIMIT = 4000
 const ATTEMPTS = 3
-// A cut-off or slow reply usually comes back on a second asking; a cut-off one with more room.
+// A cut-off, slow or refused-while-busy reply usually comes back on a second
+// asking; a cut-off one with more room.
 const RETRIED = new Set(['LengthError', 'TimeoutError'])
+const isRetried = (error) => RETRIED.has(error?.name) || error?.status === 429 || error?.status >= 500
 
 const system = (scenario) =>
   `${SYSTEM_RULES}\n\nPerson: ${scenario.persona}\nFacts:\n${scenario.facts.map((f) => `- ${f}`).join('\n')}`
@@ -26,7 +28,7 @@ const isAccept = (text) => {
   return first.replace(/[*_`"'“”]/g, '').trim().replace(/[.!\s]+$/, '').toUpperCase() === ACCEPT
 }
 
-export function createSimUser({ client, model, maxTokens, vision, scenario }) {
+export function createSimUser({ client, model, maxTokens, vision, scenario, retryDelayMs = 5000 }) {
   const ask = async (content) => {
     let budget = maxTokens
     for (let attempt = 1; ; attempt += 1) {
@@ -43,8 +45,9 @@ export function createSimUser({ client, model, maxTokens, vision, scenario }) {
           ],
         })
       } catch (error) {
-        if (attempt >= ATTEMPTS || !RETRIED.has(error?.name)) throw error
+        if (attempt >= ATTEMPTS || !isRetried(error)) throw error
         if (error.name === 'LengthError' && budget !== undefined) budget *= 2
+        else await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt))
       }
     }
   }

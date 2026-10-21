@@ -41,9 +41,31 @@ describe('createSimUser', () => {
         return { text: 'about 340 mm', ms: 5, inputTokens: 7, outputTokens: 2, status: 200 }
       },
     }
-    const user = createSimUser({ client, model: 'mm', maxTokens: 600, vision: false, scenario })
+    const user = createSimUser({ client, model: 'mm', maxTokens: 600, vision: false, scenario, retryDelayMs: 0 })
     expect((await user.answer('How long?', history)).text).toBe('about 340 mm')
     expect(client.calls.map((c) => c.maxTokens)).toEqual([600, 1200, 1200])
+  })
+
+  it('asks again after a 503 or 429, but not after a 400', async () => {
+    const answers = (status) => {
+      const client = {
+        calls: 0,
+        async complete() {
+          this.calls += 1
+          if (this.calls === 1) throw Object.assign(new Error(`HTTP ${status}`), { status })
+          return { text: 'fine', ms: 1, inputTokens: 1, outputTokens: 1, status: 200 }
+        },
+      }
+      return client
+    }
+    for (const status of [503, 429]) {
+      const client = answers(status)
+      expect((await createSimUser({ client, model: 'mm', maxTokens: 600, scenario, retryDelayMs: 0 }).answer('?', history)).text).toBe('fine')
+      expect(client.calls).toBe(2)
+    }
+    const refused = answers(400)
+    await expect(createSimUser({ client: refused, model: 'mm', maxTokens: 600, scenario }).answer('?', history)).rejects.toThrow('HTTP 400')
+    expect(refused.calls).toBe(1)
   })
 
   it('gives up after three attempts, and at once on any other error', async () => {
@@ -55,7 +77,7 @@ describe('createSimUser', () => {
       },
     })
     const cut = failing('LengthError')
-    await expect(createSimUser({ client: cut, model: 'mm', maxTokens: 600, scenario }).answer('?', history)).rejects.toThrow('LengthError')
+    await expect(createSimUser({ client: cut, model: 'mm', maxTokens: 600, scenario, retryDelayMs: 0 }).answer('?', history)).rejects.toThrow('LengthError')
     expect(cut.calls).toBe(3)
     const refused = failing('Error')
     await expect(createSimUser({ client: refused, model: 'mm', maxTokens: 600, scenario }).answer('?', history)).rejects.toThrow('Error')

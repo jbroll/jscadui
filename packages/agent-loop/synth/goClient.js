@@ -46,7 +46,7 @@ export function createGoClient({ apiKey, fetchImpl = fetch, session, timeoutMs =
     }
     if (!res.ok || typeof text !== 'string') {
       const detail = json?.error?.message ?? json?.error ?? raw.slice(0, 300)
-      throw new Error(redact(`${model}: HTTP ${res.status}: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`))
+      throw Object.assign(new Error(redact(`${model}: HTTP ${res.status}: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`)), { status: res.status })
     }
     return {
       text,
