@@ -990,3 +990,53 @@ describe('jscad-web kind routing', () => {
 // deliberately no hardcoded vision table (it lagged every catalog rotation),
 // so `view` is offered exactly when the selection carries
 // `capabilities.vision` (see aiChat visionCapable and the relay catalog).
+
+describe('openai: an error the provider streams in place of a reply', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const unavailable =
+    'data: {"error":{"param":null,"type":"server_error","message":"Streaming response failed: [upstream_unavailable_error] The inference service is temporarily unavailable"}}\n\n'
+  const complete = `data: {"choices":[{"delta":{"content":"Hi"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n`
+  const send = () => {
+    const provider = createProvider({ kind: 'openai', model: 'm', apiKey: 'k', baseUrl: 'https://relay.test' })
+    const events = []
+    const done = (async () => {
+      for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS)) events.push(e)
+    })()
+    done.catch(() => {})
+    return { events, done }
+  }
+
+  it('is asked again when it says the service is unavailable, then completes', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(sseBody(unavailable))).mockResolvedValueOnce(new Response(sseBody(complete)))
+    const { events, done } = send()
+    await vi.advanceTimersByTimeAsync(30_000)
+    await done
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(events.filter((e) => e.type === 'retry')).toEqual([
+      expect.objectContaining({ attempt: 1, reason: expect.stringContaining('The inference service is temporarily unavailable') }),
+    ])
+    expect(events.filter((e) => e.type === 'text')).toEqual([{ type: 'text', text: 'Hi' }])
+  })
+
+  it('names the provider error when every attempt gets it, never an empty reply', async () => {
+    fetchMock.mockImplementation(async () => new Response(sseBody(unavailable)))
+    const { done } = send()
+    await vi.advanceTimersByTimeAsync(60_000)
+    await expect(done).rejects.toThrow(/temporarily unavailable/)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+  })
+
+  it('throws an error it cannot retry at once, with the provider message', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(sseBody('data: {"error":{"type":"invalid_request_error","message":"bad tools"}}\n\n')))
+    const { done } = send()
+    await vi.advanceTimersByTimeAsync(1000)
+    await expect(done).rejects.toThrow('openai: bad tools')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})

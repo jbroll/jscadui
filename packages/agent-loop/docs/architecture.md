@@ -52,7 +52,13 @@ back, so a second attempt would show the reply twice. It ends the call with
 `<adapter>: stream terminated after the reply began (<cause>)`, and an
 exhausted budget with `<adapter>: stream terminated before content on all 4
 attempts (<cause>)`. An error event the provider sends inside the stream
-(`error`, `response.failed`) is never retried.
+(`error`, `response.failed`) is not retried, with one exception: an
+OpenAI-style stream that answers 200 with one `{ error }` chunk and no
+`choices`, as opencode-go does when the inference service is down
+(`server_error`, "upstream_unavailable_error"). `parseOpenAIStream` throws it
+with the provider's message, so the turn never ends as an empty reply, and
+when its `code` or `type` is one an error response body is retried for, and
+no reply has begun, it is asked again within the same budget.
 
 A request that sends nothing for `STREAM_IDLE_MS` (240 s) is treated the
 same way: no response headers, or no body chunk, within that time aborts the

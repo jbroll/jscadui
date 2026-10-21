@@ -147,6 +147,14 @@ export const STREAM_IDLE_MS = 240_000
 
 const isContent = (event) => event.type === 'text' || event.type === 'tool_use'
 
+// An error a provider streams instead of a reply; retryable when its code is
+// one an error response body would be retried for.
+const streamedError = (error) => {
+  const code = error?.code ?? error?.type ?? null
+  const message = typeof error?.message === 'string' ? error.message : JSON.stringify(error)
+  return Object.assign(new Error(message), { name: 'ProviderStreamError', retryable: code != null && RETRYABLE_ERROR_CODES.has(code) })
+}
+
 // One attempt's idle timer: every retry and body chunk restarts it, and when
 // it runs out the request is aborted and `stalled` rejects, which also ends a
 // read the abort cannot reach.
@@ -246,6 +254,15 @@ export async function* streamWithRetry(label, url, init, parse, { fetchImpl = fe
       }
       return
     } catch (err) {
+      if (err?.name === 'ProviderStreamError') {
+        if (!err.retryable || replied) throw new Error(`${label}: ${err.message}`, { cause: err })
+        if (attempt >= maxAttempts) throw new Error(`${label}: ${err.message} (on all ${maxAttempts} attempts)`, { cause: err })
+        const delayMs = backoffDelayMs(attempt, null)
+        yield { type: 'retry', attempt, maxAttempts, status: null, reason: err.message, delayMs }
+        await sleep(delayMs)
+        attempt += 1
+        continue
+      }
       const stalled = err?.name === 'StallError'
       if (!stalled && !isRetryableNetworkError(err)) throw err
       const what = stalled ? 'stalled' : 'terminated'
@@ -490,6 +507,8 @@ export async function* parseOpenAIStream(body) {
     } catch {
       continue
     }
+    // Some routers report a failure as a 200 stream holding one error chunk.
+    if (chunk.error && !chunk.choices) throw streamedError(chunk.error)
     const choice = chunk.choices?.[0]
     const delta = choice?.delta ?? {}
     // opencode's open models stream their reasoning as `reasoning_content`, some routers as `reasoning`.
