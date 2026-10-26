@@ -72,6 +72,9 @@ with a discard confirm; an in-flight chat turn persists under its own project;
 conversations route by the project's mode with a New-chat reset; project
 delete; mode-flip moves the project; sign-out tears down sync) plus the earlier
 parts-group1 hardening; smoke passed (app build `f54c2112`, frame `0dceb65c`).
+2026-10-26: deployed `9ae19c37`, the chat-review rounds of 10-20 to 10-26
+(tool, hint, manifold and synth fixes, jscad-fluent pin `30a6c769`); smoke
+passed.
 See `apps/jscad-web/docs/architecture.md` for the
 deploy order and headers.
 
@@ -193,11 +196,6 @@ fixed, the last in the modeling fork; these remain.
   the next turn's request carried only the clobbered snapshot, so the agent
   could not restore it. Needs undo or history for agent writes in the app, and
   `view` of a scratch model so experiments need no save.
-- **A stray scratch rejection clears the loaded model.** The worker's
-  `unhandledrejection` handler calls `workerState.clearGeometry()`
-  (`packages/worker/worker.js`), so an un-awaited rejected Promise in an
-  `execute` snippet can wipe the build's solids. Async work a snippet does not
-  await also runs after its build context closes.
 - **Build and scratch contexts can restore out of order.** `jscadMain` and a
   scratch run that interleave across awaits each restore
   `globalThis.__jscadBuild` from what they saw on entry.

@@ -88,17 +88,16 @@ const resetScriptLock = () => {
   scriptLock = Promise.resolve()
 }
 
-// Uncaught errors reset the lock and clear geometry to free memory.
+// A failing build clears its own geometry in jscadMain; a stray error or
+// rejection (e.g. from an un-awaited scratch snippet) must not wipe the model.
 self.addEventListener('error', (event) => {
   console.error('Worker uncaught error:', event.error)
   resetScriptLock()
-  workerState.clearGeometry()
 })
 
 self.addEventListener('unhandledrejection', (event) => {
   console.error('Worker unhandled rejection:', event.reason)
   resetScriptLock()
-  workerState.clearGeometry()
 })
 
 // Timeout in ms to wait for the script lock before giving up.
