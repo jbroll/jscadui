@@ -164,6 +164,10 @@ async function runOne(role, scenario, run, port) {
       model: role.simUser,
       maxTokens: SIM_USER_MAX_TOKENS[role.simUser],
       vision: probe[role.simUser].vision,
+      // The role's later simulated users, should this one go down mid-session.
+      fallbacks: role.simUsers
+        .slice(role.simUsers.indexOf(role.simUser) + 1)
+        .map((model) => ({ model, maxTokens: SIM_USER_MAX_TOKENS[model], vision: Boolean(probe[model]?.vision) })),
       scenario,
     })
     result = await runSession({ driver, scenario, simUser, turnTimeoutMs })

@@ -28,13 +28,19 @@ const isAccept = (text) => {
   return first.replace(/[*_`"'“”]/g, '').trim().replace(/[.!\s]+$/, '').toUpperCase() === ACCEPT
 }
 
-export function createSimUser({ client, model, maxTokens, vision, scenario, retryDelayMs = 5000 }) {
-  const ask = async (content) => {
-    let budget = maxTokens
+// `fallbacks` ({ model, maxTokens, vision }) take over, for the rest of the
+// session, from a model that still fails after its attempts: a free model can
+// pass the batch's probe and then go down.
+export function createSimUser({ client, model, maxTokens, vision, scenario, retryDelayMs = 5000, fallbacks = [] }) {
+  const models = [{ model, maxTokens, vision }, ...fallbacks]
+  let current = 0
+
+  const askModel = async ({ model: name, maxTokens: cap }, content) => {
+    let budget = cap
     for (let attempt = 1; ; attempt += 1) {
       try {
         return await client.complete({
-          model,
+          model: name,
           temperature: 0,
           maxTokens: budget,
           // The verdict needs little thought, and reasoning is what ran the budget out.
@@ -52,9 +58,21 @@ export function createSimUser({ client, model, maxTokens, vision, scenario, retr
     }
   }
 
+  // `contentFor` builds the message for the model asked, which may not read images.
+  const ask = async (contentFor) => {
+    for (;;) {
+      try {
+        return await askModel(models[current], contentFor(models[current]))
+      } catch (error) {
+        if (!isRetried(error) || current >= models.length - 1) throw error
+        current += 1
+      }
+    }
+  }
+
   return {
     async answer(question, history) {
-      const r = await ask(`Conversation so far:\n${transcript(history)}\n\nThe assistant asks: ${question}\n\nYour answer:`)
+      const r = await ask(() => `Conversation so far:\n${transcript(history)}\n\nThe assistant asks: ${question}\n\nYour answer:`)
       return { text: r.text.trim(), call: usage(r) }
     },
 
@@ -63,10 +81,9 @@ export function createSimUser({ client, model, maxTokens, vision, scenario, retr
         `Conversation so far:\n${transcript(history)}\n\nThe assistant's latest reply:\n${finalText}\n\n` +
         `Build report:\n${JSON.stringify(report).slice(0, REPORT_LIMIT)}\n\n` +
         `Judge the result. Reply ${ACCEPT} if satisfied, otherwise one short message.`
-      const content = vision && images?.length
-        ? [{ type: 'text', text }, ...images.map((url) => ({ type: 'image_url', image_url: { url } }))]
-        : text
-      const r = await ask(content)
+      const r = await ask((asked) =>
+        asked.vision && images?.length ? [{ type: 'text', text }, ...images.map((url) => ({ type: 'image_url', image_url: { url } }))] : text,
+      )
       const accepted = isAccept(r.text)
       return { accepted, text: accepted ? null : r.text.trim(), call: usage(r) }
     },

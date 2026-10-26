@@ -475,8 +475,11 @@ with `reasoning_effort: "low"` and its model's `SIM_USER_MAX_TOKENS` cap
 (`synth/roles.js`). A reply that ran out of tokens before any answer
 (`LengthError`), passed the client's 120 s timeout (`TimeoutError`), or was
 answered 429 or 5xx is asked again, up to 3 attempts: a cut-off one with the
-token cap doubled, the others after 5 s times the attempt number. Any other
-failure ends the session at once. Scenario `checks` then run
+token cap doubled, the others after 5 s times the attempt number. A model
+that still fails that way after 3 attempts hands over, for the rest of the
+session, to the role's next simulated user (`synth/roles.js`), since a free
+model can pass the batch's probe and then go down; the manifest's `simUser`
+names the first. Any other failure ends the session at once. Scenario `checks` then run
 on the final build, after a timeout too but not after an error. The simulated
 user sees only the user's messages and answers, the questions asked and each
 turn's final text. Its model calls go straight to the Go endpoint and time out

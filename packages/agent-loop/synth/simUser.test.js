@@ -68,6 +68,23 @@ describe('createSimUser', () => {
     expect(refused.calls).toBe(1)
   })
 
+  it('moves to the next model once one keeps failing, and stays there', async () => {
+    const client = {
+      calls: [],
+      async complete(req) {
+        this.calls.push(req)
+        if (req.model === 'down') throw Object.assign(new Error('HTTP 503'), { status: 503 })
+        return { text: 'ACCEPT', ms: 1, inputTokens: 1, outputTokens: 1, status: 200 }
+      },
+    }
+    const user = createSimUser({ client, model: 'down', maxTokens: 600, vision: true, scenario, retryDelayMs: 0, fallbacks: [{ model: 'up', maxTokens: 900, vision: false }] })
+    expect((await user.answer('?', history)).text).toBe('ACCEPT')
+    expect((await user.critique({ history, finalText: 'done', report: {}, images: ['data:image/png;base64,x'] })).accepted).toBe(true)
+    expect(client.calls.map((c) => c.model)).toEqual(['down', 'down', 'down', 'up', 'up'])
+    expect(client.calls.at(-1)).toMatchObject({ maxTokens: 900 })
+    expect(typeof client.calls.at(-1).messages[1].content).toBe('string')
+  })
+
   it('gives up after three attempts, and at once on any other error', async () => {
     const failing = (name) => ({
       calls: 0,
