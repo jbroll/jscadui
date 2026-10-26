@@ -407,8 +407,8 @@ const FLUENT_FACTORIES = {
   FluentPath2Array: 'path2Array',
 }
 
-// Fluent exports no classes, so each prototype comes from an object a
-// factory makes.
+// Fluent exports FluentGeom2 and FluentGeom3 but not the *Array classes, so
+// every prototype comes from an object a factory makes.
 export const fluentPrototypes = (jf) => {
   /** @type {Record<string, object>} */
   const protos = {}
