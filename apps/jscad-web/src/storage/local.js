@@ -62,11 +62,13 @@ export function createLocalStorage(options = {}) {
     return { ...row, files: { ...row.files } }
   }
 
-  const addVersion = (id, { files, entry }, message, created, coalesceKey) => {
+  const addVersion = async (id, { files, entry }, message, created, coalesceKey) => {
     const list = versions.get(id) ?? []
-    list.unshift({ versionId: crypto.randomUUID(), created, message, files: { ...files }, entry, coalesceKey })
+    const versionId = crypto.randomUUID()
+    list.unshift({ versionId, created, message, files: { ...files }, entry, coalesceKey })
     versions.set(id, list)
-    return save('versions', id, { projectId: id, rows: list })
+    await save('versions', id, { projectId: id, rows: list })
+    return versionId
   }
 
   // Replace the newest row in place, keeping its id, so a burst of editor
@@ -137,6 +139,18 @@ export function createLocalStorage(options = {}) {
     return true
   }
 
+  // The id of a version holding the stored files, for a caller that must
+  // return to them later. The newest row is reused only when it matches and
+  // is not a coalescing row, which a later editor compile would rewrite.
+  const pinVersion = async (id, { message = '' } = {}) => {
+    await ready
+    const row = projects.get(id)
+    if (!row) throw Object.assign(new Error(`projects: not found (${id})`), { name: 'NotFoundError' })
+    const latest = versions.get(id)?.[0]
+    if (latest && !latest.coalesceKey && sameFiles(latest.files, row.files)) return latest.versionId
+    return addVersion(id, row, message, now())
+  }
+
   // Remove files a delete dropped, so a reload does not bring them back. Not
   // `dirty`: only a removal happened, so a reload loses no content.
   const removeFiles = async (id, paths) => {
@@ -190,5 +204,5 @@ export function createLocalStorage(options = {}) {
     await Promise.all([drop('projects', id), drop('versions', id), drop('conversations', id)])
   }
 
-  return { listProjects, readProject, writeFiles, removeFiles, snapshot, snapshotUnique, listVersions, readVersion, readConversation, writeConversation, deleteProject, markClean, isDirty, persists }
+  return { listProjects, readProject, writeFiles, removeFiles, snapshot, snapshotUnique, pinVersion, listVersions, readVersion, readConversation, writeConversation, deleteProject, markClean, isDirty, persists }
 }

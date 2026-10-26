@@ -263,8 +263,12 @@ describe('storage', () => {
     const session = createSession({ local: base.local, getBackend: () => 'local' })
     const pinTurnStart = vi.fn(async (projectId) => {
       if (mode === 'disk') return null
-      await session.snapshotUnique(projectId, { message: 'before chat' })
-      return (await session.listVersions(projectId))[0].versionId
+      try {
+        return await session.pinVersion(projectId, { message: 'before chat' })
+      } catch (error) {
+        if (error?.name === 'NotFoundError') return null
+        throw error
+      }
     })
     return { ...base, pinTurnStart }
   }
@@ -291,6 +295,26 @@ describe('storage', () => {
     await t.write({ path: 'main.js', content: 'v1' })
     expect(await messages(local)).toEqual(['create'])
     expect(await t.endTurn()).toEqual([{ projectId: 'p1', versionId: (await local.listVersions('p1')).at(-1).versionId }])
+  })
+
+  it('mints a fresh row when the pre-turn state is a coalescing edit row, which the editor then leaves alone', async () => {
+    const { local, storeFile, snapshot, pinTurnStart } = await pinning()
+    await local.writeFiles('p1', { 'main.js': 'user edit' }, { message: 'edit', coalesceKey: 'edit' })
+    const { tools: t } = tools({ project: fakeProject({ 'main.js': 'user edit' }), storeFile, snapshot, pinTurnStart })
+    t.startTurn()
+    await t.write({ path: 'main.js', content: 'v1' })
+    await local.writeFiles('p1', { 'main.js': 'editor again' }, { message: 'edit', coalesceKey: 'edit' })
+    const [{ versionId }] = await t.endTurn()
+    expect((await local.listVersions('p1')).find((v) => v.versionId === versionId).message).toBe('before chat')
+    expect((await local.readVersion('p1', versionId)).files).toEqual({ 'main.js': 'user edit' })
+  })
+
+  it('writes to a project with no stored row, answering a null start', async () => {
+    const { storeFile, snapshot, pinTurnStart } = await pinning()
+    const { tools: t } = tools({ project: fakeProject({}, 'fresh'), storeFile, snapshot, pinTurnStart })
+    t.startTurn()
+    await t.write({ path: 'main.js', content: 'v1' })
+    expect(await t.endTurn()).toEqual([{ projectId: 'fresh', versionId: null }])
   })
 
   it('endTurn answers the pinned start version of each project written', async () => {

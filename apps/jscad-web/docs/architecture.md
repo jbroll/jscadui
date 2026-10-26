@@ -1143,9 +1143,10 @@ snapshot reads storage, not the turn's writes, so a user's editor edit made
 during the turn, stored after the chat's write, is what the version keeps.
 
 Before a turn's first write or delete to a project, `pinTurnStart` records
-the files as they stand: `snapshotUnique` with the message `before chat`, a
-row only when the stored files differ from the newest version, then the
-newest `versionId`. `endTurn` resolves to `[{ projectId, versionId }]`, one per
+the files as they stand (`pinVersion`, message `before chat`): the newest
+version's id when it holds the same files and is not an editor row that later
+compiles still fold into, else a new row's id. A project the backend has not
+stored yet pins `null`. `endTurn` resolves to `[{ projectId, versionId }]`, one per
 project the turn wrote, with that pinned start (`null` for a folder project,
 which keeps history in git). A turn that wrote nothing pins nothing.
 
@@ -1418,7 +1419,7 @@ snapshots the previous project only when its content differs from the
 latest version, and each chat turn that wrote files snapshots once, with
 the turn's final state and a `chat: <excerpt>` message. The turn's starting
 files get a `before chat` row first unless they already are the newest
-version.
+version and that version is not a coalescing editor row.
 An editor Ctrl+S routes by the same rule (`saveRoute` in `src/saveFile.js`):
 a project file is already stored by the compile that ran it, a dropped file is
 written back through its handle, and only a path with neither opens the File

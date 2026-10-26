@@ -66,7 +66,7 @@ export const createProjectTools = ({
   removeFile,
   snapshot,
   pinTurnStart = async () => null,
-  getApi =() => DEFAULT_API,
+  getApi = () => DEFAULT_API,
   loadIndex = async () => undefined,
   createTestWorker,
 }) => {

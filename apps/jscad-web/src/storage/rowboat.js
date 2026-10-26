@@ -229,6 +229,18 @@ export function createRowboatStorage(options) {
     return true
   }
 
+  // The id of a version holding the stored files, for a caller that must
+  // return to them later. The newest row is reused only when it matches and
+  // is not the tracked coalescing row, which a later editor compile would rewrite.
+  const pinVersion = async (id, { message = '' } = {}) => {
+    await readRow('projects', id)
+    const current = (await rowsFor('files', id)).map(({ path, hash }) => ({ path, hash }))
+    const latest = await latestVersion(id)
+    const coalescing = latest && coalesceKeys.get(id)?.versionId === latest.versionId && coalesceKeys.get(id)?.key
+    if (latest && !coalescing && sameManifest(latest.manifest, current)) return latest.versionId
+    return addVersion(id, current, message, now())
+  }
+
   const listVersions = async (id) => {
     const rows = await rowsFor('versions', id)
     rows.sort((a, b) => b.created - a.created)
@@ -290,5 +302,5 @@ export function createRowboatStorage(options) {
     await globalThis.indexedDB?.deleteDatabase?.(dbName)
   }
 
-  return { sync, close, listProjects, readProject, writeFiles, removeFiles, snapshot, snapshotUnique, listVersions, readVersion, readConversation, writeConversation, deleteProject }
+  return { sync, close, listProjects, readProject, writeFiles, removeFiles, snapshot, snapshotUnique, pinVersion, listVersions, readVersion, readConversation, writeConversation, deleteProject }
 }

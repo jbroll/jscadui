@@ -1039,8 +1039,13 @@ const chatTools = createProjectTools({
   // Folder projects keep history in git, so they pin nothing.
   pinTurnStart: async (projectId) => {
     if (projectManager.peekMode(projectId) === 'disk') return null
-    await storageSession.snapshotUnique(projectId, { message: 'before chat' })
-    return (await storageSession.listVersions(projectId))[0]?.versionId ?? null
+    try {
+      return await storageSession.pinVersion(projectId, { message: 'before chat' })
+    } catch (error) {
+      // A project the backend never saw has nothing to pin; the write creates it.
+      if (error?.name === 'NotFoundError') return null
+      throw error
+    }
   },
   getApi: getChatApi,
   loadIndex: loadApiIndex,
