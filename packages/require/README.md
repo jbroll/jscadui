@@ -48,6 +48,15 @@ transpiled OpenSCAD and base-less lookups get the real exports.
 `setUserModuleWrapper(null)` turns it off. The compute frame registers the
 unknown-option checks this way (`apps/jscad-web/src_frame/optionWarnings.js`).
 
+`setScadExportsWrapper(fn)` registers `fn(exports, url)`, called when a
+project file requires a module whose resolved URL ends in `.scad`; the caller
+gets `fn`'s result, or the real exports if `fn` throws. It runs on every such
+require, so `fn` keeps its own cache. The entry given with its source, a
+`.scad` file's own requires and base-less lookups get the real exports.
+`setScadExportsWrapper(null)` turns it off. The frame worker and the agent
+eval register `@jscadui/agent-loop`'s `createScadExportsWrapper` this way, so
+fluent code gets library parts as fluent shapes.
+
 
 ## import.meta.url
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clearAllCaches, require as jscadRequire, requireCache, setUserModuleWrapper } from '../src/require.js'
+import { clearAllCaches, require as jscadRequire, requireCache, requireHandlers, setScadExportsWrapper, setUserModuleWrapper } from '../src/require.js'
 import { moduleResolver } from '../src/resolution/moduleResolver.js'
 
 const ROOT = 'http://project.local/'
@@ -75,6 +75,41 @@ describe('user module wrapper', () => {
     const { m } = project(`${ROOT}a.js`, 'module.exports = { m: require("@jscad/modeling") }')
     expect(m.wrappedAs).toBeUndefined()
     expect(m.primitives.cube()).toBe('cube')
+  })
+})
+
+describe('scad exports wrapper', () => {
+  const LIB = 'http://libs.test/Mini/mini.scad'
+
+  beforeEach(() => {
+    requireHandlers.set('scad', (source) => source)
+    files[LIB] = 'module.exports = { block: () => "block" }'
+    files[`${ROOT}part.scad`] = 'module.exports = { block: () => "part" }'
+    setScadExportsWrapper((exports, url) => ({ ...exports, wrappedFrom: url }))
+  })
+
+  afterEach(() => {
+    requireHandlers.delete('scad')
+    delete files[LIB]
+    delete files[`${ROOT}part.scad`]
+    setScadExportsWrapper(null)
+  })
+
+  it('applies the .scad exports wrapper to a project caller only', () => {
+    const a = project(`${ROOT}a.js`, `module.exports = { lib: require("${LIB}"), part: require("./part.scad"), m: require("@jscad/modeling") }`)
+    expect(a.lib.wrappedFrom).toBe(LIB)
+    expect(a.part.wrappedFrom).toBe(`${ROOT}part.scad`)
+    expect(a.m.wrappedFrom).toBeUndefined()
+    const inner = project(`${ROOT}outer.scad`, `module.exports = { lib: require("${LIB}") }`)
+    expect(inner.lib.wrappedFrom).toBeUndefined()
+    expect(jscadRequire(LIB, null, readFile).wrappedFrom).toBeUndefined()
+    expect(project(`${ROOT}main.scad`, 'module.exports = { block: () => "main" }').wrappedFrom).toBeUndefined()
+  })
+
+  it('falls back to the real exports when the wrapper throws', () => {
+    setScadExportsWrapper(() => { throw new Error('wrapper bug') })
+    const { lib } = project(`${ROOT}a.js`, `module.exports = { lib: require("${LIB}") }`)
+    expect(lib.block()).toBe('block')
   })
 })
 

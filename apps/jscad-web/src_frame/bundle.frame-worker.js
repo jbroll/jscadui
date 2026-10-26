@@ -21,10 +21,11 @@ import {
   setRunWarnings,
 } from '@jscadui/worker'
 import { asGeometry, summarizeRun } from '@jscadui/agent-loop/src/buildReport.js'
-import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache, setUserModuleWrapper, setLibraryPrefixes } from '@jscadui/require'
+import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache, setScadExportsWrapper, setUserModuleWrapper, setLibraryPrefixes } from '@jscadui/require'
 import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
 import { createScadHandler } from '@jscadui/agent-loop/src/scadHandler.js'
+import { createScadExportsWrapper } from '@jscadui/agent-loop/src/scadFluent.js'
 import { createImportData } from './importData.js'
 import { sealMessageListeners } from './sealMessages.js'
 import { createWithSolids } from './withSolids.js'
@@ -158,6 +159,7 @@ const runWarnings = installOptionWarnings({
     }),
   setRunWarnings,
 })
+setScadExportsWrapper(createScadExportsWrapper({ getApi: runWarnings.getApi, getFluent: () => require('@jbroll/jscad-fluent', null, readFileWeb) }))
 installRunConsole({ setRunConsole })
 
 initWorker({

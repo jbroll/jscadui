@@ -8,7 +8,8 @@ The chat teaches exactly one modeling API, set by `api`: `'fluent'`
 the system prompt (`buildSystemPrompt(api)`), the tool list
 (`buildTools(api)`, via `runTurn({ api })`; only the `docs` description
 differs) and the entries `docs` answers from (`docsTool(index, query, { api })`).
-It does not change the runtime: model code may still require either package.
+Apart from `.scad` parts (below), it does not change the runtime: model code
+may still require either package.
 Each style's prompt carries an `## API reference` sheet of that style's
 common calls with their option defaults
 ([development.md](development.md#system-prompt)).
@@ -21,6 +22,18 @@ prompt never mentions jscad-fluent. Both say `jscadText.text2d` needs no
 `init`: the app and the eval set jscad-text up with the `@jscad/modeling` they
 serve before model code sees it
 ([architecture.md](architecture.md#model-code-in-the-eval)).
+
+Under `'fluent'`, a project file that requires a `.scad` file gets a copy of
+its exports whose modules and functions return fluent shapes: a 3D result is a
+`jf.FluentGeom3`, a 2D one a `jf.FluentGeom2`, and a list is mapped item by
+item, so `require('BOSL2/ball_bearings.scad').ball_bearing('608').translate([0, 0, 5])`
+chains. Other results (a number, `undefined`), variables, `main`, `fn`, `vars`
+and `$meta` are unchanged. Under `'modeling'` the exports are the plain
+transpiled ones, and a `.scad` file that requires another gets them plain in
+either style. `createScadExportsWrapper({ getApi, getFluent })` in
+`src/scadFluent.js` builds the wrapper; the frame worker and the eval register
+it with `@jscadui/require`'s `setScadExportsWrapper` and read the style from
+the run's warning collector (`getApi()`).
 
 ## Conversation context
 

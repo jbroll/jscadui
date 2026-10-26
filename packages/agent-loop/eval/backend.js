@@ -4,7 +4,7 @@ import { resolve as resolvePath, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { check, measure } from '@jscadui/model-tools'
 import { createParamsProxy, createProxyState, toParamDefinitions, withProjectMains } from '@jscadui/params-core'
-import { clearAllCaches, moduleResolver, require as jscadRequire, requireHandlers, setLibraryPrefixes } from '@jscadui/require/esm/index.js'
+import { clearAllCaches, moduleResolver, require as jscadRequire, requireHandlers, setLibraryPrefixes, setScadExportsWrapper } from '@jscadui/require/esm/index.js'
 import { transformcjs } from '@jscadui/transform-babel/esm/transform-babel.js'
 import * as jscadText from '@jscadui/jscad-text'
 import { registerInstalledFonts } from '@jscadui/jscad-text/fontCache'
@@ -13,6 +13,7 @@ import { OPTION_TABLES } from '../api/optionTable.js'
 import { DEFAULT_API } from '../src/api.js'
 import { installConsoleCapture } from '../src/consoleCapture.js'
 import { createScadHandler } from '../src/scadHandler.js'
+import { createScadExportsWrapper } from '../src/scadFluent.js'
 import { shouldTransform } from '@jscadui/worker/src/shouldTransform.js'
 import { docsTool } from '../src/docs.js'
 import { skillTool } from '../src/skills.js'
@@ -185,6 +186,7 @@ const getOpenscad = () => {
 }
 
 requireHandlers.set('scad', createScadHandler({ getOpenscad, getAppOrigin: () => APP_ORIGIN }).handle)
+setScadExportsWrapper(createScadExportsWrapper({ getApi: warnings.getApi, getFluent: () => nodeRequire(FLUENT) }))
 
 const modelError = (error, api, files) => reportError(error, { api, index: API_INDEX, files })
 

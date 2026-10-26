@@ -343,6 +343,15 @@ describe('createWarningCollector', () => {
     c.setApi('bogus')
     expect(c.warn({ ...fact, option: 'r1' }).hint).toContain('jf.cylinder')
   })
+
+  it('reports the api it was set to, the default for an unknown one', () => {
+    const c = createWarningCollector()
+    expect(c.getApi()).toBe('fluent')
+    c.setApi('modeling')
+    expect(c.getApi()).toBe('modeling')
+    c.setApi('bogus')
+    expect(c.getApi()).toBe('fluent')
+  })
 })
 
 // Fresh classes per call, so one test's wraps never reach another's.

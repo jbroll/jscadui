@@ -14,6 +14,23 @@ describe('eval backend .scad support', () => {
     expect(result.dimensions).toEqual([6, 6, 3])
   })
 
+  it('a fluent project chains on a .scad part', async () => {
+    const source = "const jf = require('@jbroll/jscad-fluent')\nconst { block, M3_block } = require('Mini/mini.scad')\nmodule.exports = { main: () => block(M3_block).translate([10, 0, 0]) }\n"
+    const backend = createEvalBackend({ api: 'fluent' })
+    const report = await backend.reset({ 'main.js': source }, { build: true })
+    expect(report.ok).toBe(true)
+    const result = JSON.parse(await backend.requestTool('measure', {}))
+    expect(result.dimensions).toEqual([6, 6, 3])
+    expect(result.boundingBox[0][0]).toBeCloseTo(10)
+  })
+
+  it('a modeling project gets the .scad part plain', async () => {
+    const source = "const { block, M3_block } = require('Mini/mini.scad')\nmodule.exports = { main: () => { if ('translate' in block(M3_block)) throw new Error('wrapped'); return block(M3_block) } }\n"
+    const backend = createEvalBackend({ api: 'modeling' })
+    const report = await backend.reset({ 'main.js': source }, { build: true })
+    expect(report.ok).toBe(true)
+  })
+
   it('runs a project scad file that includes a library part', async () => {
     const backend = createEvalBackend()
     const files = { 'main.js': "module.exports = require('./part.scad')\n", 'part.scad': 'include <Mini/mini.scad>\nblock(M2_block);\n' }

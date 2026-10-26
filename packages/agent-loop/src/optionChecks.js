@@ -475,6 +475,7 @@ export const createWarningCollector = ({ cap = MAX_WARNINGS, base } = {}) => {
     setApi: (next) => {
       api = APIS.includes(next) ? next : DEFAULT_API
     },
+    getApi: () => api,
     reset: () => {
       seen = new Set()
       list = []

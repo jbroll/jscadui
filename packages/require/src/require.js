@@ -57,11 +57,36 @@ export const setUserModuleWrapper = (fn) => {
   wrappedModules = new WeakMap()
 }
 
+let scadExportsWrapper = null
+
+/**
+ * Registers the function that gives a project file its own view of a
+ * required .scad module's exports. It runs on every such require, so it
+ * keeps its own cache. Pass null to turn it off.
+ * @param {((exports: object, url: string) => object) | null} fn
+ */
+export const setScadExportsWrapper = (fn) => {
+  scadExportsWrapper = fn
+}
+
 // Library bundles, transpiled .scad and base-less worker lookups share the
 // cached exports and must keep calling the real functions.
+const isProjectCaller = (base, root) =>
+  typeof base === 'string' && typeof root === 'string' && !!root && base.startsWith(root) && !base.endsWith('.scad')
+
+const forScadCaller = (url, exports, base, root) => {
+  if (!scadExportsWrapper || exports === null || typeof exports !== 'object' || !isProjectCaller(base, root)) return exports
+  try {
+    return scadExportsWrapper(exports, url)
+  } catch (err) {
+    console.error(`scadExportsWrapper failed for ${url}, using unwrapped exports:`, err)
+    return exports
+  }
+}
+
 const forCaller = (name, exports, base, root) => {
   if (!userModuleWrapper || !USER_MODULES.has(name) || exports === null || typeof exports !== 'object') return exports
-  if (typeof base !== 'string' || typeof root !== 'string' || !root || !base.startsWith(root) || base.endsWith('.scad')) return exports
+  if (!isProjectCaller(base, root)) return exports
   let wrapped = wrappedModules.get(exports)
   if (!wrapped) {
     try {
@@ -262,7 +287,8 @@ export const require = (urlOrSource, transform, readFile, base, root, importData
       cacheManager.set(cacheUrl, exports, isRelativeFile) // O(1) LRU-managed cache
     }
 
-    return forCaller(url, exports, callerBase, root)
+    const requiredScad = typeof urlOrSource === 'string' && String(resolvedUrl).endsWith('.scad')
+    return requiredScad ? forScadCaller(String(resolvedUrl), exports, callerBase, root) : forCaller(url, exports, callerBase, root)
   } finally {
     // Always remove from loading set, even on error (C3 fix)
     if (cacheUrl) {

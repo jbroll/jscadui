@@ -1314,6 +1314,21 @@ shared with fluent's and model-tools' own requires. It wraps the fluent
 methods on Node's fluent prototypes with the same `wrapFluentMethods` the
 frame uses.
 
+Fluent code chains on `.scad` library parts, so under the fluent style a
+project file's require of a `.scad` file returns a copy of its exports whose
+modules and functions wrap their geometry in the jf classes
+(`packages/agent-loop/src/scadFluent.js`). `@jscadui/require` applies the
+function registered with `setScadExportsWrapper` to a `.scad` module required
+by a project file under `root` that is not itself `.scad`, the same caller rule
+as `setUserModuleWrapper`; transpiled `.scad` and library code keep the real
+exports. The frame worker registers it in `bundle.frame-worker.js` beside
+`installOptionWarnings`, reading the style from the warning collector that
+`jscadSetFiles` sets (`getApi()`) and fluent from its bundle alias; the eval
+registers it in `eval/backend.js` with its own collector and Node's fluent.
+The style is read on each require, not cached with the exports, because the
+require cache keeps a library's exports across loads and the chat can switch
+styles between them; the wrapper keeps one fluent copy per exports object.
+
 `prompt.md` holds the prompt prose both API styles share, and
 `prompt/fluent.md` and `prompt/modeling.md` fill its imports and style slots;
 examples are separate files in `prompt/examples/fluent/` and
