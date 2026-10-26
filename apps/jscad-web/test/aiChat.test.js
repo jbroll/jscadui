@@ -797,6 +797,20 @@ describe('project switch', () => {
     await vi.waitFor(() => expect(chat.q('.chat-messages').textContent).toContain('for one'))
   })
 
+  it('keeps a running turn on screen when the shown project is reopened', async () => {
+    let release
+    const gate = new Promise((resolve) => { release = resolve })
+    const storage = { readConversation: vi.fn(async () => null), writeConversation: vi.fn(async () => {}) }
+    const runTurnFn = vi.fn(async () => { await gate })
+    const chat = openChat({ runTurnFn, storage, projectId: 'p1' })
+    chat.type('hello p1')
+    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
+    await chat.controls.switchTo('p1')
+    expect(chat.q('.chat-messages').textContent).toContain('hello p1')
+    expect(storage.readConversation).toHaveBeenCalledTimes(1)
+    release()
+  })
+
   it('ignores a conversation that resolves after another switch', async () => {
     let release
     const gate = new Promise((resolve) => { release = resolve })
@@ -1669,11 +1683,52 @@ describe('undo this turn', () => {
   it('shows Undone, disabled, after a restore and a reload', async () => {
     let saved = null
     const storage = { readConversation: async () => (saved ? { messages: saved } : null), writeConversation: vi.fn(async (_id, m) => { saved = JSON.parse(JSON.stringify(m)) }) }
-    const { q, controls } = await runTurn({ endTurn: async () => [{ projectId: 'p1', versionId: 'v9' }], restoreTurn: async () => true, storage })
+    const { q } = await runTurn({ endTurn: async () => [{ projectId: 'p1', versionId: 'v9' }], restoreTurn: async () => true, storage })
     q('.chat-undo').click()
     await vi.waitFor(() => expect(q('.chat-undo').textContent).toBe('Undone'))
     await vi.waitFor(() => expect(saved.at(-1).undone).toBe(true))
-    await controls.switchTo('p1')
-    expect([q('.chat-undo').textContent, q('.chat-undo').disabled]).toEqual(['Undone', true])
+    const reloaded = openChat({ storage, projectId: 'p1' })
+    await reloaded.controls.switchTo('p1')
+    expect([reloaded.q('.chat-undo').textContent, reloaded.q('.chat-undo').disabled]).toEqual(['Undone', true])
+  })
+
+  // Storage that hands out copies, as rowboat does, so a stale message object is never the stored one.
+  const copyingStorage = (store = {}) => ({
+    store,
+    readConversation: async (id) => (store[id] ? { messages: JSON.parse(JSON.stringify(store[id])) } : null),
+    writeConversation: vi.fn(async (id, messages) => { store[id] = JSON.parse(JSON.stringify(messages)) }),
+  })
+
+  it('marks the turn undone when the restore reopens the project under the click', async () => {
+    const storage = copyingStorage()
+    const holder = {}
+    // main.js reopens the restored project, and its onOpen calls switchTo without awaiting it.
+    const restoreTurn = vi.fn(async (projectId) => { holder.controls.switchTo(projectId); return true })
+    const chat = await runTurn({ endTurn: async () => [{ projectId: 'p1', versionId: 'v9' }], restoreTurn, storage })
+    holder.controls = chat.controls
+    chat.q('.chat-undo').click()
+    await vi.waitFor(() => expect(storage.store.p1.at(-1).undone).toBe(true))
+    expect(storage.store.p1.map((m) => m.content)).toEqual(['make it', 'Done'])
+    const button = chat.q('.chat-undo')
+    expect([button.textContent, button.disabled]).toEqual(['Undone', true])
+  })
+
+  it('marks the owning conversation undone when the restore leaves for another project', async () => {
+    const storage = copyingStorage({ p2: [{ role: 'user', content: 'p2 chat' }] })
+    const holder = {}
+    let openId = 'p1'
+    const restoreTurn = vi.fn(async (projectId) => { openId = projectId; holder.controls.switchTo(projectId); return true })
+    const chat = await runTurn({
+      projectId: () => openId,
+      endTurn: async () => [{ projectId: 'p1', versionId: 'v1' }, { projectId: 'p2', versionId: 'v2' }],
+      restoreTurn,
+      storage,
+    })
+    holder.controls = chat.controls
+    chat.q('.chat-undo').click()
+    await vi.waitFor(() => expect(storage.store.p1.at(-1).undone).toBe(true))
+    expect(storage.store.p1.map((m) => m.content)).toEqual(['make it', 'Done'])
+    expect(storage.store.p2).toEqual([{ role: 'user', content: 'p2 chat' }])
+    expect(chat.q('.chat-messages').textContent).toBe('p2 chat')
   })
 })

@@ -926,9 +926,14 @@ The message list shows each kind of row differently, light and dark alike
 reply message persists them as `undo: [{ projectId, versionId }]` and
 `renderLoaded` redraws the button. A click calls `restoreTurn` per entry
 (`main.js`: confirm discarding unsaved edits, `projectManager.restoreVersion`,
-`switchProject`, `refreshHeader`). Restoring appends a `restore` version, so
-the turn's own version stays in history. A declined confirm leaves the button
-live.
+`switchProject` under `afterHeaderDiscard` so the user is asked once,
+`refreshHeader`). Restoring appends a `restore` version, so the turn's own
+version stays in history. A declined confirm leaves the button live. After
+the restore the turn is marked `undone: true` in the current transcript,
+found by its version ids rather than the object the button was drawn for, or
+in the stored conversation when the restore left for another project.
+`switchTo` on the project already shown does nothing, so reopening it keeps
+the view and a running turn's rows.
 
 A tool row is `failed` (red rule and text) when the tool threw or answered
 `{ ok: false }`, as an object or as JSON text.

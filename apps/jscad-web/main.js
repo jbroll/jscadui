@@ -1183,7 +1183,9 @@ if (byId('ai-chat')) {
     restoreTurn: async (projectId, versionId) => {
       if (!(await editor.confirmDiscard())) return false
       await projectManager.restoreVersion(projectId, versionId)
-      await switchProject(projectId)
+      // The files are already restored, so the reopen must not ask again: a
+      // second decline would leave the old editor text to overwrite them.
+      await afterHeaderDiscard(() => switchProject(projectId))
       refreshHeader()
       return true
     },

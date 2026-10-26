@@ -365,12 +365,45 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     }
   }
 
-  const addUndo = (msg) => {
-    const { undo } = msg
+  // A button finds its turn by the version ids: a reload or a storage copy
+  // replaces the message object it was drawn for.
+  const undoKey = (undo) => JSON.stringify(undo.map(({ projectId, versionId }) => [projectId, versionId]))
+  const isTurnOf = (key) => (m) => m.undo?.length > 0 && undoKey(m.undo) === key
+  const markUndone = (messages, key) => messages.map((m) => (isTurnOf(key)(m) ? { ...m, undone: true } : m))
+
+  const renderUndo = () => {
+    for (const button of messagesEl.querySelectorAll('.chat-undo')) {
+      const undone = transcript.find(isTurnOf(button.dataset.undo))?.undone === true
+      button.textContent = undone ? 'Undone' : "Undo this turn's changes"
+      button.disabled = undone
+    }
+  }
+
+  // The restore may have reopened projects and redrawn the chat, so the turn
+  // is marked in whichever copy of its conversation is current.
+  const recordUndone = async (owner, key) => {
+    await loading
+    if (pid() === owner) {
+      transcript = markUndone(transcript, key)
+      renderUndo()
+      await persistTranscript(owner, transcript)
+      return
+    }
+    if (!storage) return
+    try {
+      const stored = await storage.readConversation(owner)
+      if (stored) await persistTranscript(owner, markUndone(stored.messages, key))
+    } catch (err) {
+      console.warn('chat persist failed:', err)
+    }
+  }
+
+  const addUndo = ({ undo }) => {
     const owner = pid()
-    const button = el('button', 'chat-undo', msg.undone ? 'Undone' : "Undo this turn's changes")
+    const key = undoKey(undo)
+    const button = el('button', 'chat-undo')
     button.type = 'button'
-    button.disabled = msg.undone === true
+    button.dataset.undo = key
     button.addEventListener('click', async () => {
       button.disabled = true
       let restored = true
@@ -385,14 +418,11 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         restored = false
         console.warn('chat: undo failed:', err)
       }
-      if (restored) {
-        button.textContent = 'Undone'
-        msg.undone = true
-        if (pid() === owner) persistTranscript(owner, transcript)
-      }
+      if (restored) await recordUndone(owner, key)
       else button.disabled = false
     })
     messagesEl.append(button)
+    renderUndo()
     follow(true)
   }
 
@@ -441,7 +471,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   // The open project changed: show its conversation, not the previous
   // project's. An in-flight turn keeps its own messages and persists them
   // under the project it started in.
-  const switchTo = async (id) => {
+  const showConversation = async (id) => {
     // A question belongs to the project that asked it; leaving dismisses it
     // (a rejection → tool error) so it cannot outlive its project's view.
     settleQuestion((pending) => {
@@ -460,6 +490,17 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     } catch (err) {
       console.warn('chat resume failed:', err)
     }
+  }
+
+  // Reopening the shown project (an undo, a new file) keeps its view, and with
+  // it a running turn's rows; the call still waits for the shown load.
+  let shown = null
+  let loading = Promise.resolve()
+  const switchTo = (id) => {
+    if (id === shown) return loading
+    shown = id
+    loading = showConversation(id)
+    return loading
   }
 
   const newChat = async () => {
