@@ -115,7 +115,7 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
   try {
     meter = createMeter({ statePath: spendPath, now: options.now })
   } catch (error) {
-    logger({ event: 'meter-unavailable', error: error instanceof Error ? error.message : String(error) })
+    logger({ relay: 'meter-unavailable', message: error instanceof Error ? error.message : String(error) })
   }
   let inferenceCache: { at: number; path: string; config: ReturnType<typeof loadInferenceFile> } | null = null
   const readInference = (): ReturnType<typeof loadInferenceFile> => {

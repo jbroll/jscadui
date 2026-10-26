@@ -182,9 +182,11 @@ phone can use a whole `/64`. A turn is charged from the stream's `usage` (or
 estimated from bytes when it carried none) at the option's prices, and is
 written atomically (temp file + rename). A corrupt or unreadable file (including a
 non-numeric per-IP amount) never resets the meter: the relay logs
-`meter-unavailable` once at startup, the free models answer `503` and the
-catalog marks them unavailable, and keyed providers and the rest of the server
-keep working. A failed write warns and keeps spend in memory.
+`{relay: 'meter-unavailable', message}` once at startup, the free models
+answer `503` and the catalog marks them unavailable, and keyed providers and
+the rest of the server keep working. The file is read only at startup, so the
+free models stay off until the server is restarted after the file is fixed.
+A failed write warns and keeps spend in memory.
 
 ## Body limit
 
