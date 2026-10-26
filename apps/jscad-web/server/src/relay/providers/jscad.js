@@ -5,6 +5,7 @@
 import { RelayRefusal, pickForwardHeaders, resolveTarget } from '../policy.js'
 import { costUsd, estimateTokens, ipGroup, parseUsage } from '../meter.js'
 import { teeRelayUpstream } from '../chatLog.js'
+import { writeOrClose } from '../pipe.js'
 
 // The catalog lives at `<root>/api/relay/jscad-web/v1/models`; the free turn
 // base is `<root>/api/relay/jscad-web/<id>` and the rest is the option's path.
@@ -230,7 +231,11 @@ export const jscadHook = {
           bytes += value.byteLength
           responseText += decoder.decode(value, { stream: true })
           tee.chunk(value)
-          if (!res.write(value)) await new Promise((r) => res.once('drain', r))
+          if (!(await writeOrClose(res, value))) {
+            await reader.cancel().catch(() => {})
+            settle(upstreamRes.status, 'client closed')
+            return
+          }
         }
         res.end()
       }

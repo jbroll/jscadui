@@ -113,12 +113,6 @@ Deferred from the jscad-web inference reframe reviews (`feat/jscad-inference-rel
   exceeds the loop's `DEFAULT_MAX_ROUNDS` (32), and the app's default project
   adds a file the eval backend lacks. Follow-up owns the coverage decision
   (trim `PARITY_ROUNDS`, raise the cap, or seed the eval project).
-- **Client abort during connect logs a misleading 502.** A free close
-  before the fetch settles is recorded as `upstream unreachable` with no
-  `error` field; distinguish `client closed` for the `chat-review` loop.
-- **Drain-wait hang (pre-existing).** If the client closes exactly when
-  `res.write` returned false, `forward` never returns and the turn escapes
-  logging (`server/src/relay/routes.ts`).
 - **Free drawer summary shows the raw option id** until the gear dialog is
   opened (the inference catalog is fetched only on open). Fetch at init or persist
   the label (`src/aiAccount.js`).

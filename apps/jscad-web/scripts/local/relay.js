@@ -15,6 +15,7 @@ import {
   resolveTarget,
 } from '../../server/src/relay/policy.js'
 import { teeRelayUpstream } from '../../server/src/relay/chatLog.js'
+import { writeOrClose } from '../../server/src/relay/pipe.js'
 
 // A reasoning model can stream nothing for minutes; undici's default gives up after 5.
 export const PROVIDER_BODY_TIMEOUT_MS = 15 * 60_000
@@ -80,6 +81,10 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
     try {
       up = await fetch(upstream, { method: req.method, headers, signal: abort.signal, dispatcher, ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}) })
     } catch {
+      if (abort.signal.aborted) {
+        if (tee) tee.finish(499, { error: 'client closed' })
+        return true
+      }
       res.writeHead(502, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ error: 'upstream unreachable' }))
       if (tee) tee.finish(502, { response: 'upstream unreachable' })
@@ -94,8 +99,11 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
     try {
       if (up.body) {
         for await (const c of up.body) {
-          res.write(c)
           if (tee) tee.chunk(c)
+          if (!(await writeOrClose(res, c))) {
+            failure = 'client closed'
+            break
+          }
         }
       }
     } catch (err) {

@@ -207,6 +207,12 @@ turn is written only when the request carries `x-jscad-chat-id`, which the
 client omits when the user opts out; a free turn is always written. A failed
 write warns and never fails the request it describes.
 
+A client that closes before the upstream answers, or while a chunk waits to be
+written, is recorded with `error: 'client closed'`; before the upstream answers
+the status is `499`, mid-stream it is the upstream's. The stream loops write
+through `src/relay/pipe.js` `writeOrClose`, which stops on a closed response
+instead of waiting for a `drain` that never comes.
+
 ## Logs and smoke
 
 Each forwarded turn logs one JSON line: `{relay, status, bytes}`, where `relay`

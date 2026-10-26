@@ -115,6 +115,19 @@ describe('relay streaming failures', () => {
     expect(impatient[0].error).toMatch(/UND_ERR_BODY_TIMEOUT/)
   }, 15000)
 
+  it('records a client that closes during connect as 499 client closed', async () => {
+    const records = []
+    await withServers(async (base, _seen, outcomes) => {
+      const controller = new AbortController()
+      const pending = post(base, {}, { signal: controller.signal }).catch(() => {})
+      await new Promise((r) => setTimeout(r, 200))
+      controller.abort()
+      await pending
+      expect(await outcomes[0]).toBe('resolved')
+    }, { log: { write: (r) => records.push(r) } }, () => {})
+    expect(records[0]).toMatchObject({ status: 499, error: 'client closed' })
+  })
+
   it('aborts the upstream request when the client goes away', async () => {
     let upstreamClosed
     const closed = new Promise((r) => { upstreamClosed = r })

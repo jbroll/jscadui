@@ -382,6 +382,32 @@ describe('chat logging', () => {
     await vi.waitFor(() => expect(signal?.aborted).toBe(true))
     await settled
   })
+
+  it('records a client that closes during connect as 499 client closed', async () => {
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init.signal as AbortSignal
+          signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+        }),
+    )
+    const logDir = tmpLogDir()
+    const pending = request(relayApp([], { chatLogDir: logDir }))
+      .post('/api/relay/openai/v1/chat/completions')
+      .set('Origin', 'https://app.test')
+      .set('x-jscad-chat-id', 'chat-5')
+      .send({ model: 'm' })
+    const settled = pending.then(
+      () => 'settled',
+      () => 'settled',
+    )
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    pending.abort()
+    await settled
+    await vi.waitFor(() => expect(logRecords(logDir)).toHaveLength(1))
+    expect(logRecords(logDir)[0]).toMatchObject({ status: 499, error: 'client closed' })
+  })
 })
 
 describe('client address', () => {

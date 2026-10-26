@@ -4,6 +4,7 @@
 // behaviour every non-jscad-web kind keeps.
 import { RelayRefusal, pickForwardHeaders, resolveTarget } from '../policy.js'
 import { teeRelayUpstream } from '../chatLog.js'
+import { writeOrClose } from '../pipe.js'
 
 /**
  * @param {import('./index.js').RelayContext} ctx
@@ -78,6 +79,10 @@ const forward = async (ctx, req, res, method, kind, subPath) => {
       ...(body === undefined ? {} : { body }),
     })
   } catch {
+    if (abort.signal.aborted) {
+      tee?.finish(499, { error: 'client closed' })
+      return
+    }
     res.status(502).json({ error: 'upstream unreachable' })
     tee?.finish(502, { response: 'upstream unreachable' })
     return
@@ -97,7 +102,11 @@ const forward = async (ctx, req, res, method, kind, subPath) => {
         if (done) break
         bytes += value.byteLength
         tee?.chunk(value)
-        if (!res.write(value)) await new Promise((r) => res.once('drain', r))
+        if (!(await writeOrClose(res, value))) {
+          await reader.cancel().catch(() => {})
+          tee?.finish(upstreamRes.status, { error: 'client closed' })
+          return
+        }
       }
       res.end()
     }
