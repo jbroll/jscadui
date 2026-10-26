@@ -101,6 +101,16 @@ under `apps/jscad-web` unless given in full.
   and a CSP: `script-src 'self'`, `frame-src` the run host, `connect-src`
   self, rowboat and the provider hosts. A deploy decision — `deploy.sh` is not
   in this repo.
+- **The server's `/api/fetch` checks the address before it connects, not the
+  one it connects to.** `fetchPage` resolves the name in
+  `assertPublicUpstream`, then `fetch` resolves it again, so a DNS answer that
+  flips from public to private between the two reaches the server's own
+  network. The local launcher, which exposes the user's machine, already
+  connects through `publicOnlyLookup` on an undici `Agent`
+  (`scripts/local/fetchApi.js`). The server route (`server/src/fetch/routes.ts`)
+  needs the same `dispatcher`, which needs `undici` in `server/package.json`
+  and its lockfile: the deploy runs `npm install` there, and `undici` only
+  resolves locally through the root install.
 
 ## Free jscad-web models follow-ups
 

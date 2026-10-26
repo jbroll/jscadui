@@ -1045,6 +1045,14 @@ check on the first URL and on every redirect hop, at most 5 redirects, a 2 MB
 body cap, text extraction cut to 8000 characters, and the status and JSON body
 to answer with. It is plain JS with JSDoc for the same reason as `policy.js`.
 
+That check resolves the name before the fetch, which resolves it again, so a
+name can answer public to one and private to the other. The launcher closes
+the gap: its fetch runs on an undici `Agent` whose `connect.lookup` is
+`publicOnlyLookup` (`policy.js`), which refuses the connection when any
+resolved address is private, and `fetchPage` answers that refusal as
+`BlockedHostError`. The server's route does not use it yet; see
+`docs/backlog.md`.
+
 The index (about 260 KB) is not in the app entry: `build.js` bundles it as
 `build/bundle.api-index.js` (content-hashed like the other leaf bundles), and
 `src/apiIndex.js` imports it on the first `docs` call or the first model error

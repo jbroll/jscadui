@@ -10,7 +10,7 @@ const page = (html, init = {}) => new Response(html, { status: 200, headers: { '
 
 const withServer = async (t, options = {}) => {
   const calls = []
-  const fetchFn = options.fetchFn ?? (async (url) => {
+  const fetchFn = 'fetchFn' in options ? options.fetchFn : (async (url) => {
     calls.push(url)
     return page('<title>Gears</title><p>Involute teeth</p>')
   })
@@ -69,6 +69,17 @@ describe('local /api/fetch', () => {
       expect(await res.json()).toMatchObject({ name: 'BlockedHostError' })
       expect(calls).toEqual([])
     }, { dnsLookup: PRIVATE })
+  })
+
+  it('refuses a name that resolves public for the check and private for the connection', async () => {
+    let lookups = 0
+    const rebinding = async () => (++lookups === 1 ? [{ address: '93.184.216.34' }] : [{ address: '127.0.0.1' }])
+    await withServer(async (base) => {
+      const res = await post(base, { url: 'http://rebind.test/' })
+      expect(res.status).toBe(400)
+      expect(await res.json()).toMatchObject({ name: 'BlockedHostError' })
+      expect(lookups).toBe(2)
+    }, { dnsLookup: rebinding, fetchFn: undefined })
   })
 
   it('refuses a redirect that leads to a private address', async () => {

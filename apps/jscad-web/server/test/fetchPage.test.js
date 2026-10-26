@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { MAX_BODY_BYTES, fetchPage } from '../src/fetch/fetchPage.js'
+import { RelayRefusal } from '../src/relay/policy.js'
 
 const PUBLIC_DNS = async () => [{ address: '93.184.216.34' }]
 
@@ -28,6 +29,14 @@ describe('fetchPage', () => {
     expect(out.status).toBe(400)
     expect(out.body).toEqual({ error: 'fetch: refused a private address', name: 'BlockedHostError' })
     expect(fetchFn).not.toHaveBeenCalled()
+  })
+
+  it('answers BlockedHostError when the connection itself refuses a private address', async () => {
+    const fetchFn = vi.fn(async () => {
+      throw new TypeError('fetch failed', { cause: new RelayRefusal(400, 'relay: upstream resolves to a private address') })
+    })
+    const out = await fetchPage({ url: 'https://rebind.test/page', fetchFn, dnsLookup: PUBLIC_DNS })
+    expect(out).toEqual({ status: 400, body: { error: 'fetch: refused a private address', name: 'BlockedHostError' } })
   })
 
   it('gives up on a redirect chain longer than five hops', async () => {

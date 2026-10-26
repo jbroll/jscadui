@@ -196,8 +196,9 @@ export const fetchPage = async ({
     for (;;) {
       try {
         upstreamRes = await fetchFn(currentUrl, { redirect: 'manual', signal: controller.signal })
-      } catch {
-        return UNREACHABLE()
+      } catch (err) {
+        const cause = /** @type {{ cause?: unknown }} */ (err)?.cause
+        return cause instanceof RelayRefusal ? refusal(cause) : UNREACHABLE()
       }
       if (upstreamRes.status < 300 || upstreamRes.status >= 400) break
       if (follows >= MAX_REDIRECTS) return failure(502, 'fetch: too many redirects', 'FetchError')

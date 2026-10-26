@@ -7,6 +7,7 @@ import {
   isPublicHttpsUrl,
   isTrustedRequest,
   pickForwardHeaders,
+  publicOnlyLookup,
   resolveTarget,
   resolveUpstream,
 } from '../src/relay/policy.js'
@@ -80,6 +81,29 @@ describe('assertPublicUpstream', () => {
   it('answers 502 when the name does not resolve', async () => {
     const lookup = async () => { throw new Error('ENOTFOUND') }
     await expect(assertPublicUpstream('https://nowhere.example', lookup)).rejects.toMatchObject({ status: 502 })
+  })
+})
+
+describe('publicOnlyLookup', () => {
+  const lookupOf = (records: Array<{ address: string }>) => publicOnlyLookup(async () => records)
+  const call = (lookup: ReturnType<typeof publicOnlyLookup>, options: { all?: boolean }) =>
+    new Promise<unknown[]>((resolve) => lookup('api.example.com', options, (...args: unknown[]) => resolve(args)))
+
+  it('answers the public addresses in the shape net.connect asked for', async () => {
+    const lookup = lookupOf([{ address: '93.184.216.34' }, { address: '2606:2800:220:1::1' }])
+    expect(await call(lookup, { all: true })).toEqual([null, [{ address: '93.184.216.34', family: 4 }, { address: '2606:2800:220:1::1', family: 6 }]])
+    expect(await call(lookup, {})).toEqual([null, '93.184.216.34', 4])
+  })
+
+  it('refuses the connection when any address is private', async () => {
+    const [err] = await call(lookupOf([{ address: '93.184.216.34' }, { address: '127.0.0.1' }]), { all: true })
+    expect(err).toBeInstanceOf(RelayRefusal)
+    expect(err).toMatchObject({ status: 400 })
+  })
+
+  it('passes a failed lookup through', async () => {
+    const [err] = await call(publicOnlyLookup(async () => { throw new Error('ENOTFOUND') }), {})
+    expect(err).toMatchObject({ message: 'ENOTFOUND' })
   })
 })
 

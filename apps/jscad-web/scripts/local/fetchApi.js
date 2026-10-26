@@ -1,8 +1,16 @@
 // POST /api/fetch for the local launcher: the production route's guards
 // (server/src/fetch/routes.ts) on plain node:http, around the shared fetchPage.
-import { RATE_PER_MIN, createLimiter, isTrustedRequest } from '../../server/src/relay/policy.js'
+import { Agent, fetch } from 'undici'
+import { RATE_PER_MIN, createLimiter, isTrustedRequest, publicOnlyLookup } from '../../server/src/relay/policy.js'
 import { fetchPage } from '../../server/src/fetch/fetchPage.js'
 import { readBody } from './fsApi.js'
+
+// The launcher runs on the user's own machine, so the connection itself must
+// refuse a name that re-resolves to a private address after the first check.
+const publicOnlyFetch = (dnsLookup) => {
+  const dispatcher = new Agent({ connect: { lookup: publicOnlyLookup(dnsLookup) } })
+  return (url, init) => fetch(url, { ...init, dispatcher })
+}
 
 // A request is a URL and a format; anything larger is not one.
 const MAX_REQUEST_BYTES = 16 * 1024
@@ -20,7 +28,7 @@ const parse = (buffer) => {
   }
 }
 
-export const createFetchHandler = ({ trustedOrigins, fetchFn = fetch, dnsLookup, timeoutMs }) => {
+export const createFetchHandler = ({ trustedOrigins, dnsLookup, fetchFn = publicOnlyFetch(dnsLookup), timeoutMs }) => {
   const allowed = new Set(trustedOrigins)
   const limiter = createLimiter({ ratePerMin: RATE_PER_MIN, burst: 10 })
   const cors = (req) => {

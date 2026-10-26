@@ -223,6 +223,28 @@ export const assertPublicUpstream = async (url, dnsLookup = systemLookup) => {
 }
 
 /**
+ * A `net.connect` lookup that refuses private addresses, so the check covers
+ * the address the socket connects to: a name can answer public for
+ * assertPublicUpstream and private a moment later.
+ * @param {DnsLookup} [dnsLookup]
+ * @returns {(hostname: string, options: { all?: boolean }, callback: (err: Error | null, address?: unknown, family?: number) => void) => void}
+ */
+export const publicOnlyLookup = (dnsLookup = systemLookup) => (hostname, options, callback) => {
+  dnsLookup(hostname).then(
+    (records) => {
+      const addresses = records.map(({ address }) => ({ address, family: isIP(address) }))
+      if (addresses.length === 0) return callback(Object.assign(new Error(`lookup ${hostname}: no addresses`), { code: 'ENOTFOUND' }))
+      if (addresses.some(({ address }) => isPrivateAddress(address))) {
+        return callback(new RelayRefusal(400, 'relay: upstream resolves to a private address'))
+      }
+      if (options?.all) return callback(null, addresses)
+      return callback(null, addresses[0].address, addresses[0].family)
+    },
+    (err) => callback(err),
+  )
+}
+
+/**
  * Everything between the origin/rate gates and the fetch: provider lookup,
  * sub-path join, private-address check. Throws RelayRefusal.
  * @param {{ allowlist: Record<string, string>, kind: string, subPath: string, dnsLookup?: DnsLookup, allowPrivate?: boolean }} options
