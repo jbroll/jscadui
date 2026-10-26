@@ -23,6 +23,11 @@ describe('writeOrClose', () => {
     expect(await pending).toBe(false)
   })
 
+  it('resolves false at once when the response is already closed', async () => {
+    const res = Object.assign(fakeRes(false), { destroyed: true })
+    expect(await writeOrClose(res, new Uint8Array(1))).toBe(false)
+  })
+
   it('leaves no listeners behind', async () => {
     const res = fakeRes(false)
     const pending = writeOrClose(res, new Uint8Array(1))

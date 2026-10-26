@@ -8,7 +8,10 @@
  * @returns {Promise<boolean>}
  */
 export const writeOrClose = (res, chunk) => {
+  const gone = () => res.destroyed || res.writableEnded || res.closed
+  if (gone()) return Promise.resolve(false)
   if (res.write(chunk)) return Promise.resolve(true)
+  if (gone()) return Promise.resolve(false)
   return new Promise((resolve) => {
     const done = (/** @type {boolean} */ ok) => {
       res.off('drain', onDrain)

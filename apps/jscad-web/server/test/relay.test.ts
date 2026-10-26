@@ -410,6 +410,52 @@ describe('chat logging', () => {
   })
 })
 
+describe('client closes while a write waits for drain', () => {
+  it('records client closed once and stops reading', async () => {
+    let cancelled = false
+    const body = new ReadableStream({
+      pull(controller) {
+        controller.enqueue(new Uint8Array(1024))
+      },
+      cancel() {
+        cancelled = true
+      },
+    })
+    fetchMock.mockResolvedValue({ ok: true, status: 200, headers: new Headers({ 'content-type': 'text/event-stream' }), body } as unknown as Response)
+    const logDir = tmpLogDir()
+    const app = express()
+    app.use(express.json())
+    app.use((_req, res, next) => {
+      // Backpressure on every write; the client then goes away.
+      res.write = (() => {
+        setImmediate(() => res.destroy())
+        return false
+      }) as typeof res.write
+      next()
+    })
+    mountRelayRoutes(app, {
+      allowlistPath,
+      trustedOrigins: ['https://app.test'],
+      logger: () => {},
+      fetchFn: fetchMock,
+      dnsLookup: async () => [{ address: '93.184.216.34' }],
+      chatLogDir: logDir,
+    })
+    await request(app)
+      .post('/api/relay/openai/v1/chat/completions')
+      .set('Origin', 'https://app.test')
+      .set('x-jscad-chat-id', 'chat-6')
+      .send({ model: 'm' })
+      .then(
+        () => {},
+        () => {},
+      )
+    await vi.waitFor(() => expect(logRecords(logDir)).toHaveLength(1))
+    expect(logRecords(logDir)[0]).toMatchObject({ error: 'client closed' })
+    expect(cancelled).toBe(true)
+  })
+})
+
 describe('client address', () => {
   it('keys the limiter on the address the loopback proxy appended, not the client-forged entry', async () => {
     fetchMock.mockImplementation(async () => sseResponse('data: ok\n\n'))
