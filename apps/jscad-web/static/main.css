@@ -1564,3 +1564,22 @@ p {
 .tos-link {
   color: inherit;
 }
+
+.chat-undo {
+  align-self: flex-start;
+  margin: 4px 0;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 0.85em;
+  color: var(--chat-muted);
+  background: var(--chat-tool-bg);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.chat-undo:hover:not(:disabled) {
+  background: var(--chat-tool-hover);
+}
+.chat-undo:disabled {
+  cursor: default;
+}

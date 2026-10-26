@@ -920,6 +920,15 @@ The message list shows each kind of row differently, light and dark alike
 | Tool call | `<details class="chat-tool">` | one monospace row: tool, its path, query or format (`toolDetail` from agent-loop), and `…`, `ok` or `failed`; opening it shows the input and the result; a `view` result auto-opens with thumbnail images (`.chat-tool-images`) that open full-size in a `.chat-view-overlay` dialog |
 | Error | `.chat-msg.error` | red-tinted block with a red left rule |
 | Stopped | `.chat-msg.stopped` | small muted italic `Stopped`, not an error |
+| Undo | `button.chat-undo` | small muted button after a turn that wrote to a stored project: `Undo this turn's changes`, then `Undone` once restored |
+
+`endTurn` returns the version each written project had before the turn; the
+reply message persists them as `undo: [{ projectId, versionId }]` and
+`renderLoaded` redraws the button. A click calls `restoreTurn` per entry
+(`main.js`: confirm discarding unsaved edits, `projectManager.restoreVersion`,
+`switchProject`, `refreshHeader`). Restoring appends a `restore` version, so
+the turn's own version stays in history. A declined confirm leaves the button
+live.
 
 A tool row is `failed` (red rule and text) when the tool threw or answered
 `{ ok: false }`, as an object or as JSON text.

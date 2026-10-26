@@ -1180,6 +1180,13 @@ if (byId('ai-chat')) {
     getBuild: projectBuilds.report,
     startTurn: () => { turnTouched.clear(); refreshFileMeta(); chatTools.startTurn() },
     endTurn: chatTools.endTurn,
+    restoreTurn: async (projectId, versionId) => {
+      if (!(await editor.confirmDiscard())) return false
+      await projectManager.restoreVersion(projectId, versionId)
+      await switchProject(projectId)
+      refreshHeader()
+      return true
+    },
   })
 }
 // The AI drawer keeps the right column to itself now that the project drawer

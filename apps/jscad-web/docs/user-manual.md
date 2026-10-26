@@ -105,3 +105,13 @@ A transpiled `.scad` file exposes a clean JS surface:
 - `exports.$scad` holds the raw transpiled names (`washer_$m`, `area_$f`,
   `area_$f$obj`, variables as values or `$`-reading thunks). Generated files
   call each other through it; JS callers want the names above.
+
+## Undoing the assistant's changes
+
+After a turn in which the assistant wrote files to a saved project, an
+`Undo this turn's changes` button appears under its reply, and again when the
+conversation is reloaded. It restores the project to how it was before the
+turn and adds a `restore` entry to the version history, so nothing is lost.
+If the editor has unsaved edits, you are asked before they are discarded.
+Declining leaves the button in place. Projects stored only on disk have no
+version history and get no button.

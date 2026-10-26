@@ -219,9 +219,9 @@ const CHARS_PER_TOKEN = 4
  * `getSummarizer` picks the model that summarizes evicted turns; it defaults
  * to `getProvider`, so wiring a cheaper model is a selection swap, not a
  * change here.
- * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getSummarizer?:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,beforeToolCall?:Function,afterToolCall?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>,getBuild?:()=>Promise<object|null>,startTurn?:()=>void,endTurn?:(excerpt?:string)=>Promise<Array<{projectId:string,versionId:string|null}>|void>}} options
+ * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getSummarizer?:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,beforeToolCall?:Function,afterToolCall?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>,getBuild?:()=>Promise<object|null>,startTurn?:()=>void,endTurn?:(excerpt?:string)=>Promise<Array<{projectId:string,versionId:string|null}>|void>,restoreTurn?:(projectId:string,versionId:string)=>Promise<boolean>}} options
  */
-export const initChat = ({ container, requestTool, getProvider, getSummarizer = getProvider, getApi = () => DEFAULT_API, runTurnFn = defaultRunTurn, beforeToolCall, afterToolCall, websearchGranted = false, websearchLog = () => {}, websearchProvider, storage, projectId, getProjectFiles = async () => ({}), getBuild = async () => null, startTurn = () => {}, endTurn = async () => {} }) => {
+export const initChat = ({ container, requestTool, getProvider, getSummarizer = getProvider, getApi = () => DEFAULT_API, runTurnFn = defaultRunTurn, beforeToolCall, afterToolCall, websearchGranted = false, websearchLog = () => {}, websearchProvider, storage, projectId, getProjectFiles = async () => ({}), getBuild = async () => null, startTurn = () => {}, endTurn = async () => {}, restoreTurn = async () => false }) => {
   const header = el('div', 'chat-header')
   header.append(el('span', 'chat-title', 'AI Chat'))
   const newChatBtn = el('button', 'chat-new', 'New chat')
@@ -355,10 +355,36 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     const excerpt = turnExcerpt
     turnExcerpt = ''
     try {
-      await endTurn(excerpt)
+      const written = await endTurn(excerpt)
+      return Array.isArray(written) ? written.filter((w) => w.versionId) : []
     } catch (err) {
       console.warn('chat: saving the turn failed:', err)
+      return []
     }
+  }
+
+  const addUndo = (undo) => {
+    const button = el('button', 'chat-undo', "Undo this turn's changes")
+    button.type = 'button'
+    button.addEventListener('click', async () => {
+      button.disabled = true
+      let restored = true
+      try {
+        for (const { projectId, versionId } of undo) {
+          if (!(await restoreTurn(projectId, versionId))) {
+            restored = false
+            break
+          }
+        }
+      } catch (err) {
+        restored = false
+        console.warn('chat: undo failed:', err)
+      }
+      if (restored) button.textContent = 'Undone'
+      else button.disabled = false
+    })
+    messagesEl.append(button)
+    follow(true)
   }
 
   // Streaming must not yank a reader who scrolled up to an earlier reply, so
@@ -398,6 +424,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       if (m.role === 'user') addMessage(m.content, 'user')
       else if (m.role === 'assistant' && m.content) addMessage(m.content, 'assistant')
       if (m.stopped) addStopped()
+      if (m.undo?.length > 0) addUndo(m.undo)
     }
     messagesEl.scrollTop = messagesEl.scrollHeight
   }
@@ -802,7 +829,12 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         if (live()) addStopped()
         commit([...local, reply({ stopped: true })])
       }
-      await finishTurn()
+      const undo = await finishTurn()
+      const last = local.at(-1)
+      if (undo.length > 0 && last?.role === 'assistant') {
+        commit([...local.slice(0, -1), { ...last, undo }])
+        if (live()) addUndo(undo)
+      }
       assistantEl = null
       turnProject = null
       aborter = null

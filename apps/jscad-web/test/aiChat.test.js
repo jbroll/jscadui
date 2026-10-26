@@ -1558,3 +1558,70 @@ describe('askUser question card', () => {
     await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
   })
 })
+
+describe('undo this turn', () => {
+  const writingTurn = async ({ onText }) => {
+    onText('Done')
+    return { messages: [] }
+  }
+  const storageOf = () => ({ readConversation: async () => null, writeConversation: vi.fn(async () => {}) })
+  const runTurn = async (options) => {
+    const chat = openChat({ runTurnFn: writingTurn, projectId: 'p1', ...options })
+    chat.type('make it')
+    await vi.waitFor(() => expect(chat.q('.chat-send').textContent).toBe('Send'))
+    return chat
+  }
+
+  it('shows an undo button after a turn that wrote, calling restoreTurn with the pinned version', async () => {
+    const restoreTurn = vi.fn(async () => true)
+    const storage = storageOf()
+    const { q } = await runTurn({ endTurn: async () => [{ projectId: 'p1', versionId: 'v9' }], restoreTurn, storage })
+    const button = q('.chat-undo')
+    expect(button.textContent).toBe("Undo this turn's changes")
+    expect(storage.writeConversation.mock.calls.at(-1)[1].at(-1).undo).toEqual([{ projectId: 'p1', versionId: 'v9' }])
+    button.click()
+    await vi.waitFor(() => expect(button.textContent).toBe('Undone'))
+    expect(restoreTurn).toHaveBeenCalledWith('p1', 'v9')
+    expect(button.disabled).toBe(true)
+  })
+
+  it('restores each project the turn wrote, in order', async () => {
+    const restoreTurn = vi.fn(async () => true)
+    const { q } = await runTurn({
+      endTurn: async () => [{ projectId: 'p1', versionId: 'v1' }, { projectId: 'p2', versionId: 'v2' }],
+      restoreTurn,
+    })
+    q('.chat-undo').click()
+    await vi.waitFor(() => expect(q('.chat-undo').textContent).toBe('Undone'))
+    expect(restoreTurn.mock.calls).toEqual([['p1', 'v1'], ['p2', 'v2']])
+  })
+
+  it('keeps the undo button across a reload', async () => {
+    const restoreTurn = vi.fn(async () => true)
+    const stored = [
+      { role: 'user', content: 'make it' },
+      { role: 'assistant', content: 'Done', undo: [{ projectId: 'p1', versionId: 'v9' }] },
+    ]
+    const storage = { readConversation: async () => ({ messages: stored }), writeConversation: async () => {} }
+    const { q, controls } = openChat({ storage, projectId: 'p1', restoreTurn })
+    await controls.switchTo('p1')
+    q('.chat-undo').click()
+    await vi.waitFor(() => expect(restoreTurn).toHaveBeenCalledWith('p1', 'v9'))
+  })
+
+  it('shows no undo button for a turn that wrote nothing', async () => {
+    const none = await runTurn({ endTurn: async () => [], restoreTurn: async () => true })
+    expect(none.q('.chat-undo')).toBeNull()
+    const unstored = await runTurn({ endTurn: async () => [{ projectId: 'p1', versionId: null }], restoreTurn: async () => true })
+    expect(unstored.q('.chat-undo')).toBeNull()
+  })
+
+  it('leaves the button in place when the restore is declined', async () => {
+    const restoreTurn = vi.fn(async () => false)
+    const { q } = await runTurn({ endTurn: async () => [{ projectId: 'p1', versionId: 'v9' }], restoreTurn })
+    q('.chat-undo').click()
+    await vi.waitFor(() => expect(restoreTurn).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(q('.chat-undo').disabled).toBe(false))
+    expect(q('.chat-undo').textContent).toBe("Undo this turn's changes")
+  })
+})

@@ -184,8 +184,8 @@ fixed, the last in the modeling fork; these remain.
 - **Agent writes can destroy the user's model.** In bb17e98f about eight
   experiment writes replaced a 70-part Jeep in `main.js` with text tests, and
   the next turn's request carried only the clobbered snapshot, so the agent
-  could not restore it. Needs undo or history for agent writes in the app, and
-  `view` of a scratch model so experiments need no save.
+  could not restore it. The chat now has an undo button per turn; still
+  needed is `view` of a scratch model so experiments need no save.
 - **Async work a snippet does not await outlives its build context.** It runs
   after the scratch run's build context closes (`packages/worker/worker.js`).
 - **Build and scratch contexts can restore out of order.** `jscadMain` and a
