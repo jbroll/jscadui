@@ -153,9 +153,10 @@ Found by `e2e/ai-chat-tools.spec.js` (plan `docs/superpowers/plans/2026-10-17-ch
   (`server/src/fetch/routes.ts` is the server's). Locally, and in every
   synthetic batch, `webfetch` can never work: minimax made 84 calls in
   batch `2026-10-20T12-54-17.466Z` (enclosure-lid) before `NO_RELAY` in
-  `src/aiFetch.js` named the cause. Either serve the fetch relay from the
-  launcher, with the server's public-address and size guards, or drop
-  `webfetch` from the offered tools when the relay is absent.
+  `src/aiFetch.js` named the cause. The page fetch with its public-address
+  and size guards is `fetchPage` in `server/src/fetch/fetchPage.js`, plain
+  JS the launcher can import; the launcher still needs the route that
+  calls it.
 
 ## Chat review follow-ups (2026-10-19)
 

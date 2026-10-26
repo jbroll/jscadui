@@ -1028,6 +1028,13 @@ launcher does not. The relay answers every failure with a JSON `error`, so a
 telling the model to stop calling it, and answers every later call the same
 way without a request.
 
+The server's route (`server/src/fetch/routes.ts`) only checks the origin and
+the rate limit. Everything after that is `fetchPage` in
+`server/src/fetch/fetchPage.js`: URL and format validation, the private-address
+check on the first URL and on every redirect hop, at most 5 redirects, a 2 MB
+body cap, text extraction cut to 8000 characters, and the status and JSON body
+to answer with. It is plain JS with JSDoc for the same reason as `policy.js`.
+
 The index (about 260 KB) is not in the app entry: `build.js` bundles it as
 `build/bundle.api-index.js` (content-hashed like the other leaf bundles), and
 `src/apiIndex.js` imports it on the first `docs` call or the first model error
