@@ -14,7 +14,8 @@ check(model, { bed: 'mk3' }) // { watertight, manifold, fitsBed, ... }
 `measure` options: `parts` (an index selector like `"0"` or `"1-3"`, a part
 name, `"all"`, an array of selectors, where `"all"` stands for every part, or
 that array as a JSON string; indexes number the array `main()` returns, and a
-whole number stands for its index), `between`
+whole number stands for its index; a range must run low to high, `"1-3"` not
+`"3-1"`), `between`
 (exactly two selectors; `"all"` is refused there), `anchors` (boolean), `section` (an axis `"x"`/`"y"`/
 `"z"`, an offset like `"z=5"`, or `{axis, offset}`). A part name is an anchor
 frame name the `anchors` option reports (a dotted param path such as

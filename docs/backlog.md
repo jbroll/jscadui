@@ -203,8 +203,6 @@ fixed, the last in the modeling fork; these remain.
   `globalThis.__jscadBuild` from what they saw on entry.
 - **`measure*` at a build's top level rejects in the app.** Only `main()` runs
   inside the build context; a scratch run now covers its top level too.
-- **`measure` accepts a reversed range.** `parts: "3-1"` selects nothing and
-  returns a zero box; `view` refuses it. Reject it with the forms error.
 - **The starting example has no project build.** At `/` the boot example runs
   as a URL script, so `projectBuilds` holds nothing and a chat `measure` or
   `check` on it returns NoGeometryError until the agent writes a file.

@@ -37,6 +37,7 @@ const itemsOf = (geom, geomType) => (geomType === 'array' ? geom : [geom])
 
 const selectorRange = (selector, length) => {
   const [from, to = from] = selector.split('-').map(Number)
+  if (from > to) throw new Error(`part ${selector} runs high to low; write it ${to}-${from}`)
   if (to >= length) {
     const count = `${length} item${length === 1 ? '' : 's'}`
     throw new Error(`part ${selector} is out of range; the model has ${count} (0-${length - 1})`)

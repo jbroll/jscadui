@@ -40,6 +40,12 @@ test('measureParts treats a single geometry as item 0 and rejects an index past 
   )
 })
 
+test('measureParts refuses a range written high to low', () => {
+  expect(() => measureParts([cube(0), cube(10), cube(20), cube(30)], 'array', ['3-1'])).toThrow(
+    'part 3-1 runs high to low; write it 1-3',
+  )
+})
+
 test('measureBetween reports per-axis gap, box distance, and center offset', () => {
   const apart = measureBetween([cube(0), cube(10)], 'array', ['0', '1'])
   expect(apart).toEqual({
