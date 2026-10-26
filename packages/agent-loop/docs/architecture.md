@@ -699,8 +699,8 @@ Parts:
 
 | Builder | `view` offered | Simulated user |
 |---|---|---|
-| `iceman-contributor-free` | when the probe confirms images | `beam-free` |
-| `beam-free` | no (text only) | `iceman-contributor-free` |
+| `iceman-contributor-free` | when the probe confirms images | `beam-free`, then itself |
+| `beam-free` | no (text only) | `iceman-contributor-free`, then itself |
 
 These are opencode-go's free models as of 2026-10-26; `longcat-2.5-preview-free`
 and `minimax-m3.1-flash-free` now answer 410, deprecated, and a probe that finds
@@ -708,7 +708,9 @@ a model gone skips its lane and its use as a simulated user. A lane takes the
 first simulated user the probe found available. `beam-free` sees no images and
 critiques from text. The output caps start at 1500 tokens for `beam-free` and
 4000 for `iceman`; a reply cut off by the cap is asked again with twice the
-room. The simulated user is never the builder's own model. It runs at temperature
+room. A builder is its own simulated user only when the other free model is down;
+the manifest's `simUser` says so, and such a batch's stumbles count as usual
+but its acceptances are the builder judging itself. It runs at temperature
 0; the builder keeps the model's default. Only the free models served by the
 Go endpoint are used. Zen's free models refuse a request from outside
 OpenCode, so they are out. Two guards keep a batch off paid models: the

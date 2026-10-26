@@ -18,8 +18,11 @@ describe('assertFree', () => {
 })
 
 describe('ROLES', () => {
-  it('never uses the builder as its own simulated user', () => {
-    for (const r of ROLES) expect(r.simUsers).not.toContain(r.builder)
+  it('uses the builder as its own simulated user only as the last fallback', () => {
+    for (const r of ROLES) {
+      expect(r.simUsers[0]).not.toBe(r.builder)
+      expect(r.simUsers.slice(0, -1)).not.toContain(r.builder)
+    }
   })
   it('uses only free models, each simulated user with a token cap', () => {
     for (const r of ROLES) {

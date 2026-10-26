@@ -10,9 +10,11 @@ export const SIM_USER_MAX_TOKENS = {
 }
 
 // Each builder's simulated users in order of preference; the first available one runs.
+// A builder judges itself only as the last fallback, when it is the one free
+// model up: the stumbles still count, but its acceptances are less telling.
 export const ROLES = [
-  { builder: 'iceman-contributor-free', vision: true, simUsers: ['beam-free'] },
-  { builder: 'beam-free', vision: false, simUsers: ['iceman-contributor-free'] },
+  { builder: 'iceman-contributor-free', vision: true, simUsers: ['beam-free', 'iceman-contributor-free'] },
+  { builder: 'beam-free', vision: false, simUsers: ['iceman-contributor-free', 'beam-free'] },
 ]
 
 export const pickSimUser = (role, probe) => role.simUsers.find((model) => probe[model]?.available) ?? null
