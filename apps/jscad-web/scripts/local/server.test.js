@@ -134,6 +134,30 @@ describe('local server', () => {
     }
   })
 
+  it('routes /api/fetch to the fetch handler, ahead of the static routes', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    mkdirSync(join(root, 'frame'), { recursive: true })
+    mkdirSync(join(root, 'models'), { recursive: true })
+    mkdirSync(join(root, 'api'), { recursive: true })
+    writeFileSync(join(root, 'api', 'fetch'), 'static')
+    const fetchHandler = async (req, res) => {
+      if (req.method !== 'POST') return false
+      res.writeHead(200); res.end('fetched')
+      return true
+    }
+    const { appServer, frameServer, url } = await startLocal({
+      appDir: root, frameDir: join(root, 'frame'), modelDir: join(root, 'models'),
+      relayHandler: createRelayHandler({ allowlist: {}, trustedOrigins: [] }),
+      fetchHandler, port: 0,
+    })
+    try {
+      expect(await (await fetch(`${url}/api/fetch`, { method: 'POST', body: '{}' })).text()).toBe('fetched')
+      expect((await fetch(`${url}/api/fetch`)).status).toBe(404)
+    } finally {
+      appServer.close(); frameServer.close()
+    }
+  })
+
   it('serves /models through a symlinked model directory root', async () => {
     const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
     mkdirSync(join(root, 'frame'), { recursive: true })

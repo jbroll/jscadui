@@ -1,12 +1,12 @@
 // Single-process local server: app static + read-only /models mount + relay +
-// the /api/fs file API. The compute frame is served via serveFrame on port+1.
+// the /api/fetch page fetch + the /api/fs file API. The compute frame is served via serveFrame on port+1.
 import http from 'node:http'
 import { readFile, realpath } from 'node:fs/promises'
 import { serveFrame } from '../../serve.js'
 import { mimeOf, safeJoin } from '../static.js'
 import { appHosts, createFsHandler, fromApp, hiddenSegment, resolvesInside } from './fsApi.js'
 
-export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, port }) => {
+export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, fetchHandler, port }) => {
   let fsHandler = null
   let appOrigin = ''
   let hosts = new Set()
@@ -14,6 +14,10 @@ export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, por
     const path = (req.url ?? '/').split('?')[0]
     if (path.startsWith('/api/relay/')) {
       if (await relayHandler(req, res)) return
+      res.writeHead(404); res.end(); return
+    }
+    if (path === '/api/fetch') {
+      if (fetchHandler && await fetchHandler(req, res)) return
       res.writeHead(404); res.end(); return
     }
     if (path === '/api/fs' || path.startsWith('/api/fs/')) {

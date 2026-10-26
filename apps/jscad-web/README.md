@@ -114,7 +114,7 @@ Tests: `npx vitest run test/aiChat.test.js` for the chat turn, `npx playwright t
 
 ## Local model directory
 
-From any model folder: `npm run jscad-chat -- [dir|file] [--port N] [--build|--no-build] [--no-open]` (root) or `node scripts/jscad.mjs` from `apps/jscad-web`. Serves the app on `:7377`, the frame on `:7378`, your folder at `/models/`, and a same-origin `/api/relay` so AI Chat works with your own key. `RELAY_ALLOWLIST` overrides the default allowlist (anthropic, openai, opencode-go, meta) with a JSON `{name: url}` file whose entries are public `https:` URLs without a port, the same rules as the production relay ([server/RELAY.md](server/RELAY.md)).
+From any model folder: `npm run jscad-chat -- [dir|file] [--port N] [--build|--no-build] [--no-open]` (root) or `node scripts/jscad.mjs` from `apps/jscad-web`. Serves the app on `:7377`, the frame on `:7378`, your folder at `/models/`, a same-origin `/api/relay` so AI Chat works with your own key, and `/api/fetch` so the chat's `webfetch` reads public pages under the production relay's guards. `RELAY_ALLOWLIST` overrides the default allowlist (anthropic, openai, opencode-go, meta) with a JSON `{name: url}` file whose entries are public `https:` URLs without a port, the same rules as the production relay ([server/RELAY.md](server/RELAY.md)).
 
 Given a folder, it opens the file a dropped folder runs (see [External editor](#external-editor)), from the folder's top-level files, with the folder's name as FOLDER_NAME. A folder with no `.js` file and no `package.json` gets a starter `index.js`.
 

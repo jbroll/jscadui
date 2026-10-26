@@ -74,7 +74,7 @@ const listFiles = async (dir, root, limit) => {
   return { files, truncated: false }
 }
 
-const readBody = async (req, max) => {
+export const readBody = async (req, max) => {
   if (Number(req.headers['content-length']) > max) { req.resume(); return null }
   const chunks = []
   let size = 0

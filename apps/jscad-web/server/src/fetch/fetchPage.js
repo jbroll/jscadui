@@ -1,11 +1,6 @@
 // The page fetch behind POST /api/fetch, shared by the production route
-// (routes.ts) and the jscad-chat launcher. Plain JS with JSDoc and no framework,
-// so plain `node` loads it and tsc (allowJs) type-checks and emits it into dist/.
-//
-// The relay reaches arbitrary public pages the browser cannot: cross-origin
-// reads are opaque to fetch(). The guard rails live here, not on the page:
-// http(s) only, a bounded redirect chain re-checked per hop, a bounded body,
-// and a bounded answer.
+// (routes.ts) and the local launcher (scripts/local/fetchApi.js): plain JS so
+// plain `node` loads it, and both get the same guards.
 import { RelayRefusal, assertPublicUpstream } from '../relay/policy.js'
 
 /** Characters of extracted text the answer keeps. */

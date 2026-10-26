@@ -1022,14 +1022,17 @@ conversation and lets the call through. A no is remembered, so later calls are
 refused without asking again until the Chat settings toggle sets the grant.
 A yes the model collects with its own `question` grants nothing.
 
-`webfetch` posts to `/api/fetch`, which the server serves and the local
-launcher does not. The relay answers every failure with a JSON `error`, so a
-404 without one means no relay: the handler answers `NO_RELAY` (`src/aiFetch.js`),
-telling the model to stop calling it, and answers every later call the same
-way without a request.
+`webfetch` posts to `/api/fetch`, which the server and the local launcher both
+serve. The relay answers every failure with a JSON `error`, so a 404 without
+one means a server with no relay: the handler answers `NO_RELAY`
+(`src/aiFetch.js`), telling the model to stop calling it, and answers every
+later call the same way without a request.
 
 The server's route (`server/src/fetch/routes.ts`) only checks the origin and
-the rate limit. Everything after that is `fetchPage` in
+the rate limit. The launcher's (`scripts/local/fetchApi.js`, on `node:http`)
+does the same with the same `policy.js` helpers and burst of 10, sends the same
+CORS headers, and refuses a request body over 16 KB with 413. Everything after
+that is `fetchPage` in
 `server/src/fetch/fetchPage.js`: URL and format validation, the private-address
 check on the first URL and on every redirect hop, at most 5 redirects, a 2 MB
 body cap, text extraction cut to 8000 characters, and the status and JSON body
