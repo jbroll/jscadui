@@ -168,6 +168,8 @@ export const createWebsearchGrant = ({ granted = false, log = () => {}, ask } = 
 // A stopped reply may be empty, and providers refuse an empty assistant message.
 // Stored reasoning stays on the page: the model never gets it back. A reply's
 // mentions come through, since `buildMessages` reads their paths for recency.
+// A message that only carries an undo has nothing the model should see.
+const forModelOf = (msgs) => msgs.filter((m) => m.role !== 'assistant' || m.content || m.stopped).map(forModel)
 const forModel = (m) => {
   const base = { role: m.role, content: m.content }
   if (m.stopped) base.content = m.content ? `${m.content}\n\n${STOPPED_NOTE}` : STOPPED_NOTE
@@ -363,9 +365,12 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     }
   }
 
-  const addUndo = (undo) => {
-    const button = el('button', 'chat-undo', "Undo this turn's changes")
+  const addUndo = (msg) => {
+    const { undo } = msg
+    const owner = pid()
+    const button = el('button', 'chat-undo', msg.undone ? 'Undone' : "Undo this turn's changes")
     button.type = 'button'
+    button.disabled = msg.undone === true
     button.addEventListener('click', async () => {
       button.disabled = true
       let restored = true
@@ -380,7 +385,11 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         restored = false
         console.warn('chat: undo failed:', err)
       }
-      if (restored) button.textContent = 'Undone'
+      if (restored) {
+        button.textContent = 'Undone'
+        msg.undone = true
+        if (pid() === owner) persistTranscript(owner, transcript)
+      }
       else button.disabled = false
     })
     messagesEl.append(button)
@@ -424,7 +433,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       if (m.role === 'user') addMessage(m.content, 'user')
       else if (m.role === 'assistant' && m.content) addMessage(m.content, 'assistant')
       if (m.stopped) addStopped()
-      if (m.undo?.length > 0) addUndo(m.undo)
+      if (m.undo?.length > 0) addUndo(m)
     }
     messagesEl.scrollTop = messagesEl.scrollHeight
   }
@@ -740,6 +749,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     const { signal } = aborter
     let assistantText = ''
     let stopped = false
+    let replied = false
     turnReasoning = []
     turnMentions = []
     const reply = (fields) => ({ role: 'assistant', content: assistantText, ...fields, ...(turnMentions.length > 0 ? { mentions: [...turnMentions] } : {}), ...(turnReasoning.length > 0 ? { reasoning: turnReasoning } : {}) })
@@ -756,7 +766,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       const files = await projectFiles()
       const build = await lastBuild()
       const api = getApi()
-      const model = stripSummary(local.slice(0, -1).map(forModel))
+      const model = stripSummary(forModelOf(local.slice(0, -1)))
       const prior = local.find(isSummaryMsg)
       // Evict by the same total budget buildMessages sends under, so every
       // trimmed turn lands in the summary instead of vanishing silently.
@@ -790,7 +800,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         }
       }
       await runTurnFn({
-        conversation: { messages: buildMessages({ systemPrompt: buildSystemPrompt(api), transcript: local.slice(0, -1).map(forModel), files, build, message, summary: local.find(isSummaryMsg)?.text }) },
+        conversation: { messages: buildMessages({ systemPrompt: buildSystemPrompt(api), transcript: forModelOf(local.slice(0, -1)), files, build, message, summary: local.find(isSummaryMsg)?.text }) },
         provider,
         api,
         vision: visionCapable(selection),
@@ -816,7 +826,10 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         signal,
       })
       endReasoning()
-      if (assistantText) commit([...local, reply()])
+      if (assistantText) {
+        commit([...local, reply()])
+        replied = true
+      }
     } catch (err) {
       endReasoning()
       if (signal.aborted) stopped = true
@@ -828,12 +841,12 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       if (stopped) {
         if (live()) addStopped()
         commit([...local, reply({ stopped: true })])
+        replied = true
       }
       const undo = await finishTurn()
-      const last = local.at(-1)
-      if (undo.length > 0 && last?.role === 'assistant') {
-        commit([...local.slice(0, -1), { ...last, undo }])
-        if (live()) addUndo(undo)
+      if (undo.length > 0) {
+        commit(replied ? [...local.slice(0, -1), { ...local.at(-1), undo }] : [...local, { role: 'assistant', content: '', undo }])
+        if (live()) addUndo(local.at(-1))
       }
       assistantEl = null
       turnProject = null

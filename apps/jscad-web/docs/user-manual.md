@@ -113,5 +113,5 @@ After a turn in which the assistant wrote files to a saved project, an
 conversation is reloaded. It restores the project to how it was before the
 turn and adds a `restore` entry to the version history, so nothing is lost.
 If the editor has unsaved edits, you are asked before they are discarded.
-Declining leaves the button in place. Projects stored only on disk have no
+Declining leaves the button in place. Once used, it stays as a disabled `Undone` after a reload. Projects stored only on disk have no
 version history and get no button.
