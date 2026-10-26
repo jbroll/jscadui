@@ -426,7 +426,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         }
       } catch (err) {
         restored = false
-        console.warn('chat: undo failed:', err)
+        addMessage(`Undo failed: ${err?.message ?? err}`, 'error')
       }
       try {
         if (restored) await recordUndone(owner, key)

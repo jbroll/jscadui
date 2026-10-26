@@ -928,7 +928,9 @@ reply message persists them as `undo: [{ projectId, versionId }]` and
 (`main.js`: confirm discarding unsaved edits, `projectManager.restoreVersion`,
 `switchProject` under `afterHeaderDiscard` so the user is asked once,
 `refreshHeader`). Restoring appends a `restore` version, so the turn's own
-version stays in history. A declined confirm leaves the button live. After
+version stays in history. A declined confirm leaves the button live; a
+restore that throws adds an `Undo failed: <message>` error row and leaves it
+live too. After
 the restore the turn is marked `undone: true` in the current transcript,
 found by its version ids rather than the object the button was drawn for, or
 in the stored conversation when the restore left for another project.

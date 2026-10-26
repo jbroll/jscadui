@@ -1639,6 +1639,14 @@ describe('undo this turn', () => {
     expect(q('.chat-undo').textContent).toBe("Undo this turn's changes")
   })
 
+  it('tells the user a failed undo failed and leaves the button live', async () => {
+    const restoreTurn = vi.fn(async () => { throw new Error('version not found') })
+    const { q } = await runTurn({ endTurn: async () => [{ projectId: 'p1', versionId: 'v9' }], restoreTurn })
+    q('.chat-undo').click()
+    await vi.waitFor(() => expect(q('.chat-msg.error')?.textContent).toBe('Undo failed: version not found'))
+    expect([q('.chat-undo').textContent, q('.chat-undo').disabled]).toEqual(["Undo this turn's changes", false])
+  })
+
   it('gives a turn that errors after writing its own undo message', async () => {
     const storage = storageOf()
     const { q } = await runTurn({
