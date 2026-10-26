@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { FREE_MODELS, ROLES, SIM_USER_MAX_TOKENS, assertFree, pickSimUser } from './roles.js'
 
-const probed = { 'beam-free': { available: true }, 'minimax-m3.1-flash-free': { available: false } }
+const probed = { 'beam-free': { available: true }, 'iceman-contributor-free': { available: false } }
 
 describe('assertFree', () => {
   it('throws for a paid model', () => {
@@ -10,7 +10,7 @@ describe('assertFree', () => {
     )
   })
   it('throws for a free model the probe marked unavailable', () => {
-    expect(() => assertFree(['minimax-m3.1-flash-free'], probed)).toThrow(/minimax-m3.1-flash-free/)
+    expect(() => assertFree(['iceman-contributor-free'], probed)).toThrow(/iceman-contributor-free/)
   })
   it('passes for probed free models', () => {
     expect(() => assertFree(['beam-free'], probed)).not.toThrow()
@@ -30,13 +30,13 @@ describe('ROLES', () => {
 })
 
 describe('pickSimUser', () => {
-  const role = { builder: 'minimax-m3.1-flash-free', simUsers: ['longcat-2.5-preview-free', 'beam-free'] }
+  const role = { builder: 'a-free', simUsers: ['b-free', 'beam-free'] }
   it('takes the first available simulated user', () => {
-    const probe = { 'longcat-2.5-preview-free': { available: true }, 'beam-free': { available: true } }
-    expect(pickSimUser(role, probe)).toBe('longcat-2.5-preview-free')
+    const probe = { 'b-free': { available: true }, 'beam-free': { available: true } }
+    expect(pickSimUser(role, probe)).toBe('b-free')
   })
   it('falls back when the first is unavailable', () => {
-    const probe = { 'longcat-2.5-preview-free': { available: false }, 'beam-free': { available: true } }
+    const probe = { 'b-free': { available: false }, 'beam-free': { available: true } }
     expect(pickSimUser(role, probe)).toBe('beam-free')
   })
   it('is null when none is available', () => {

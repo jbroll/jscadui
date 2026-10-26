@@ -205,9 +205,9 @@ Settings are in `ci/synth.conf` (`SYNTH_BUILDERS`, `SYNTH_SCENARIOS`,
 `SYNTH_RUNS`, `SYNTH_DEADLINE_S`, `SYNTH_PORT`); `sci push` runs the working
 tree as-is, so edit the file before pushing and restore it afterwards.
 
-The slow free models (longcat, minimax) take 15 to 40 minutes a session, so a
-three-lane job reaches only a few of their scenarios before the 7200 s job
-timeout. To give each builder, or each share of the scenarios, its own
+A slow free model can take 15 to 40 minutes a session (longcat and minimax
+did, before opencode-go retired them), so a job with one lane per builder
+reaches only a few of its scenarios before the 7200 s job timeout. To give each builder, or each share of the scenarios, its own
 timeout, push one job each with its own `SYNTH_BUILDERS`, `SYNTH_SCENARIOS`
 and a `SYNTH_PORT` range that does not overlap (5170, 5200, 5230, ...); jobs
 run side by side and each writes its own batch. The `opencode-go` key

@@ -530,7 +530,7 @@ images.
 | Variable | Default | Meaning |
 |---|---|---|
 | `SYNTH_OUT` | `<logs>/synthetic` | Where batch directories go |
-| `SYNTH_BUILDERS` | all three | Comma list of builder models |
+| `SYNTH_BUILDERS` | every builder in `synth/roles.js` | Comma list of builder models |
 | `SYNTH_SCENARIOS` | all | Comma list of scenario names |
 | `SYNTH_RUNS` | `2` | Runs per scenario and builder |
 | `SYNTH_DEADLINE_S` | `6600` | A lane starts no session that its longest session so far would carry past this many seconds after the batch started; the rest are recorded with `skipped: true`, since a session the CI job timeout (7200 s) kills is never recorded |
