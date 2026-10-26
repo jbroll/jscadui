@@ -17,6 +17,27 @@ test('build.js registers the five tree bundles', () => {
   }
 })
 
+// The engine and the tree/fluent/anchor wrappers throw errors the agent reads;
+// the large bundles stay fully minified to keep the frame download small.
+const NAMED_FRAME_BUNDLES = [
+  'bundle.jscad_modeling.js',
+  'bundle.model-tools.js',
+  'bundle.jscad-fluent.js',
+  ...TREE_BUNDLES,
+  'bundle.jscad-anchors.js',
+  'bundle.frame-worker.js',
+]
+
+test('every frame bundle that throws agent-visible errors keeps its identifiers', () => {
+  const build = read('../build.js')
+  expect(build).toMatch(/const FRAME_ESBUILD = \{ minify: false, minifyWhitespace: true, minifySyntax: true, minifyIdentifiers: false \}/)
+  const calls = build.split(/\n(?=await build)/)
+  for (const name of NAMED_FRAME_BUNDLES) {
+    const call = calls.find((c) => c.includes(`'${name}'`))
+    expect(call, name).toMatch(/\.\.\.FRAME_ESBUILD/)
+  }
+})
+
 // loadBoundEvaluate (packages/worker/src/treeApi.js) reads `.evaluate` off the
 // active tree bundle, so every tree entry must export one bound to its engine.
 test('every tree bundle exports the engine-bound evaluate the worker loads', () => {

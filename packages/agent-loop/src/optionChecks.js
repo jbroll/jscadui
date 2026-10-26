@@ -407,8 +407,8 @@ const FLUENT_FACTORIES = {
   FluentPath2Array: 'path2Array',
 }
 
-// Fluent exports no classes and its bundles minify their names, so each
-// prototype comes from an object a factory makes.
+// Fluent exports no classes, so each prototype comes from an object a
+// factory makes.
 export const fluentPrototypes = (jf) => {
   /** @type {Record<string, object>} */
   const protos = {}

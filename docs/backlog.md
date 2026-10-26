@@ -220,12 +220,6 @@ fixed, the last in the modeling fork; these remain.
   enlargement (037181f1 built a 35 m Jeep without asking), and text on a
   vertical face came out mirrored and inside-out after ten rounds (bb17e98f).
   Neither has a fixture; `nameplate` and `luggage-tag` cover flat text only.
-- **Minified engine errors reach the agent.** `packages/demo-utils/src/esbuildUtil.js`
-  builds every bundle with `minify: true`, so a TypeError inside the frame's
-  modeling or manifold code names a one-letter local: the 2026-10-20 smoke
-  batch spent seven `execute` calls on `e is not iterable`, which was
-  `points is not iterable` in the manifold `polygon`. Try
-  `minifyIdentifiers: false` for the frame bundles and weigh the size cost.
 - **Prune the synthetic scenario set.** The starting set is committed as
   written. After the first full batches, drop scenarios that produce no
   stumble on the current harness; a new one joins only when a batch shows it

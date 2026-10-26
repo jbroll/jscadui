@@ -370,6 +370,18 @@ base is `self.location.origin` (`'null'` here); `build.js` swaps in
 `src_frame/readFileFrame.js`, which serves reads from the project file map
 `jscadSetFiles` carried and falls through to the CDN for bare packages.
 
+### Frame bundle minification
+
+`build.js` minifies whitespace and syntax in every frame bundle but keeps
+identifiers in the ones whose errors the agent reads: the modeling engine, the
+four tree bundles, fluent, model-tools, anchors and the frame worker
+(`FRAME_ESBUILD`). A TypeError there names `points`, not `e`. The shared
+esbuild defaults set `minify: true`, which overrides `minifyIdentifiers: false`,
+so `FRAME_ESBUILD` turns `minify` off and lists the other parts. The large
+bundles (jscad_io, transpile-babel, openscad, jscad_text, V1_api) stay fully
+minified: keeping identifiers everywhere grew the frame's JS by 56%, mostly in
+these five.
+
 ### Headers
 
 The frame is cross-origin, so its module script and the worker's bundle

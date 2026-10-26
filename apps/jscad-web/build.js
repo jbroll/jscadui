@@ -231,19 +231,24 @@ if (existsSync(frameDir)) {
   rmSync(frameDir + '/build', { recursive: true, force: true })
 }
 const frameCjs = { '.js': 'js', '.jsx': 'jsx' }
+// Bundles whose errors the agent reads keep their identifiers; the big ones stay fully minified (+56% frame JS otherwise).
+// esbuild's minify: true overrides minifyIdentifiers: false, so the parts are spelled out.
+const FRAME_ESBUILD = { minify: false, minifyWhitespace: true, minifySyntax: true, minifyIdentifiers: false }
 // jscad-text's FontMap reads import.meta.url only where XMLHttpRequest is
 // missing (Node), a branch these browser bundles never take.
 const nodeOnlyImportMeta = { 'empty-import-meta': 'silent' }
-await buildBundle(frameBuildDir, 'bundle.jscad_modeling.js', { format: 'cjs', watch: dev, loader: frameCjs })
+await buildBundle(frameBuildDir, 'bundle.jscad_modeling.js', { ...FRAME_ESBUILD, format: 'cjs', watch: dev, loader: frameCjs })
 copyFileSync('../../node_modules/manifold-3d/manifold.wasm', frameBuildDir + '/manifold.wasm')
 await buildBundle(frameBuildDir, 'bundle.jscad_io.js', { format: 'cjs', watch: dev, loader: frameCjs })
 await buildBundle(frameBuildDir, 'bundle.model-tools.js', {
+  ...FRAME_ESBUILD,
   format: 'cjs',
   watch: dev,
   loader: frameCjs,
   external: ['@jscad/modeling'],
 })
 await buildBundle(frameBuildDir, 'bundle.jscad-fluent.js', {
+  ...FRAME_ESBUILD,
   format: 'cjs',
   watch: dev,
   loader: frameCjs,
@@ -258,24 +263,28 @@ await buildBundle(frameBuildDir, 'bundle.params_core.js', { format: 'cjs', watch
 // The manifold twins bundle @jscadui/manifold, whose own import of
 // '@jscad/modeling-for-manifold' stays external for the same reason.
 await buildBundle(frameBuildDir, 'bundle.model_tree_jscad.js', {
+  ...FRAME_ESBUILD,
   format: 'cjs',
   watch: dev,
   loader: frameCjs,
   external: ['@jscad/modeling-for-manifold'],
 })
 await buildBundle(frameBuildDir, 'bundle.model_tree_anchored_jscad.js', {
+  ...FRAME_ESBUILD,
   format: 'cjs',
   watch: dev,
   loader: frameCjs,
   external: ['@jscad/modeling', '@jscad/modeling-for-anchors', '@jbroll/jscad-anchors', '@jscad/modeling-for-manifold'],
 })
 await buildBundle(frameBuildDir, 'bundle.model_tree_manifold.js', {
+  ...FRAME_ESBUILD,
   format: 'cjs',
   watch: dev,
   loader: frameCjs,
   external: ['module', '@jscad/modeling-for-manifold'],
 })
 await buildBundle(frameBuildDir, 'bundle.model_tree_anchored_manifold.js', {
+  ...FRAME_ESBUILD,
   format: 'cjs',
   watch: dev,
   loader: frameCjs,
@@ -285,6 +294,7 @@ await buildBundle(frameBuildDir, 'bundle.model_tree_anchored_manifold.js', {
 // to the pinned checkout esbuild cannot otherwise resolve. '@jscad/modeling'
 // stays external: anchors wraps the tree the alias maps in at runtime.
 await buildBundle(frameBuildDir, 'bundle.jscad-anchors.js', {
+  ...FRAME_ESBUILD,
   format: 'cjs',
   watch: dev,
   loader: frameCjs,
@@ -313,6 +323,7 @@ await buildBundle(frameBuildDir, 'bundle.jscad_text.js', {
 // Frame worker: readFileWeb (origin-based) cannot work in the blob worker,
 // so substitute the map-aware loader — same shim pattern as the run app.
 await buildOne('src_frame', frameBuildDir, 'bundle.frame-worker.js', watch, {
+  ...FRAME_ESBUILD,
   format: 'iife',
   plugins: [{
     name: 'read-file-shim',
