@@ -257,6 +257,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   container.append(header, messagesEl, notice, statusEl, form)
 
   let running = false
+  let undoing = false
   // A Send that is waiting on the consent gate; another Send in the meantime
   // must not queue a second turn.
   let gating = false
@@ -371,11 +372,18 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   const isTurnOf = (key) => (m) => m.undo?.length > 0 && undoKey(m.undo) === key
   const markUndone = (messages, key) => messages.map((m) => (isTurnOf(key)(m) ? { ...m, undone: true } : m))
 
+  // Only the newest writing turn can be undone: restoring an older one would
+  // also drop every later turn's changes. Nothing is undone while a turn or
+  // another undo runs.
   const renderUndo = () => {
+    const newest = transcript.findLast((m) => m.undo?.length > 0)
     for (const button of messagesEl.querySelectorAll('.chat-undo')) {
-      const undone = transcript.find(isTurnOf(button.dataset.undo))?.undone === true
+      const msg = transcript.find(isTurnOf(button.dataset.undo))
+      const undone = msg?.undone === true
+      const superseded = !undone && msg !== newest
       button.textContent = undone ? 'Undone' : "Undo this turn's changes"
-      button.disabled = undone
+      button.disabled = undone || superseded || running || undoing
+      button.title = superseded ? 'A later turn changed the files' : ''
     }
   }
 
@@ -405,7 +413,9 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     button.type = 'button'
     button.dataset.undo = key
     button.addEventListener('click', async () => {
-      button.disabled = true
+      if (running || undoing) return
+      undoing = true
+      renderUndo()
       let restored = true
       try {
         for (const { projectId, versionId } of undo) {
@@ -418,8 +428,12 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         restored = false
         console.warn('chat: undo failed:', err)
       }
-      if (restored) await recordUndone(owner, key)
-      else button.disabled = false
+      try {
+        if (restored) await recordUndone(owner, key)
+      } finally {
+        undoing = false
+        renderUndo()
+      }
     })
     messagesEl.append(button)
     renderUndo()
@@ -688,6 +702,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     send.textContent = value ? 'Stop' : 'Send'
     send.setAttribute('aria-label', value ? 'Stop the reply' : 'Send the message')
     send.classList.toggle('running', value)
+    renderUndo()
     clearInterval(ticker)
     if (value) {
       startedAt = Date.now()

@@ -1692,6 +1692,55 @@ describe('undo this turn', () => {
     expect([reloaded.q('.chat-undo').textContent, reloaded.q('.chat-undo').disabled]).toEqual(['Undone', true])
   })
 
+  it('keeps only the newest writing turn undoable', async () => {
+    let n = 0
+    const endTurn = async () => [{ projectId: 'p1', versionId: `v${++n}` }]
+    const chat = openChat({ runTurnFn: writingTurn, projectId: 'p1', endTurn, restoreTurn: async () => true })
+    chat.type('one')
+    await vi.waitFor(() => expect(chat.q('.chat-send').textContent).toBe('Send'))
+    chat.type('two')
+    await vi.waitFor(() => expect(chat.q('.chat-send').textContent).toBe('Send'))
+    const [older, newer] = chat.container.querySelectorAll('.chat-undo')
+    expect([older.textContent, older.disabled, older.title]).toEqual(["Undo this turn's changes", true, 'A later turn changed the files'])
+    expect([newer.disabled, newer.title]).toEqual([false, ''])
+  })
+
+  it('keeps only the newest writing turn undoable after a reload', async () => {
+    const stored = [
+      { role: 'user', content: 'one' },
+      { role: 'assistant', content: 'Done', undo: [{ projectId: 'p1', versionId: 'v1' }] },
+      { role: 'user', content: 'two' },
+      { role: 'assistant', content: 'Done', undo: [{ projectId: 'p1', versionId: 'v2' }] },
+    ]
+    const storage = { readConversation: async () => ({ messages: stored }), writeConversation: async () => {} }
+    const { container, controls } = openChat({ storage, projectId: 'p1', restoreTurn: async () => true })
+    await controls.switchTo('p1')
+    const [older, newer] = container.querySelectorAll('.chat-undo')
+    expect([older.disabled, newer.disabled]).toEqual([true, false])
+  })
+
+  it('holds undo while a turn runs, and gives it back when the turn ends', async () => {
+    const restoreTurn = vi.fn(async () => true)
+    const stored = [
+      { role: 'user', content: 'one' },
+      { role: 'assistant', content: 'Done', undo: [{ projectId: 'p1', versionId: 'v1' }] },
+    ]
+    const storage = { readConversation: async () => ({ messages: stored }), writeConversation: async () => {} }
+    const turn = heldTurn()
+    const { q, type, controls } = openChat({ storage, projectId: 'p1', restoreTurn, runTurnFn: turn.runTurnFn })
+    await controls.switchTo('p1')
+    type('more')
+    await vi.waitFor(() => expect(turn.runTurnFn).toHaveBeenCalledTimes(1))
+    const button = q('.chat-undo')
+    expect(button.disabled).toBe(true)
+    button.disabled = false
+    button.click()
+    expect(restoreTurn).not.toHaveBeenCalled()
+    turn.release()
+    await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
+    expect(q('.chat-undo').disabled).toBe(false)
+  })
+
   // Storage that hands out copies, as rowboat does, so a stale message object is never the stored one.
   const copyingStorage = (store = {}) => ({
     store,

@@ -108,10 +108,14 @@ A transpiled `.scad` file exposes a clean JS surface:
 
 ## Undoing the assistant's changes
 
-After a turn in which the assistant wrote files to a saved project, an
-`Undo this turn's changes` button appears under its reply, and again when the
-conversation is reloaded. It restores the project to how it was before the
-turn and adds a `restore` entry to the version history, so nothing is lost.
-If the editor has unsaved edits, you are asked before they are discarded.
-Declining leaves the button in place. Once used, it stays as a disabled `Undone` after a reload. Projects stored only on disk have no
-version history and get no button.
+A turn that wrote files to a saved project gets an `Undo this turn's
+changes` button under its reply. It restores the project to how it was
+before the turn and adds a `restore` entry to the version history.
+
+- Only the newest such turn can be undone; once a later turn writes, the
+  earlier buttons are disabled.
+- The button is disabled while a turn runs.
+- If the editor has unsaved edits, you are asked once before they are
+  discarded. Declining leaves the button in place.
+- A used button reads `Undone`, also after a reload.
+- Projects stored only on disk have no version history and get no button.
