@@ -270,3 +270,33 @@ describe('local snapshotUnique', () => {
     expect((await store.listVersions('u2')).map((v) => v.message)).toEqual(['edit'])
   })
 })
+
+describe('local pinVersion', () => {
+  it('pins the newest row when it holds the stored files and is not coalescing', async () => {
+    const store = createLocalStorage()
+    await store.writeFiles('v1', { 'main.js': 'v1' }, { message: 'create', name: 'V', entry: 'main.js' })
+    const [create] = await store.listVersions('v1')
+    expect(await store.pinVersion('v1', { message: 'before chat' })).toBe(create.versionId)
+    expect(await store.listVersions('v1')).toHaveLength(1)
+  })
+
+  it('pins a new before chat row when the files changed since the newest row', async () => {
+    const store = createLocalStorage()
+    await store.writeFiles('v2', { 'main.js': 'v1' }, { message: 'create', name: 'V', entry: 'main.js' })
+    await store.writeFiles('v2', { 'main.js': 'v2' }, { message: 'edit', version: false })
+    const versionId = await store.pinVersion('v2', { message: 'before chat' })
+    const versions = await store.listVersions('v2')
+    expect(versions.map((v) => v.message)).toEqual(['before chat', 'create'])
+    expect(versions[0].versionId).toBe(versionId)
+    expect((await store.readVersion('v2', versionId)).files).toEqual({ 'main.js': 'v2' })
+  })
+
+  it('pins a new row over a coalescing edit row with the same files', async () => {
+    const store = createLocalStorage()
+    await store.writeFiles('v3', { 'main.js': 'v1' }, { message: 'edit', coalesceKey: 'edit', coalesceMs: 300000 })
+    const versionId = await store.pinVersion('v3', { message: 'before chat' })
+    const versions = await store.listVersions('v3')
+    expect(versions.map((v) => v.message)).toEqual(['before chat', 'edit'])
+    expect(versions[0].versionId).toBe(versionId)
+  })
+})
