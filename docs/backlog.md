@@ -163,6 +163,18 @@ Found by `e2e/ai-chat-tools.spec.js` (plan `docs/superpowers/plans/2026-10-17-ch
   (`server/src/search/` is the server's), so locally, and in every synthetic
   batch, `websearch` has only the browser-direct pool: no Tavily fallback and
   no working Tavily pin.
+- **No runtime test of `.scad` parts under fluent in the frame.** The frame
+  worker registers the fluent wrapper for `.scad` requires
+  (`src_frame/bundle.frame-worker.js`), but only the eval backend's path is
+  tested. An e2e run in CI of a fluent project that chains `.translate` on a
+  part from `Mini/mini.scad` would cover it.
+- **Multi-part `.scad` results stay plain Arrays under fluent.** A `.scad`
+  module that returns several parts gives an Array, so fluent code that
+  chains on it throws. Wrap it as `jf.geom3Array`/`jf.geom2Array` when the
+  items share a dimension (`packages/agent-loop/src/scadFluent.js`).
+- **No e2e test of the chat undo.** Unit tests stub `restoreTurn`; an e2e test
+  should click `.chat-undo` through the real `main.js` wiring (discard
+  confirm, `restoreVersion`, `switchProject`, `refreshHeader`).
 
 ## Chat review follow-ups (2026-10-19)
 
