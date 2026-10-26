@@ -247,8 +247,15 @@ fixed, the last in the modeling fork; these remain.
   stumble on the current harness; a new one joins only when a batch shows it
   does (`packages/agent-loop/synth/scenarios/`).
 - **Raise per-model concurrency in synthetic batches.** A lane runs one
-  session at a time per builder. Once session length is measured, run more
-  than one per model to fit the 7200 s CI cap.
+  session at a time per builder. Jobs on their own `SYNTH_PORT` now run side by
+  side (`ci/README.md`), each with its own 7200 s cap, but a slow model's
+  sessions within one job are still sequential; a lane running two sessions at
+  once would halve its wall time.
+- **Only one free model answers.** On 2026-10-26 opencode-go had retired
+  `longcat-2.5-preview-free` and `minimax-m3.1-flash-free` (HTTP 410), and
+  `iceman-contributor-free` answered 503, so batches run beam alone, mostly as
+  its own simulated user. Recheck the free list (`GET /zen/go/v1/models`)
+  before a batch and update `synth/roles.js` when it changes.
 
 ## Render sweep
 
@@ -711,10 +718,12 @@ from the 2026-10-01 review.
   copying dropped `ManifoldGeom2`/`ManifoldGeom3`'s prototype getters). Fixed
   by pinning jscad-fluent through `scripts/deps/sources.json`
   (`.deps-cache/jscad-fluent`, built by `fetch-sources.js`) instead of the npm
-  0.6.1 release; the pin is now 90bd6e7 on `main`, which also rejects raw
-  `{ points, faces }` data in constructors and booleans, and adds
-  the `@jscad/modeling` parity surface. Remaining work: publish jscad-fluent
-  0.7.0 from jscad-fluent's `main` to npm, then point `apps/jscad-web/package.json` and
+  0.6.1 release; the pin is now 30a6c769 on `feat/hull-and-points` (on top of
+  `feat/tree-nodes`, neither yet merged into jscad-fluent's `main`), which also
+  rejects raw `{ points, faces }` data in constructors and booleans, adds the
+  `@jscad/modeling` parity surface, tree-node operands, `jf.hull`,
+  `jf.hullChain` and `new jf.FluentGeom2(points)`. Remaining work: merge both
+  branches into jscad-fluent's `main`, publish 0.7.0 from it to npm, then point `apps/jscad-web/package.json` and
   `packages/agent-loop/package.json` back at the npm version and remove the
   `sources.json` entry (also its `jscad-anchors` entry, if fluent no longer
   needs it). Until then, the eval resolves fluent's `@jbroll/jscad-anchors`
