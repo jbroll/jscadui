@@ -449,6 +449,15 @@ describe('static lint warnings', () => {
     expect(res.warnings).toContainEqual(expect.objectContaining({ source: 'static', option: 'heigth', suggestions: ['height'] }))
   })
 
+  it('a syntax-gated write records its report as the last build', async () => {
+    const recordGated = vi.fn()
+    const { deps, tools: t } = tools({ loadIndex: async () => index, recordGated })
+    await t.write({ path: 'main.js', content: 'const x = ' })
+    expect(recordGated).toHaveBeenCalledTimes(1)
+    expect(recordGated).toHaveBeenCalledWith(expect.objectContaining({ ok: false, error: expect.objectContaining({ name: 'SyntaxError' }) }))
+    expect(deps.build).not.toHaveBeenCalled()
+  })
+
   it('run answers the static warnings of the snippet', async () => {
     const { tools: t } = tools({ loadIndex: async () => index })
     const res = await t.run(`cylindr({ radius: 1 })`)

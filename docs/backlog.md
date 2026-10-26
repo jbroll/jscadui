@@ -208,13 +208,6 @@ fixed, the last in the modeling fork; these remain.
 - **The starting example has no project build.** At `/` the boot example runs
   as a URL script, so `projectBuilds` holds nothing and a chat `measure` or
   `check` on it returns NoGeometryError until the agent writes a file.
-- **A syntax-gated write leaves the previous build as the last build.** A write
-  or edit refused by the static syntax check never reaches the frame, so
-  `projectBuilds` keeps the earlier good build and the next `measure` reports
-  the old geometry instead of NoGeometryError. The e2e spec
-  `ai-chat.spec.js` "writes, edits, builds and runs the project" dropped its
-  `refused` assertions for this. The eval backend (`eval/backend.js` `saved`)
-  does the same; `backend.test.js` pins it with an `it.fails` case.
 - **Opening a file renames the editor's buffer before its text loads.**
   `openTreeFile` (`src/editor.js`) sets `currentFile` to the new path, then
   awaits `readSource`. A Shift+Enter or Ctrl+S in that window runs and records

@@ -222,11 +222,12 @@ test.describe('AI chat', () => {
     expect(offered).not.toContain('eval')
 
     const results = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').map((m) => JSON.parse(m.content))
-    const [written, measured, broken, , fixed, ran] = results
+    const [written, measured, broken, refused, fixed, ran] = results
     expect(written).toMatchObject({ ok: true, entry: 'main.js', geometry: { dimensions: [10, 10, 10] } })
     expect(measured.dimensions).toEqual([10, 10, 10])
     expect(broken).toMatchObject({ ok: false, entry: 'main.js', error: { name: 'SyntaxError', file: 'main.js', line: 2 } })
-    // The measure after the broken edit should be NoGeometryError, but a syntax-gated write never reaches projectBuilds (docs/backlog.md).
+    expect(refused).toMatchObject({ ok: false, error: { name: 'NoGeometryError' } })
+    expect(refused.error.message).toMatch(/the last build failed/)
     expect(fixed).toMatchObject({ ok: true, geometry: { dimensions: [20, 20, 20] } })
     expect(ran).toMatchObject({ ok: true, console: ['scratch 42'] })
 

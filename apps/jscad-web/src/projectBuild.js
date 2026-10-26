@@ -101,6 +101,10 @@ export const createProjectBuilds = ({ measure, check, getApi = () => DEFAULT_API
     recordLoad: (url, outcome) => {
       last = typeof url === 'string' && url.startsWith(PROJECT_BASE) ? { entry: url.slice(PROJECT_BASE.length), ...outcome, report: null } : null
     },
+    /** A build that never ran, such as a write the syntax check refused: its failure report is the last build. */
+    recordReport: (built) => {
+      last = { entry: built.entry, report: Promise.resolve(built) }
+    },
     recordNoEntry: () => {
       last = { entry: null, report: null }
     },

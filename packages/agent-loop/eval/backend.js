@@ -365,6 +365,8 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
         next.path,
         buildReport({ entry, error: modelError(located, api), warnings: staticWarnings(diagnostics), console: [], params: [] }),
       )
+      meshed = null
+      current = { report: gated }
       if (!isCodePath(next.path)) return gated
       const { tests, coverageNote } = summarizeTestRun(await runEvalTests(files, api), gated.geometry?.parts)
       return { ...gated, ok: gated.ok && tests.ok, build: gated, tests, coverageNote }

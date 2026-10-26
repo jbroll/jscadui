@@ -37,6 +37,7 @@ const mergeStatic = (result, diagnostics) => {
  *   showFiles: (files:Record<string, string|ArrayBuffer>) => void,
  *   build: () => Promise<object>,
  *   noGeometry: () => Promise<object|null>,
+ *   recordGated?: (report:object) => void,
  *   workerApi: object,
  *   exportModel: (args:object) => Promise<object>,
  *   getProjectId: () => string,
@@ -56,6 +57,7 @@ export const createProjectTools = ({
   showFiles,
   build,
   noGeometry,
+  recordGated = () => {},
   workerApi,
   exportModel,
   getProjectId,
@@ -108,6 +110,7 @@ export const createProjectTools = ({
         ),
         diagnostics,
       )
+      recordGated(gated)
       if (!isCodePath(path)) return gated
       const createWorker = createTestWorker ?? defaultCreateWorker({})
       const run = await runProjectTests(files, getApi(), createWorker ? { createWorker } : {})

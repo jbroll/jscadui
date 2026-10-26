@@ -153,6 +153,13 @@ describe('createProjectBuilds', () => {
     expect(await b.report()).toBe(null)
   })
 
+  it('a recorded gated report is the last build, so measure answers the failure', async () => {
+    const b = builds()
+    b.recordLoad('http://project.local/main.js', { result: {} })
+    b.recordReport({ ok: false, entry: 'main.js', error: { name: 'SyntaxError', message: 'Syntax error in: x' }, warnings: [], console: [], params: [] })
+    expect((await b.noGeometry()).error.message).toMatch(/the last build failed/)
+  })
+
   it("lets measure, check and export run only on a build that succeeded, naming the failed build's error", async () => {
     const b = builds()
     expect(await b.noGeometry()).toEqual({ ok: false, error: { name: 'NoGeometryError', message: 'no geometry: write the model first' } })

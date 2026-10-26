@@ -1021,6 +1021,7 @@ const chatTools = createProjectTools({
     return projectBuilds.report()
   },
   noGeometry: projectBuilds.noGeometry,
+  recordGated: projectBuilds.recordReport,
   workerApi,
   exportModel: createExport((args) => workerApi.jscadExportData(args), { save: diskProject?.saveExport }),
   getProjectId: () => currentProjectId,

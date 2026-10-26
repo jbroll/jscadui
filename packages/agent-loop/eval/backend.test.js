@@ -493,8 +493,7 @@ module.exports = { main: () => part({ width: 10 }) }`
     }
   })
 
-  // Backlog: "A syntax-gated write leaves the previous build as the last build."
-  it.fails('answers measure after a syntax-gated write without the previous geometry', async () => {
+  it('answers measure after a syntax-gated write without the previous geometry', async () => {
     const backend = createEvalBackend()
     await writeMain(CUBE, backend)
     const gated = await writeMain('const main (params) => {}\nmodule.exports = { main }', backend)

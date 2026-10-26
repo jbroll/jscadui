@@ -1086,6 +1086,9 @@ drops the worker's
 file, line and column in the stack or, for a syntax error, in Babel's message.
 agent-loop's `assembleReport`, which the eval's builds go through too, puts
 the report together from that error or from `jscadMeasure` and `jscadCheck`.
+A write the static syntax check refuses never reaches the frame, so `save`
+hands its failure report to `recordReport`; that report becomes the last build
+and `measure` answers `NoGeometryError` instead of the earlier geometry.
 
 `measure`, `check` and `export` run only on a build that succeeded. Before
 any build, or after a failed one, they answer agent-loop's `noGeometryError`,
