@@ -44,6 +44,7 @@ const mergeStatic = (result, diagnostics) => {
  *   storeFile: (projectId:string, path:string, content:string) => Promise<unknown>,
  *   removeFile: (projectId:string, path:string) => Promise<unknown>,
  *   snapshot: (projectId:string, excerpt:string) => Promise<unknown>,
+ *   pinTurnStart?: (projectId:string) => Promise<string|null>,
  *   getApi?: () => string,
  *   loadIndex?: () => Promise<Array<object>|undefined>,
  *   createTestWorker?: () => Worker,
@@ -64,13 +65,25 @@ export const createProjectTools = ({
   storeFile,
   removeFile,
   snapshot,
-  getApi = () => DEFAULT_API,
+  pinTurnStart = async () => null,
+  getApi =() => DEFAULT_API,
   loadIndex = async () => undefined,
   createTestWorker,
 }) => {
   // The projects this turn wrote to.
   const written = new Set()
   let turnProject
+  // projectId -> promise of the version holding its files before this turn's first write.
+  const pinned = new Map()
+
+  const pinStart = (projectId) => {
+    if (!pinned.has(projectId)) {
+      const pin = pinTurnStart(projectId)
+      pinned.set(projectId, pin)
+      pin.catch(() => pinned.delete(projectId))
+    }
+    return pinned.get(projectId)
+  }
 
   const lint = async (content) => {
     if (typeof content !== 'string') return []
@@ -89,6 +102,7 @@ export const createProjectTools = ({
     if (turnProject !== undefined && projectId !== turnProject) {
       throw Object.assign(new Error('the user opened another project during this turn; nothing was written. Stop and tell the user.'), { name: 'ProjectSwitchedError' })
     }
+    await pinStart(projectId)
     await writeProjectFile(path, content)
     await storeFile(projectId, path, content)
     written.add(projectId)
@@ -143,6 +157,7 @@ export const createProjectTools = ({
     if (turnProject !== undefined && projectId !== turnProject) {
       throw Object.assign(new Error('the user opened another project during this turn; nothing was deleted. Stop and tell the user.'), { name: 'ProjectSwitchedError' })
     }
+    await pinStart(projectId)
     await removeProjectFile(removal.path)
     await removeFile(projectId, removal.path)
     written.add(projectId)
@@ -189,12 +204,17 @@ export const createProjectTools = ({
     exportModel: onBuild(exportModel),
     startTurn: () => {
       turnProject = getProjectId()
+      pinned.clear()
     },
     endTurn: async (excerpt = '') => {
+      const starts = []
       for (const projectId of [...written]) {
         written.delete(projectId)
+        starts.push({ projectId, versionId: (await pinned.get(projectId)) ?? null })
         await snapshot(projectId, excerpt)
       }
+      pinned.clear()
+      return starts
     },
   }
 }

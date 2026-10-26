@@ -219,7 +219,7 @@ const CHARS_PER_TOKEN = 4
  * `getSummarizer` picks the model that summarizes evicted turns; it defaults
  * to `getProvider`, so wiring a cheaper model is a selection swap, not a
  * change here.
- * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getSummarizer?:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,beforeToolCall?:Function,afterToolCall?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>,getBuild?:()=>Promise<object|null>,startTurn?:()=>void,endTurn?:(excerpt?:string)=>Promise<void>}} options
+ * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getSummarizer?:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,beforeToolCall?:Function,afterToolCall?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>,getBuild?:()=>Promise<object|null>,startTurn?:()=>void,endTurn?:(excerpt?:string)=>Promise<Array<{projectId:string,versionId:string|null}>|void>}} options
  */
 export const initChat = ({ container, requestTool, getProvider, getSummarizer = getProvider, getApi = () => DEFAULT_API, runTurnFn = defaultRunTurn, beforeToolCall, afterToolCall, websearchGranted = false, websearchLog = () => {}, websearchProvider, storage, projectId, getProjectFiles = async () => ({}), getBuild = async () => null, startTurn = () => {}, endTurn = async () => {} }) => {
   const header = el('div', 'chat-header')

@@ -180,7 +180,7 @@ describe('chat in the directory', () => {
     expect(s.server.puts()).toEqual(['/api/fs/lib/part.js', '/api/fs/main.js'])
     expect(s.server.text('lib/part.js')).toBe('p2')
     expect(s.server.text('main.js')).toContain('part(2)')
-    await expect(tools.endTurn()).resolves.toBeUndefined()
+    await expect(tools.endTurn()).resolves.toEqual([{ projectId: 'disk', versionId: null }])
     expect(await s.local.listProjects()).toEqual([])
   })
 
@@ -192,7 +192,7 @@ describe('chat in the directory', () => {
     await tools.deleteFile({ path: 'lib/part.js' })
     expect(s.server.files.has('lib/part.js')).toBe(false)
     expect((await s.fileSystem.projectFiles())['lib/part.js']).toBeUndefined()
-    await expect(tools.endTurn()).resolves.toBeUndefined()
+    await expect(tools.endTurn()).resolves.toEqual([{ projectId: 'disk', versionId: null }])
     expect(await s.local.listProjects()).toEqual([])
   })
 

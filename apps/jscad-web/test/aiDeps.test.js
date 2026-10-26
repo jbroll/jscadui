@@ -258,6 +258,67 @@ describe('storage', () => {
     }
   }
   const messages = async (local, id = 'p1') => (await local.listVersions(id)).map((v) => v.message)
+  const pinning = async (mode = 'local') => {
+    const base = await stored()
+    const session = createSession({ local: base.local, getBackend: () => 'local' })
+    const pinTurnStart = vi.fn(async (projectId) => {
+      if (mode === 'disk') return null
+      await session.snapshotUnique(projectId, { message: 'before chat' })
+      return (await session.listVersions(projectId))[0].versionId
+    })
+    return { ...base, pinTurnStart }
+  }
+
+  it("pins the state before a turn's first write, once", async () => {
+    const { local, storeFile, snapshot, pinTurnStart } = await pinning()
+    const { tools: t } = tools({ project: fakeProject({ 'main.js': 'v0' }), storeFile, snapshot, pinTurnStart })
+    await local.writeFiles('p1', { 'main.js': 'user edit' }, { message: 'edit', version: false })
+    t.startTurn()
+    await t.write({ path: 'main.js', content: 'v1' })
+    await t.write({ path: 'lib.js', content: 'lib' })
+    expect(pinTurnStart).toHaveBeenCalledTimes(1)
+    expect(pinTurnStart.mock.invocationCallOrder[0]).toBeLessThan(storeFile.mock.invocationCallOrder[0])
+    await t.endTurn()
+    const versions = await local.listVersions('p1')
+    expect(versions.map((v) => v.message)).toEqual(['chat', 'before chat', 'create'])
+    expect((await local.readVersion('p1', versions[1].versionId)).files).toEqual({ 'main.js': 'user edit' })
+  })
+
+  it('adds no row when the pre-turn state is already the newest version', async () => {
+    const { local, storeFile, snapshot, pinTurnStart } = await pinning()
+    const { tools: t } = tools({ project: fakeProject({ 'main.js': 'v0' }), storeFile, snapshot, pinTurnStart })
+    t.startTurn()
+    await t.write({ path: 'main.js', content: 'v1' })
+    expect(await messages(local)).toEqual(['create'])
+    expect(await t.endTurn()).toEqual([{ projectId: 'p1', versionId: (await local.listVersions('p1')).at(-1).versionId }])
+  })
+
+  it('endTurn answers the pinned start version of each project written', async () => {
+    const { local, storeFile, snapshot, pinTurnStart } = await pinning()
+    const { tools: t } = tools({ project: fakeProject({ 'main.js': 'v0' }), storeFile, snapshot, pinTurnStart })
+    await local.writeFiles('p1', { 'main.js': 'user edit' }, { message: 'edit', version: false })
+    t.startTurn()
+    await t.write({ path: 'main.js', content: 'v1' })
+    const pinned = (await local.listVersions('p1')).find((v) => v.message === 'before chat')
+    expect(await t.endTurn()).toEqual([{ projectId: 'p1', versionId: pinned.versionId }])
+  })
+
+  it('pins nothing for a turn that wrote nothing', async () => {
+    const { pinTurnStart } = await pinning()
+    const { tools: t } = tools({ pinTurnStart })
+    t.startTurn()
+    await t.run('console.log(1)')
+    expect(await t.endTurn()).toEqual([])
+    expect(pinTurnStart).not.toHaveBeenCalled()
+  })
+
+  it('answers null in disk mode', async () => {
+    const { storeFile, snapshot, pinTurnStart } = await pinning('disk')
+    const { tools: t } = tools({ project: fakeProject({ 'main.js': 'v0' }), storeFile, snapshot, pinTurnStart })
+    t.startTurn()
+    await t.write({ path: 'main.js', content: 'v1' })
+    expect(await t.endTurn()).toEqual([{ projectId: 'p1', versionId: null }])
+  })
 
   it('stores each write before it builds, so a reload mid-turn loses nothing', async () => {
     const { local, storeFile, snapshot } = await stored()

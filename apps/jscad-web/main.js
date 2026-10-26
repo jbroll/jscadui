@@ -1035,6 +1035,13 @@ const chatTools = createProjectTools({
     await storageSession.snapshot(projectId, { message: chatVersionMessage(excerptOf(excerpt ?? '')) })
     if (projectId === currentProjectId) refreshHeader()
   },
+  // The files as they stood before the turn's first write, for the undo.
+  // Folder projects keep history in git, so they pin nothing.
+  pinTurnStart: async (projectId) => {
+    if (projectManager.peekMode(projectId) === 'disk') return null
+    await storageSession.snapshotUnique(projectId, { message: 'before chat' })
+    return (await storageSession.listVersions(projectId))[0]?.versionId ?? null
+  },
   getApi: getChatApi,
   loadIndex: loadApiIndex,
 })
