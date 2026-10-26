@@ -4,7 +4,7 @@
 #
 #   sci push jscadui/synth
 #
-# Settings come from ci/synth.conf (SYNTH_BUILDERS, SYNTH_SCENARIOS, SYNTH_RUNS,
+# Settings come from ci/synth.conf (SYNTH_BUILDERS, SYNTH_SCENARIOS, SYNTH_RUNS, SYNTH_PORT,
 # SYNTH_DEADLINE_S); edit it in the working tree before pushing, since sci push
 # runs the tree as-is, uncommitted changes included. The opencode-go key comes
 # from the CI host user's ~/.config/jscad-chat/keys.json; see ci/README.md.
@@ -29,18 +29,25 @@ if ! node -e 'process.exit(require(process.argv[1])[process.argv[2]] ? 0 : 1)' "
   exit 1
 fi
 
-# Lane i serves its launcher and model directory on SYNTH_PORT + 10*i and +1;
-# three lanes from 5170. A server already there would be driven in place of ours.
-for p in 5170 5171 5180 5181 5190 5191; do
-  if curl -s -o /dev/null "http://localhost:$p/"; then
-    echo "ci/synth: something already serves :$p (another copy of this job?)" >&2
-    exit 2
-  fi
-done
-
 # shellcheck source=ci/synth.conf
 . "$WORKTREE/ci/synth.conf"
-export SYNTH_BUILDERS SYNTH_SCENARIOS SYNTH_RUNS SYNTH_DEADLINE_S
+export SYNTH_BUILDERS SYNTH_SCENARIOS SYNTH_RUNS SYNTH_DEADLINE_S SYNTH_PORT
+
+# Lane i serves its launcher and model directory on SYNTH_PORT + 10*i and +1.
+# Only this job's ports are checked, so jobs with their own SYNTH_PORT run side
+# by side; a server already on one would be driven in place of ours.
+lanes=3
+if [ -n "$SYNTH_BUILDERS" ]; then
+  lanes=$(( $(printf '%s' "$SYNTH_BUILDERS" | tr -cd ',' | wc -c) + 1 ))
+fi
+for ((i = 0; i < lanes; i++)); do
+  for p in $(( SYNTH_PORT + 10 * i )) $(( SYNTH_PORT + 10 * i + 1 )); do
+    if curl -s -o /dev/null "http://localhost:$p/"; then
+      echo "ci/synth: something already serves :$p (another job on the same SYNTH_PORT?)" >&2
+      exit 2
+    fi
+  done
+done
 export SYNTH_OUT="$WORKTREE/synth-results"
 mkdir -p "$SYNTH_OUT"
 

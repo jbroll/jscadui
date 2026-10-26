@@ -197,13 +197,20 @@ lanes × concurrency × 2G fits in three quarters of the host's memory.
 `sci push jscadui/synth` runs a batch of synthetic chat sessions
 (`apps/jscad-web/synth/run-batch.mjs`, `npm run synth`) through the real app:
 one lane per builder model, each with its own launcher, Chromium and ports
-`5170 + 10*i` and `+1`. The job refuses to start when anything serves 5170,
-5171, 5180, 5181, 5190 or 5191. Lanes build their own bundle, so no separate
-web build runs.
+`SYNTH_PORT + 10*i` and `+1` (`SYNTH_PORT` 5170 by default). The job refuses
+to start when anything serves one of its own lanes' ports. Lanes build their
+own bundle, so no separate web build runs.
 
 Settings are in `ci/synth.conf` (`SYNTH_BUILDERS`, `SYNTH_SCENARIOS`,
-`SYNTH_RUNS`, `SYNTH_DEADLINE_S`); `sci push` runs the working tree as-is, so
-edit the file before pushing and restore it afterwards. The `opencode-go` key
+`SYNTH_RUNS`, `SYNTH_DEADLINE_S`, `SYNTH_PORT`); `sci push` runs the working
+tree as-is, so edit the file before pushing and restore it afterwards.
+
+The slow free models (longcat, minimax) take 15 to 40 minutes a session, so a
+three-lane job reaches only a few of their scenarios before the 7200 s job
+timeout. To give each builder, or each share of the scenarios, its own
+timeout, push one job each with its own `SYNTH_BUILDERS`, `SYNTH_SCENARIOS`
+and a `SYNTH_PORT` range that does not overlap (5170, 5200, 5230, ...); jobs
+run side by side and each writes its own batch. The `opencode-go` key
 comes from the CI host user's `~/.config/jscad-chat/keys.json`, as for
 `ci/eval`; the job fails before any model call when it is missing.
 
