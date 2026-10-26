@@ -172,6 +172,16 @@ Found by `e2e/ai-chat-tools.spec.js` (plan `docs/superpowers/plans/2026-10-17-ch
   launcher, with the server's public-address and size guards, or drop
   `webfetch` from the offered tools when the relay is absent.
 
+- **Wrap `.scad` library results for fluent code.** A part from an OpenSCAD
+  library (`ball_bearing(...)` from BOSL2) is plain modeling geometry, so
+  fluent code that chains on it fails: 6 of beam's 15 failed calls in
+  synthetic batch `2026-10-26T13-20-06.243Z` (turret-gear-assembly), and the
+  same scenario in most batches before it, despite the hint naming
+  `new jf.FluentGeom3(shape)`. Under the fluent style, the require of a
+  `.scad` file could wrap its exported functions' geometry results in the jf
+  classes. That touches both require paths (`packages/worker/worker.js` and
+  `eval/backend.js`) and needs the API style in the worker.
+
 ## Chat review follow-ups (2026-10-19)
 
 From reviewing the 09-30 local and 10-19 production logs (chats bb17e98f,
