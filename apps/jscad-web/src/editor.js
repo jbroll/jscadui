@@ -281,8 +281,6 @@ const openTreeFile = async (path) => {
   if (path.replace(/^\//, '') === currentFile.replace(/^\//, '')) return
   // Navigating away from a dirty buffer reuses the whole-project discard gate.
   if (!(await confirmDiscard())) return
-  currentFile = path
-  if (editorFile) editorFile.textContent = path
   const buffered = buffer.isDirtyPath(path) ? path : buffer.isDirtyPath(String(path).replace(/^\//, '')) ? String(path).replace(/^\//, '') : null
   if (buffered !== null) {
     setSource(buffer.get(buffered), path, { clean: false })

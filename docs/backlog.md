@@ -206,13 +206,6 @@ fixed, the last in the modeling fork; these remain.
 - **The starting example has no project build.** At `/` the boot example runs
   as a URL script, so `projectBuilds` holds nothing and a chat `measure` or
   `check` on it returns NoGeometryError until the agent writes a file.
-- **Opening a file renames the editor's buffer before its text loads.**
-  `openTreeFile` (`src/editor.js`) sets `currentFile` to the new path, then
-  awaits `readSource`. A Shift+Enter or Ctrl+S in that window runs and records
-  the previous file's text under the new path: CI job `307e742294b99116` ran
-  `/cube/index.js` with the boot example's source and stored it as an edit.
-  Set the path only when the new text is in the view. `harness-hook.spec.js`
-  waits for the text before Shift+Enter, as `project-ui.spec.js` does.
 - **`extrudeRotate` flips a sweep that crosses 2π (`@jscad/modeling`).** When
   `startAngle + angle` passes TAU it wraps the end and swaps the two ends, so
   the sweep lands on the opposite side. The fork's `torus` (74f2355a) passes a

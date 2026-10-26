@@ -3,6 +3,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as editor from '../src/editor.js'
 
+const slowRead = vi.hoisted(() => ({ pending: null }))
+vi.mock('@jscadui/fs-provider', async () => {
+  const actual = await vi.importActual('@jscadui/fs-provider')
+  return { ...actual, readAsText: (file) => slowRead.pending ?? actual.readAsText(file) }
+})
+
 // jsdom has no layout, so CodeMirror's post-edit measure calls getClientRects
 // on a text range, which jsdom does not implement.
 Range.prototype.getClientRects ??= () => []
@@ -106,6 +112,25 @@ describe('file tree', () => {
     document.querySelector('#editor-files [data-path="/helper.js"] .file-open').click()
     await vi.waitFor(() => expect(editor.getSource()).toBe('helper code'))
     expect(editor.getPath()).toBe('/helper.js')
+  })
+
+  it("keeps the open file's path until the clicked file's text is in", async () => {
+    initEditor({ 'main.js': 'main code', 'helper.js': 'helper code' })
+    editor.setSource('main code', '/main.js')
+    editor.setFiles([entryOf('main.js', 'main code'), entryOf('helper.js', 'helper code')], { keepBuffers: true })
+    let resolve
+    slowRead.pending = new Promise((r) => { resolve = r })
+    try {
+      document.querySelector('#editor-files [data-path="/helper.js"] .file-open').click()
+      await Promise.resolve()
+      expect(editor.getPath()).toBe('/main.js')
+      expect(document.getElementById('editor-file').textContent).toBe('/main.js')
+      resolve('helper text')
+      await vi.waitFor(() => expect(editor.getPath()).toBe('/helper.js'))
+      expect(editor.getSource()).toBe('helper text')
+    } finally {
+      slowRead.pending = null
+    }
   })
 
   it('delegates a tree delete to the injected action after the confirm', async () => {
