@@ -2,7 +2,7 @@ import type { Express, Request, Response } from 'express'
 import { readdirSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { loadAllowlistFile } from './allowlist.js'
-import { createChatLog } from './chatLog.js'
+import { CHAT_LOG_FILE, createChatLog } from './chatLog.js'
 import { createMeter } from './meter.js'
 import { RATE_PER_MIN, createLimiter, isTrustedRequest } from './policy.js'
 import { DEFAULT_INFERENCE_PATH, loadInferenceFile } from './inference.js'
@@ -28,17 +28,16 @@ export interface RelayRouteOptions {
 }
 
 const DEFAULT_CHAT_LOG_DIR = './data/chat-logs'
-const DEFAULT_CHAT_LOG_RETAIN_DAYS = 90
+export const DEFAULT_CHAT_LOG_RETAIN_DAYS = 90
 const DEFAULT_SPEND_PATH = './data/relay-spend.json'
 const INFERENCE_CACHE_MS = 5_000
 const DAY_MS = 24 * 60 * 60 * 1000
-// One file per UTC day, named after that day, so retention reads the names.
-const LOG_FILE_NAME = /^\d{4}-\d{2}-\d{2}\.jsonl$/
+const MAX_CHAT_LOG_RETAIN_DAYS = 3650
 
 const resolveRetainDays = (override?: number) => {
-  if (override !== undefined) return override
-  const fromEnv = Number(process.env.CHAT_LOG_RETAIN_DAYS)
-  return Number.isFinite(fromEnv) ? fromEnv : DEFAULT_CHAT_LOG_RETAIN_DAYS
+  const raw = override ?? (process.env.CHAT_LOG_RETAIN_DAYS?.trim() ? Number(process.env.CHAT_LOG_RETAIN_DAYS) : NaN)
+  if (!Number.isFinite(raw)) return DEFAULT_CHAT_LOG_RETAIN_DAYS
+  return Math.min(MAX_CHAT_LOG_RETAIN_DAYS, Math.max(1, Math.floor(raw)))
 }
 
 /**
@@ -55,7 +54,7 @@ const pruneChatLogs = (dir: string, days: number, now = Date.now()) => {
     return
   }
   for (const name of names) {
-    if (!LOG_FILE_NAME.test(name) || name.slice(0, 10) >= oldest) continue
+    if (!CHAT_LOG_FILE.test(name) || name.slice(0, 10) >= oldest) continue
     try {
       unlinkSync(join(dir, name))
     } catch {

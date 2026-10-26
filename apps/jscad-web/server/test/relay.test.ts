@@ -4,7 +4,8 @@ import request from 'supertest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { mountRelayRoutes } from '../src/relay/routes.js'
+import { appendChatRecord, chatLogFileName } from '../src/relay/chatLog.js'
+import { DEFAULT_CHAT_LOG_RETAIN_DAYS, mountRelayRoutes } from '../src/relay/routes.js'
 
 const dir = join(tmpdir(), `relay-routes-${process.pid}`)
 mkdirSync(dir, { recursive: true })
@@ -305,6 +306,54 @@ describe('chat logging', () => {
     relayApp([], { chatLogDir: logDir, chatLogRetainDays: 90 })
 
     expect(readdirSync(logDir).sort()).toEqual([`${day(0)}.jsonl`, `${day(89)}.jsonl`, 'notes.txt'].sort())
+  })
+
+  it('prunes the files the writer names', () => {
+    const logDir = tmpLogDir()
+    const ts = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString()
+    appendChatRecord(logDir, { ts: ts(200) })
+    appendChatRecord(logDir, { ts: ts(0) })
+
+    relayApp([], { chatLogDir: logDir, chatLogRetainDays: 90 })
+
+    expect(readdirSync(logDir)).toEqual([chatLogFileName(ts(0))])
+  })
+
+  describe('retention window', () => {
+    const day = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10)
+    const withEnv = (value: string, run: () => void) => {
+      const had = process.env.CHAT_LOG_RETAIN_DAYS
+      process.env.CHAT_LOG_RETAIN_DAYS = value
+      try {
+        run()
+      } finally {
+        if (had === undefined) delete process.env.CHAT_LOG_RETAIN_DAYS
+        else process.env.CHAT_LOG_RETAIN_DAYS = had
+      }
+    }
+    const filesAfter = (value: string, ages: number[]) => {
+      const logDir = tmpLogDir()
+      for (const age of ages) writeFileSync(join(logDir, `${day(age)}.jsonl`), '{}\n')
+      withEnv(value, () => relayApp([], { chatLogDir: logDir }))
+      return readdirSync(logDir).sort()
+    }
+
+    it('keeps today when the value is negative', () => {
+      expect(filesAfter('-5', [0])).toEqual([`${day(0)}.jsonl`])
+    })
+
+    it('mounts without throwing when the value is huge', () => {
+      expect(filesAfter('1e9', [0, 4000])).toEqual([`${day(0)}.jsonl`])
+    })
+
+    it('keeps the default window when the value is empty', () => {
+      const inside = DEFAULT_CHAT_LOG_RETAIN_DAYS - 1
+      expect(filesAfter('', [inside, DEFAULT_CHAT_LOG_RETAIN_DAYS + 1])).toEqual([`${day(inside)}.jsonl`])
+    })
+
+    it('floors a fraction', () => {
+      expect(filesAfter('1.9', [0, 1, 3])).toEqual([`${day(1)}.jsonl`, `${day(0)}.jsonl`].sort())
+    })
   })
 
   it('aborts the upstream request when the page closes the connection', async () => {

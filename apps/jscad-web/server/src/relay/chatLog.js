@@ -28,6 +28,12 @@ export const toLogRequest = (buf) => {
   }
 }
 
+/** @param {string} ts a full ISO timestamp */
+export const chatLogFileName = (ts) => `${ts.slice(0, 10)}.jsonl`
+
+/** The names `chatLogFileName` produces; retention deletes only these. */
+export const CHAT_LOG_FILE = /^\d{4}-\d{2}-\d{2}\.jsonl$/
+
 /**
  * Appends one JSONL line named by the record's UTC day, creating the directory.
  * A failed write warns and continues: the log must never fail the request it
@@ -40,7 +46,7 @@ export const toLogRequest = (buf) => {
 export const appendChatRecord = (dir, record, { warn = console.warn } = {}) => {
   try {
     mkdirSync(dir, { recursive: true })
-    appendFileSync(join(dir, `${record.ts.slice(0, 10)}.jsonl`), `${JSON.stringify(record)}\n`)
+    appendFileSync(join(dir, chatLogFileName(record.ts)), `${JSON.stringify(record)}\n`)
     return true
   } catch (err) {
     warn(`jscad: chat log write failed (${err instanceof Error ? err.message : String(err)}); continuing without it`)

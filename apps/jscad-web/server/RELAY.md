@@ -200,7 +200,9 @@ POST: `{ts, chatId, kind, path, status, request, response, ms}`, plus
 `inference` (the free option's id) and `costUsd` for a free turn. The request
 body drops `tools` (large and re-derivable). The production relay's directory is
 `CHAT_LOG_DIR`, default `./data/chat-logs`; `0` turns logging off. It keeps
-`CHAT_LOG_RETAIN_DAYS` (default 90) day files and prunes the rest. An own-key
+`CHAT_LOG_RETAIN_DAYS` (default 90) day files and prunes the rest. The value is
+a whole number of days from 1 to 3650: a fraction is floored, anything outside
+the range is clamped, and an empty or non-numeric value means the default. An own-key
 turn is written only when the request carries `x-jscad-chat-id`, which the
 client omits when the user opts out; a free turn is always written. A failed
 write warns and never fails the request it describes.

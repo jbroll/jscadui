@@ -113,14 +113,6 @@ Deferred from the jscad-web inference reframe reviews (`feat/jscad-inference-rel
   exceeds the loop's `DEFAULT_MAX_ROUNDS` (32), and the app's default project
   adds a file the eval backend lacks. Follow-up owns the coverage decision
   (trim `PARITY_ROUNDS`, raise the cap, or seed the eval project).
-- **Retention filename coupling is untested.** `server/src/relay/routes.ts`
-  hard-codes `/^\d{4}-\d{2}-\d{2}\.jsonl$/` while the writer's convention
-  lives in `server/src/relay/chatLog.js`; if the layout ever changes,
-  pruning silently stops matching. Add a cross test or share a
-  `logFileName(ts)` helper.
-- **Clamp `CHAT_LOG_RETAIN_DAYS`.** A negative value prunes everything
-  including today; a huge value throws `RangeError` at boot
-  (`server/src/relay/routes.ts`).
 - **Client abort during connect logs a misleading 502.** A free close
   before the fetch settles is recorded as `upstream unreachable` with no
   `error` field; distinguish `client closed` for the `chat-review` loop.

@@ -2,9 +2,17 @@ import { describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { appendChatRecord, createChatLog, teeRelayUpstream, toLogRequest } from '../src/relay/chatLog.js'
+import { CHAT_LOG_FILE, appendChatRecord, chatLogFileName, createChatLog, teeRelayUpstream, toLogRequest } from '../src/relay/chatLog.js'
 
 const record = (ts, extra = {}) => ({ ts, chatId: 'c', kind: 'openai', path: 'v1/chat/completions', status: 200, request: {}, response: 'x', ms: 1, ...extra })
+
+describe('chatLogFileName', () => {
+  it('names the UTC day and matches CHAT_LOG_FILE', () => {
+    expect(chatLogFileName('2026-09-27T23:59:59.999Z')).toBe('2026-09-27.jsonl')
+    expect(CHAT_LOG_FILE.test(chatLogFileName('2026-09-27T10:00:00.000Z'))).toBe(true)
+    expect(CHAT_LOG_FILE.test('notes.txt')).toBe(false)
+  })
+})
 
 describe('appendChatRecord', () => {
   it('writes one JSON line per record to a file named by the UTC day, creating the dir', () => {
