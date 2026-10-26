@@ -196,6 +196,8 @@ fixed, the last in the modeling fork; these remain.
   the next turn's request carried only the clobbered snapshot, so the agent
   could not restore it. Needs undo or history for agent writes in the app, and
   `view` of a scratch model so experiments need no save.
+- **Async work a snippet does not await outlives its build context.** It runs
+  after the scratch run's build context closes (`packages/worker/worker.js`).
 - **Build and scratch contexts can restore out of order.** `jscadMain` and a
   scratch run that interleave across awaits each restore
   `globalThis.__jscadBuild` from what they saw on entry.
