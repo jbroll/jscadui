@@ -130,7 +130,8 @@ const loadState = (statePath: string): SpendState | null => {
       typeof parsed.monthSpent !== 'number' ||
       typeof parsed.day !== 'string' ||
       parsed.ipSpend === null ||
-      typeof parsed.ipSpend !== 'object'
+      typeof parsed.ipSpend !== 'object' ||
+      !Object.values(parsed.ipSpend).every((v) => typeof v === 'number' && Number.isFinite(v))
     ) {
       throw new Error('unexpected shape')
     }

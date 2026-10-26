@@ -62,6 +62,7 @@ const buildApp = ({
   logs = [],
   logDir,
   spend,
+  spendRaw,
   dnsLookup = async () => [{ address: '93.184.216.34' }],
   onClose,
 }: {
@@ -69,6 +70,7 @@ const buildApp = ({
   logs?: unknown[]
   logDir?: string
   spend?: unknown
+  spendRaw?: string
   dnsLookup?: (host: string) => Promise<Array<{ address: string }>>
   /** Fires when the response closes, so a test can await the server seeing a client leave. */
   onClose?: () => void
@@ -80,6 +82,7 @@ const buildApp = ({
   if (config !== undefined) writeFileSync(inferencePath, config)
   const spendPath = join(dir, 'relay-spend.json')
   if (spend !== undefined) writeFileSync(spendPath, JSON.stringify(spend))
+  if (spendRaw !== undefined) writeFileSync(spendPath, spendRaw)
   const app = express()
   // index.ts parses the body before mounting the relay.
   app.use(express.json())
@@ -369,6 +372,23 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     const second = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })
     expect(second.status).toBe(402)
     expect(second.body).toEqual({ error: { code: 'inference_quota_exhausted', scope: 'day', message: expect.any(String) } })
+  })
+
+  it('a corrupt spend file leaves the relay up and the free models answering 503', async () => {
+    fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
+    const logs: unknown[] = []
+    const { app: mounted } = buildApp({ config: inferenceJson(), logs, spendRaw: '{' })
+    const free = await post(mounted, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })
+    expect(free.status).toBe(503)
+    expect(free.body).toEqual({ error: 'free models unavailable: the spend state could not be read' })
+    expect(logs.filter((l) => (l as { event?: string }).event === 'meter-unavailable')).toHaveLength(1)
+    const keyed = await request(mounted)
+      .post('/api/relay/opencode-go/v1/chat/completions')
+      .set('Origin', 'https://app.test')
+      .set('Authorization', 'Bearer user-key')
+      .send({ model: 'm', messages: [] })
+    expect(keyed.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('refuses a spent month with scope month before any rewrite', async () => {

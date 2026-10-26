@@ -119,13 +119,9 @@ Deferred from the jscad-web inference reframe reviews (`feat/jscad-inference-rel
 - **Weak inference-option validation.** Filter on more than `id` + `model` so a
   label-less option cannot render a bare model id
   (`src/aiAccount.js`).
-- **Meter hardening.** Reject non-numeric `ipSpend` values on state load
-  (a string bucket never trips); pin the non-2xx estimate-charge path with
+- **Meter hardening.** Pin the non-2xx estimate-charge path with
   a test; handle hex-form IPv4-mapped addresses in `ipGroup`
   (`server/src/relay/meter.ts`).
-- **Corrupt spend file stops the whole server**, including auth/sync.
-  Consider failing closed on the free hook only
-  (`server/src/relay/routes.ts`).
 - **No global in-flight cap on the free hook**; a client holding several
   IPv6 /64s multiplies the overshoot bound. Operator-visible ceiling only.
 - **`available` reflects the month budget only**; daily-capped users learn

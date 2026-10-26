@@ -110,7 +110,13 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
   // a restart.
   const inferencePath = options.inferencePath ?? process.env.RELAY_INFERENCE ?? DEFAULT_INFERENCE_PATH
   const spendPath = options.inferenceSpendPath ?? process.env.RELAY_SPEND_PATH ?? DEFAULT_SPEND_PATH
-  const meter = createMeter({ statePath: spendPath, now: options.now })
+  // A bad spend file must stop only the free models, not the whole server.
+  let meter: ReturnType<typeof createMeter> | null = null
+  try {
+    meter = createMeter({ statePath: spendPath, now: options.now })
+  } catch (error) {
+    logger({ event: 'meter-unavailable', error: error instanceof Error ? error.message : String(error) })
+  }
   let inferenceCache: { at: number; path: string; config: ReturnType<typeof loadInferenceFile> } | null = null
   const readInference = (): ReturnType<typeof loadInferenceFile> => {
     const at = Date.now()

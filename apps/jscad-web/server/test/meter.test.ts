@@ -105,6 +105,12 @@ describe('meter budgets', () => {
     expect(reloaded.check('203.0.113.7', budgets)).toEqual({ ok: false, scope: 'day' })
   })
 
+  it('refuses a state whose ipSpend holds a string', () => {
+    const statePath = join(tmp(), 'relay-spend.json')
+    writeFileSync(statePath, JSON.stringify({ month: '2026-10', monthSpent: 0, day: '2026-10-15', ipSpend: { '1.2.3.4': '9' } }))
+    expect(() => createMeter({ statePath, now: () => NOW })).toThrow(/corrupt/)
+  })
+
   it('writes the state file through a temp file then a rename', () => {
     const dir = tmp()
     const statePath = join(dir, 'relay-spend.json')

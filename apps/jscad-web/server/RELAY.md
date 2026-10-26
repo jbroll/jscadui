@@ -180,9 +180,11 @@ UTC day, so a restart does not hand out the budget again. The group is the
 whole IPv4 address or the `/64` of an IPv6 address, since one household or
 phone can use a whole `/64`. A turn is charged from the stream's `usage` (or
 estimated from bytes when it carried none) at the option's prices, and is
-written atomically (temp file + rename). A corrupt or unreadable file stops the
-relay rather than resetting the meter; a failed write warns and keeps spend in
-memory.
+written atomically (temp file + rename). A corrupt or unreadable file (including a
+non-numeric per-IP amount) never resets the meter: the relay logs
+`meter-unavailable` once at startup, the free models answer `503` and the
+catalog marks them unavailable, and keyed providers and the rest of the server
+keep working. A failed write warns and keeps spend in memory.
 
 ## Body limit
 

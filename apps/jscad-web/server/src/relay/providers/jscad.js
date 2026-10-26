@@ -65,7 +65,7 @@ export const jscadHook = {
       res.json([])
       return
     }
-    const available = ctx.meter.available({ monthlyUsd: config.monthlyUsd, perIpDailyUsd: config.perIpDailyUsd })
+    const available = ctx.meter !== null && ctx.meter.available({ monthlyUsd: config.monthlyUsd, perIpDailyUsd: config.perIpDailyUsd })
     res.json(config.options.map((o) => ({ id: o.id, kind: o.kind, model: o.model, available, capabilities: { vision: o.vision === true } })))
   },
 
@@ -96,9 +96,14 @@ export const jscadHook = {
       res.status(404).json({ error: 'unknown inference option' })
       return
     }
+    const meter = ctx.meter
+    if (!meter) {
+      res.status(503).json({ error: 'free models unavailable: the spend state could not be read' })
+      return
+    }
     const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown'
     const budgets = { monthlyUsd: config.monthlyUsd, perIpDailyUsd: config.perIpDailyUsd }
-    const quota = ctx.meter.check(ip, budgets)
+    const quota = meter.check(ip, budgets)
     if (!quota.ok) {
       const scope = quota.scope
       res.status(402).json({
@@ -183,7 +188,7 @@ export const jscadHook = {
         // The client left after the request went upstream, where the provider can
         // still bill for the prompt it received, so charge the input estimate.
         const cost = costUsd({ inputTokens: estimateTokens(Buffer.byteLength(bodyText)), outputTokens: 0 }, option)
-        ctx.meter.charge(ip, cost)
+        meter.charge(ip, cost)
         tee.finish(499, { error: 'client closed', inference: option.id, costUsd: cost })
       } else {
         // Never connected, so nothing was sent and nothing is charged.
@@ -216,7 +221,7 @@ export const jscadHook = {
             { inputTokens: estimateTokens(Buffer.byteLength(bodyText)), outputTokens: estimateTokens(Buffer.byteLength(responseText)) },
             option,
           )
-      ctx.meter.charge(ip, cost)
+      meter.charge(ip, cost)
       tee.finish(status, { ...(error ? { error } : {}), inference: option.id, costUsd: cost })
       release()
     }

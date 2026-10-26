@@ -21,7 +21,7 @@ export const JSCAD_WEB_KIND = 'jscad-web'
  * @property {() => Record<string, string>} readAllowlist
  * @property {{ write(record: Record<string, unknown>): void } | null} log
  * @property {() => import('../inference.js').InferenceConfig} readInference
- * @property {import('../meter.js').Meter} meter
+ * @property {import('../meter.js').Meter | null} meter
  * @property {Map<string, number>} inFlight
  */
 
