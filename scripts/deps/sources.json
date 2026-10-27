@@ -10,18 +10,18 @@
     },
     {
       "name": "jscad-anchors",
-      "description": "@jbroll/jscad-anchors; jscad-fluent's file:../jscad-anchors sibling devDependency",
+      "description": "@jbroll/jscad-anchors 0.2.1; jscad-fluent's file:../jscad-anchors sibling devDependency",
       "url": "https://github.com/jbroll/jscad-anchors.git",
       "ref": "local-packages",
-      "commit": "a2c4b6c456e2ef232278eea720e46b4f8e9b0ac6",
+      "commit": "82c726a992c7d0a35c16f09d1fb9878e7c50cc86",
       "build": ["npm ci", "npm run build"]
     },
     {
       "name": "jscad-fluent",
-      "description": "@jbroll/jscad-fluent fork, pinned ahead of npm for @jscad/modeling parity",
+      "description": "@jbroll/jscad-fluent v0.7.1, built from source against the pinned modeling and anchors checkouts",
       "url": "https://github.com/jbroll/jscad-fluent.git",
-      "ref": "feat/hull-and-points",
-      "commit": "30a6c769863431c153669a92c08b2efdf8bd5560",
+      "ref": "main",
+      "commit": "4a52ef3a43e7759471e02ba1748ed412c265d514",
       "build": ["npm ci", "npm run build"]
     }
   ]

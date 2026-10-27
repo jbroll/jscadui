@@ -682,24 +682,14 @@ from the 2026-10-01 review.
   out on a CI scratch tree); the `@jscad/modeling` and
   `@jscad/modeling-for-manifold` links share one realpath, which is where
   arborist's link lookup runs.
-- **jscad-fluent 0.7.0 not yet published.** `extrudeLinear`/`extrudeRotate`/`offset`
-  on a `FluentGeom2` used to crash under the manifold engine (`Object.assign`
-  copying dropped `ManifoldGeom2`/`ManifoldGeom3`'s prototype getters). Fixed
-  by pinning jscad-fluent through `scripts/deps/sources.json`
-  (`.deps-cache/jscad-fluent`, built by `fetch-sources.js`) instead of the npm
-  0.6.1 release; the pin is now 30a6c769 on `feat/hull-and-points` (on top of
-  `feat/tree-nodes`, neither yet merged into jscad-fluent's `main`), which also
-  rejects raw `{ points, faces }` data in constructors and booleans, adds the
-  `@jscad/modeling` parity surface, tree-node operands, `jf.hull`,
-  `jf.hullChain` and `new jf.FluentGeom2(points)`. Remaining work: merge both
-  branches into jscad-fluent's `main`, publish 0.7.0 from it to npm, then point `apps/jscad-web/package.json` and
-  `packages/agent-loop/package.json` back at the npm version and remove the
-  `sources.json` entry (also its `jscad-anchors` entry, if fluent no longer
-  needs it). Until then, the eval resolves fluent's `@jbroll/jscad-anchors`
-  to the pinned sibling checkout (a2c4b6c, tree-node support plus the earlier
-  unreleased manifold anchor fixes) while the frame serves the local
-  `bundle.jscad-anchors.js` build of the same checkout (`frameHost.js:18`),
-  so eval results for anchor models may differ from the app.
+- **jscad-fluent and jscad-anchors come from source, not npm.**
+  `scripts/deps/sources.json` pins the released commits (fluent v0.7.1
+  `4a52ef3a` on `main`, anchors 0.2.1 `82c726a9` on `local-packages`), and
+  `fetch-sources.js` builds them into `.deps-cache`. Switching
+  `apps/jscad-web` and `packages/agent-loop` to the npm packages is untried:
+  anchors 0.2.x peers on `@jscad/modeling` as an alias of
+  `npm:@jbroll/jscad-modeling`, which may not accept the root's `file:` link
+  to `.deps-cache/OpenJSCAD.org`.
 - **Eval cannot load `@jbroll/jscad-anchors` (agent-loop).** It is not
   installed, so model code requiring it fails in `eval/backend.js` while the
   frame serves its local `bundle.jscad-anchors.js` build.
