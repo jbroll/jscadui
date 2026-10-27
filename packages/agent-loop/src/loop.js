@@ -6,6 +6,7 @@ import { DEFAULT_API } from './api.js'
 import { CONTEXT_BUDGET } from './context.js'
 import { argumentsError } from './toolArguments.js'
 import { AWAITS_USER, buildTools, READ_ONLY } from './tools.js'
+import { userImageChars } from './userImages.js'
 
 const DEFAULT_TOOL_TIMEOUT_MS = 120_000
 
@@ -57,22 +58,22 @@ export const capToolResult = (content) =>
     : content
 
 // The relay fronts the provider with a 1MB JSON body limit, and past it answers
-// 413 (apps/jscad-web/server/src/relay/body.ts). Only the newest view keeps its
-// pixels (see pruneViewImages), but one call may still ask for four renders, so
-// their data URLs are summed and the oldest dropped until they fit this budget;
-// the newest is always kept. Every shot's camera stub survives as text, so the
-// model still learns which views it took and can re-ask for a dropped one.
+// 413 (apps/jscad-web/server/src/relay/body.ts). This bounds all the image data
+// URLs one request carries: the user's own images come first, and a view's
+// renders get what they leave, oldest dropped first, the newest always kept.
+// Every shot's camera stub survives as text, so the model still learns which
+// views it took and can re-ask for a dropped one.
 export const MAX_VIEW_IMAGE_CHARS = 700_000
 
-// The newest images that fit `MAX_VIEW_IMAGE_CHARS`, in their original order.
-const imagesWithinBudget = (images) => {
+// The newest images that fit `budget`, in their original order.
+const imagesWithinBudget = (images, budget) => {
   const kept = []
   let chars = 0
   for (let i = images.length - 1; i >= 0; i -= 1) {
     const image = images[i]
     const size = typeof image?.dataUrl === 'string' ? image.dataUrl.length : 0
     // Always keep at least the newest image, even alone over budget.
-    if (kept.length > 0 && chars + size > MAX_VIEW_IMAGE_CHARS) break
+    if (kept.length > 0 && chars + size > budget) break
     kept.push(image)
     chars += size
   }
@@ -83,16 +84,16 @@ const imagesWithinBudget = (images) => {
 // beside a small text stub of the cameras actually used. The stub stays text
 // so camera history survives pruning and counts toward the turn's text budget;
 // the image parts bypass the cap and are dropped from superseded views.
-const viewPartsOf = (result) =>
+const viewPartsOf = (result, budget) =>
   result !== null && typeof result === 'object' && Array.isArray(result.shots)
     ? {
         content: JSON.stringify({ ok: result.ok ?? true, cameras: result.shots.map((shot) => shot.camera) }),
-        images: imagesWithinBudget(result.shots.map((shot) => shot.image)),
+        images: imagesWithinBudget(result.shots.map((shot) => shot.image), budget),
       }
     : null
 
-const asToolMessage = (call, content) => {
-  const parts = typeof content === 'string' ? null : viewPartsOf(content)
+const asToolMessage = (call, content, budget = MAX_VIEW_IMAGE_CHARS) => {
+  const parts = typeof content === 'string' ? null : viewPartsOf(content, budget)
   if (!parts) return { role: 'tool', toolCallId: call.id, content }
   return { role: 'tool', toolCallId: call.id, content: parts.content, images: parts.images }
 }
@@ -101,13 +102,16 @@ const asToolMessage = (call, content) => {
 // image parts (their camera stubs stay in `content`) so a turn never resends
 // renders it can no longer act on. Runs after each round; the tool messages
 // here are this turn's own, so dropping keys cannot touch the caller's input.
+// User images are the caller's and stay: buildMessages already pruned them.
+const isViewMessage = (message) => message.role === 'tool' && Array.isArray(message.images) && message.images.length > 0
+
 const pruneViewImages = (messages) => {
   let last = -1
   for (let i = 0; i < messages.length; i += 1) {
-    if (Array.isArray(messages[i].images) && messages[i].images.length > 0) last = i
+    if (isViewMessage(messages[i])) last = i
   }
   for (let i = 0; i < last; i += 1) {
-    if (Array.isArray(messages[i].images) && messages[i].images.length > 0) {
+    if (isViewMessage(messages[i])) {
       const { images: _images, ...rest } = messages[i]
       messages[i] = rest
     }
@@ -259,6 +263,7 @@ export const runTurn = (options) => {
   const capFinalAnswer = options.capFinalAnswer ?? true
   const tools = typeof options.toolFilter === 'function' ? buildTools(options.api ?? DEFAULT_API, { vision: options.vision }).filter((tool) => options.toolFilter(tool.name)) : buildTools(options.api ?? DEFAULT_API, { vision: options.vision })
   const messages = [...conversation.messages]
+  const viewImageBudget = Math.max(0, MAX_VIEW_IMAGE_CHARS - userImageChars(messages))
   let rounds = 0
   let resultChars = 0
   const repeats = new Map()
@@ -446,7 +451,7 @@ export const runTurn = (options) => {
             // A view result is an object: capToolResult leaves it whole, and it
             // becomes a camera text stub (which counts toward the turn budget)
             // plus image parts (which do not).
-            const message = asToolMessage(call, capToolResult(contents[i]))
+            const message = asToolMessage(call, capToolResult(contents[i]), viewImageBudget)
             const size = typeof message.content === 'string' ? message.content.length : 0
             if (resultChars + size > TOOL_RESULTS_PER_TURN_CHARS) {
               messages.push({ role: 'tool', toolCallId: call.id, content: OVER_TURN_TOTAL })

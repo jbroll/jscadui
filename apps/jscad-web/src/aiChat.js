@@ -5,6 +5,7 @@
 import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, effectiveHistoryBudget, partitionTranscript, runTurn as defaultRunTurn, SUMMARY_PREFIX, summarizeTranscript, summarizeWithProvider, toolDetail, turnsOf } from '@jscadui/agent-loop'
 import { readOverride, readVisionCache, resolveCatalogVision } from './modelVision.js'
 import { checkTurn, FREE_NOTICE_MESSAGE, getRecordOwnChats, isFreeSelection, openConsentGate, TOS_REQUIRED_MESSAGE } from './aiConsent.js'
+import { imageFiles, MAX_CHAT_IMAGES, prepareImage as defaultPrepareImage } from './chatImages.js'
 
 /* global __RELAY_ORIGIN__ */
 const RELAY_OVERRIDE_KEY = 'jscad-ai.relay'
@@ -63,6 +64,29 @@ export const INFERENCE_QUOTA_MESSAGE = 'This free model is out of budget right n
 
 const inferenceQuotaError = (err) =>
   err?.status === 402 && /inference_quota_exhausted/.test(`${err?.message ?? ''} ${err?.body ?? ''}`)
+
+// The relay's JSON body limit, `RELAY_JSON_LIMIT` ('1mb') in
+// server/src/relay/body.ts, which body-parser reads as 1024 * 1024 bytes.
+const RELAY_BODY_LIMIT_BYTES = 1024 * 1024
+
+export const REQUEST_TOO_LARGE_MESSAGE = 'This message is too large for the relay, which takes 1 MB. Send fewer images or start a new chat.'
+const requestTooLarge = (err) => err?.name === 'RequestTooLargeError' || err?.status === 413
+
+export const NO_VISION_TITLE = 'The selected model does not read images. Pick a vision model in Chat settings to attach one.'
+export const NO_VISION_NOTE = 'The selected model does not read images, so nothing was attached.'
+export const NO_VISION_SEND = 'The selected model does not read images. Remove the images or pick a vision model in Chat settings.'
+export const IMAGE_CAP_NOTE = `Up to ${MAX_CHAT_IMAGES} images per message.`
+
+// The stored conversation keeps the bytes of this many newest image messages;
+// older ones keep only their type and size, so storage stays bounded.
+export const STORED_IMAGE_MESSAGES = 4
+
+const hasImages = (m) => Array.isArray(m?.images) && m.images.length > 0
+
+const forStorage = (messages) => {
+  const keep = new Set(messages.filter((m) => m.role === 'user' && hasImages(m)).slice(-STORED_IMAGE_MESSAGES))
+  return messages.map((m) => (m.role !== 'user' || !hasImages(m) || keep.has(m) ? m : { ...m, images: m.images.map(({ dataUrl: _dataUrl, ...meta }) => meta) }))
+}
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag)
@@ -174,6 +198,7 @@ const forModel = (m) => {
   const base = { role: m.role, content: m.content }
   if (m.stopped) base.content = m.content ? `${m.content}\n\n${STOPPED_NOTE}` : STOPPED_NOTE
   if (m.role === 'assistant' && m.mentions?.length > 0) base.mentions = m.mentions
+  if (m.role === 'user' && hasImages(m)) base.images = m.images
   return base
 }
 
@@ -221,9 +246,9 @@ const CHARS_PER_TOKEN = 4
  * `getSummarizer` picks the model that summarizes evicted turns; it defaults
  * to `getProvider`, so wiring a cheaper model is a selection swap, not a
  * change here.
- * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getSummarizer?:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,beforeToolCall?:Function,afterToolCall?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>,getBuild?:()=>Promise<object|null>,startTurn?:()=>void,endTurn?:(excerpt?:string)=>Promise<Array<{projectId:string,versionId:string|null}>|void>,restoreTurn?:(projectId:string,versionId:string)=>Promise<boolean>}} options
+ * @param {{container:HTMLElement,requestTool:Function,getProvider:Function,getSummarizer?:Function,getApi?:()=>'fluent'|'modeling',runTurnFn?:Function,beforeToolCall?:Function,afterToolCall?:Function,storage?:{readConversation:Function,writeConversation:Function},projectId?:string|(()=>string),getProjectFiles?:()=>Promise<Record<string,string|ArrayBuffer>>,getBuild?:()=>Promise<object|null>,startTurn?:()=>void,endTurn?:(excerpt?:string)=>Promise<Array<{projectId:string,versionId:string|null}>|void>,restoreTurn?:(projectId:string,versionId:string)=>Promise<boolean>,prepareImage?:(file:File)=>Promise<{mime:string,dataUrl:string,width:number,height:number}>}} options
  */
-export const initChat = ({ container, requestTool, getProvider, getSummarizer = getProvider, getApi = () => DEFAULT_API, runTurnFn = defaultRunTurn, beforeToolCall, afterToolCall, websearchGranted = false, websearchLog = () => {}, websearchProvider, storage, projectId, getProjectFiles = async () => ({}), getBuild = async () => null, startTurn = () => {}, endTurn = async () => {}, restoreTurn = async () => false }) => {
+export const initChat = ({ container, requestTool, getProvider, getSummarizer = getProvider, getApi = () => DEFAULT_API, runTurnFn = defaultRunTurn, beforeToolCall, afterToolCall, websearchGranted = false, websearchLog = () => {}, websearchProvider, storage, projectId, getProjectFiles = async () => ({}), getBuild = async () => null, startTurn = () => {}, endTurn = async () => {}, restoreTurn = async () => false, prepareImage = defaultPrepareImage }) => {
   const header = el('div', 'chat-header')
   header.append(el('span', 'chat-title', 'AI Chat'))
   const newChatBtn = el('button', 'chat-new', 'New chat')
@@ -237,7 +262,19 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   input.placeholder = 'Describe the part to build'
   input.autocomplete = 'off'
   const send = el('button', 'chat-send', 'Send')
-  form.append(input, send)
+  const attach = el('button', 'chat-attach')
+  attach.type = 'button'
+  attach.setAttribute('aria-label', 'Attach images')
+  attach.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M21 11.5l-8.5 8.5a5 5 0 0 1-7-7L14 4.5a3.5 3.5 0 0 1 5 5L10.5 18a2 2 0 0 1-3-3L15 7.5"/></svg>'
+  const fileInput = el('input', 'chat-attach-input')
+  fileInput.type = 'file'
+  fileInput.accept = 'image/*'
+  fileInput.multiple = true
+  fileInput.hidden = true
+  form.append(attach, fileInput, input, send)
+  const attachNote = el('div', 'chat-attach-note')
+  attachNote.setAttribute('role', 'status')
+  const pendingEl = el('div', 'chat-pending')
   // Only the phase is live: screen readers hear each change, not each second.
   const statusEl = el('div', 'chat-status')
   const statusPhase = el('span', 'chat-status-phase')
@@ -254,7 +291,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   noticeSettings.type = 'button'
   noticeSettings.addEventListener('click', () => document.querySelector('.ai-gear')?.click())
   notice.append(noticeText, noticeSettings, noticeTail)
-  container.append(header, messagesEl, notice, statusEl, form)
+  container.append(header, messagesEl, notice, attachNote, pendingEl, statusEl, form)
 
   let running = false
   let undoing = false
@@ -301,10 +338,17 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     return sessions.get(key)
   }
 
+  const renderAttach = () => {
+    const on = visionCapable(getProvider())
+    attach.disabled = !on
+    attach.title = on ? `Attach images (up to ${MAX_CHAT_IMAGES})` : NO_VISION_TITLE
+  }
+
   // The drawer notice above the input: it reflects the live selection (which
   // `getProvider` reads) and the recording consent, and is re-rendered whenever
   // the gear dialog changes either. Free turns are always saved.
   const renderNotice = () => {
+    renderAttach()
     const sel = getProvider()
     // A custom base URL calls the provider directly and is never logged, so the
     // recording line would be wrong there; free turns always record regardless.
@@ -328,7 +372,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   const persistTranscript = async (id = pid(), messages = transcript) => {
     if (!storage || !id) return
     try {
-      await storage.writeConversation(id, messages)
+      await storage.writeConversation(id, forStorage(messages))
     } catch (err) {
       console.warn('chat persist failed:', err)
     }
@@ -456,6 +500,35 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
 
   const addStopped = () => addMessage('Stopped', 'stopped')
 
+  // A stored image that kept only its type and size draws as a marker.
+  const addUserMessage = (text, images = []) => {
+    if (images.length === 0) return addMessage(text, 'user')
+    const node = addMessage('', 'user')
+    if (text) node.append(el('div', 'chat-user-text', text))
+    const strip = el('div', 'chat-user-images')
+    images.forEach((image, index) => {
+      const label = `Your image ${index + 1} of ${images.length}`
+      if (typeof image?.dataUrl !== 'string') {
+        const gone = el('span', 'chat-user-image-gone', 'image')
+        gone.title = `${label} is no longer stored`
+        strip.append(gone)
+        return
+      }
+      const thumb = el('button', 'chat-user-thumb')
+      thumb.type = 'button'
+      thumb.title = `Open full-size ${label.toLowerCase()}`
+      thumb.setAttribute('aria-label', `Open full-size ${label.toLowerCase()}`)
+      const img = document.createElement('img')
+      img.src = image.dataUrl
+      img.alt = label
+      thumb.append(img)
+      thumb.addEventListener('click', () => openViewImage(image.dataUrl, label, thumb))
+      strip.append(thumb)
+    })
+    node.append(strip)
+    return node
+  }
+
   const addReasoningBlock = (label, text) => {
     const stick = atBottom()
     const details = el('details', 'chat-reasoning')
@@ -474,7 +547,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     turnReasoning = []
     for (const m of transcript) {
       for (const step of m.reasoning ?? []) addReasoningBlock(thoughtLabel(step.seconds), step.text)
-      if (m.role === 'user') addMessage(m.content, 'user')
+      if (m.role === 'user') addUserMessage(m.content, m.images)
       else if (m.role === 'assistant' && m.content) addMessage(m.content, 'assistant')
       if (m.stopped) addStopped()
       if (m.undo?.length > 0) addUndo(m)
@@ -781,11 +854,19 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         return
       }
     }
+    const images = pending
+    if (images.length > 0 && !visionCapable(selection)) {
+      addMessage(NO_VISION_SEND, 'error')
+      return
+    }
     input.value = ''
+    pending = []
+    renderPending()
+    setAttachNote('')
     turnProject = pid()
     turnExcerpt = message
     renderNotice()
-    let local = [...transcript, { role: 'user', content: message }]
+    let local = [...transcript, { role: 'user', content: message, ...(images.length > 0 ? { images } : {}) }]
     const persist = (messages) => {
       if (!storage || !turnProject) return
       persistTranscript(turnProject, messages)
@@ -799,7 +880,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     }
     commit(local)
     setRunning(true)
-    if (live()) addMessage(message, 'user')
+    if (live()) addUserMessage(message, images)
     assistantEl = null
     aborter = new AbortController()
     const { signal } = aborter
@@ -814,6 +895,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         ...selection,
         baseUrl: selection.baseUrl || relayBaseUrl(selection),
         sessionId: sessionId(),
+        maxBodyBytes: selection.baseUrl ? undefined : RELAY_BODY_LIMIT_BYTES,
         // A custom base URL may be a provider called directly, whose CORS preflight would refuse this header.
         // An own-key opt-out must omit it, or the relay would log a turn the user refused.
         ...(selection.baseUrl || !getRecordOwnChats() ? {} : { chatId: sessionId() }),
@@ -856,7 +938,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         }
       }
       await runTurnFn({
-        conversation: { messages: buildMessages({ systemPrompt: buildSystemPrompt(api), transcript: forModelOf(local.slice(0, -1)), files, build, message, summary: local.find(isSummaryMsg)?.text }) },
+        conversation: { messages: buildMessages({ systemPrompt: buildSystemPrompt(api), transcript: forModelOf(local.slice(0, -1)), files, build, message, images, summary: local.find(isSummaryMsg)?.text }) },
         provider,
         api,
         vision: visionCapable(selection),
@@ -891,7 +973,12 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       if (signal.aborted) stopped = true
       else {
         commit(local.slice(0, -1))
-        if (live()) addMessage(inferenceQuotaError(err) ? INFERENCE_QUOTA_MESSAGE : err.message, 'error')
+        if (live()) addMessage(inferenceQuotaError(err) ? INFERENCE_QUOTA_MESSAGE : requestTooLarge(err) ? REQUEST_TOO_LARGE_MESSAGE : err.message, 'error')
+        // The failed message leaves the transcript, so its images are offered again.
+        if (live() && images.length > 0 && pending.length === 0) {
+          pending = images
+          renderPending()
+        }
       }
     } finally {
       if (stopped) {
@@ -911,6 +998,70 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     }
   }
 
+  // Images waiting to go out with the next message, and how many are still
+  // being downscaled; `attaching` settles once those are ready.
+  let pending = []
+  let preparing = 0
+  let attaching = Promise.resolve()
+  let waitingToSend = false
+
+  const setAttachNote = (text = '') => {
+    attachNote.textContent = text
+    attachNote.classList.toggle('active', text !== '')
+  }
+
+  const renderPending = () => {
+    pendingEl.replaceChildren(
+      ...pending.map((image, index) => {
+        const item = el('div', 'chat-pending-item')
+        const img = document.createElement('img')
+        img.src = image.dataUrl
+        img.alt = `Attached image ${index + 1}`
+        const remove = el('button', 'chat-pending-remove', '×')
+        remove.type = 'button'
+        remove.title = 'Remove this image'
+        remove.setAttribute('aria-label', `Remove attached image ${index + 1}`)
+        remove.addEventListener('click', () => {
+          pending = pending.filter((other) => other !== image)
+          renderPending()
+          input.focus()
+        })
+        item.append(img, remove)
+        return item
+      }),
+    )
+  }
+
+  // Answers whether the files held images, so a paste or drop of them is ours.
+  const attachFiles = (files) => {
+    const images = imageFiles(files)
+    if (images.length === 0) return false
+    if (!visionCapable(getProvider())) {
+      setAttachNote(NO_VISION_NOTE)
+      return true
+    }
+    const taken = images.slice(0, Math.max(0, MAX_CHAT_IMAGES - pending.length - preparing))
+    setAttachNote(taken.length < images.length ? IMAGE_CAP_NOTE : '')
+    preparing += taken.length
+    const ready = Promise.all(
+      taken.map((file) =>
+        prepareImage(file).then(
+          (image) => image,
+          (err) => {
+            setAttachNote(err?.message ?? String(err))
+            return null
+          },
+        ),
+      ),
+    ).then((prepared) => {
+      preparing -= taken.length
+      pending = [...pending, ...prepared.filter(Boolean)]
+      renderPending()
+    })
+    attaching = Promise.all([attaching, ready])
+    return true
+  }
+
   // While a question is open, a submitted draft is its answer, not a new turn.
   form.addEventListener('submit', (event) => {
     event.preventDefault()
@@ -921,9 +1072,59 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       answerQuestion(answer)
       return
     }
+    if (running) return
+    // A Send while images are still being prepared goes out once they are.
+    if (preparing > 0) {
+      if (!waitingToSend) {
+        waitingToSend = true
+        attaching.finally(() => {
+          waitingToSend = false
+          form.dispatchEvent(new Event('submit', { cancelable: true }))
+        })
+      }
+      return
+    }
     const message = input.value.trim()
-    if (!message || running) return
+    if (!message && pending.length === 0) return
     runTurnLocal(message)
+  })
+
+  // The settings' `Model reads images` box changes no selection, so the
+  // button is checked again whenever the user comes back to the input.
+  input.addEventListener('focus', renderAttach)
+  form.addEventListener('pointerenter', renderAttach)
+
+  input.addEventListener('paste', (event) => {
+    const data = event.clipboardData
+    if (!data || data.getData?.('text/plain')) return
+    const files = data.files?.length > 0 ? data.files : [...(data.items ?? [])].filter((item) => item.kind === 'file').map((item) => item.getAsFile())
+    if (attachFiles(files)) event.preventDefault()
+  })
+
+  attach.addEventListener('click', () => fileInput.click())
+  fileInput.addEventListener('change', () => {
+    attachFiles(fileInput.files)
+    fileInput.value = ''
+  })
+
+  // An image dropped on the panel is the chat's; any other drop goes on to the
+  // app's project drop on the body.
+  const draggingImage = (event) => [...(event.dataTransfer?.items ?? [])].some((item) => item.kind === 'file' && item.type.startsWith('image/'))
+  container.addEventListener('dragover', (event) => {
+    if (!draggingImage(event)) return
+    event.preventDefault()
+    event.stopPropagation()
+    container.classList.add('chat-dragover')
+  })
+  container.addEventListener('dragleave', (event) => {
+    if (!container.contains(event.relatedTarget)) container.classList.remove('chat-dragover')
+  })
+  container.addEventListener('drop', (event) => {
+    container.classList.remove('chat-dragover')
+    if (imageFiles(event.dataTransfer?.files).length === 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    attachFiles(event.dataTransfer.files)
   })
 
   // A textarea does not submit on Enter; Shift+Enter keeps a newline.

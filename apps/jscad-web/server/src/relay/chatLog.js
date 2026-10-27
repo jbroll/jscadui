@@ -11,8 +11,74 @@ import { join } from 'node:path'
  */
 
 /**
+ * Width and height from a PNG, GIF or JPEG header, or null.
+ * @param {Buffer} bytes
+ * @returns {{ width: number, height: number } | null}
+ */
+export const imageSize = (bytes) => {
+  try {
+    if (bytes.length >= 24 && bytes.readUInt32BE(0) === 0x89504e47) return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) }
+    if (bytes.length >= 10 && bytes.toString('latin1', 0, 4) === 'GIF8') return { width: bytes.readUInt16LE(6), height: bytes.readUInt16LE(8) }
+    if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null
+    for (let at = 2; at + 9 <= bytes.length; ) {
+      if (bytes[at] !== 0xff) return null
+      const marker = bytes[at + 1]
+      // SOF0..SOF15 carry the frame size; C4, C8 and CC are other tables.
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        return { width: bytes.readUInt16BE(at + 7), height: bytes.readUInt16BE(at + 5) }
+      }
+      at += 2 + bytes.readUInt16BE(at + 2)
+    }
+  } catch {
+    // A truncated header reads past the end.
+  }
+  return null
+}
+
+/**
+ * @param {string} mime
+ * @param {string} base64
+ */
+const imagePlaceholder = (mime, base64) => {
+  const size = imageSize(Buffer.from(base64, 'base64'))
+  return `[image: ${mime}${size ? `, ${size.width}x${size.height}` : ''}]`
+}
+
+const DATA_URL = /^data:([^;,]+);base64,(.*)$/s
+
+/**
+ * An inline image part of any provider's wire format as a text part naming its
+ * type and size, so the log never holds image bytes. Anything else is null.
+ * @param {Record<string, any>} part
+ * @returns {Record<string, string> | null}
+ */
+const imagePartText = (part) => {
+  if (part.type === 'image' && part.source?.type === 'base64' && typeof part.source.data === 'string') {
+    return { type: 'text', text: imagePlaceholder(String(part.source.media_type ?? 'image'), part.source.data) }
+  }
+  const url = part.type === 'image_url' ? part.image_url?.url ?? part.image_url : part.type === 'input_image' ? part.image_url : null
+  const match = typeof url === 'string' ? DATA_URL.exec(url) : null
+  if (!match) return null
+  return { type: part.type === 'input_image' ? 'input_text' : 'text', text: imagePlaceholder(match[1], match[2]) }
+}
+
+/**
+ * @param {unknown} value
+ * @returns {unknown}
+ */
+const withoutImageBytes = (value) => {
+  if (Array.isArray(value)) return value.map(withoutImageBytes)
+  if (value === null || typeof value !== 'object') return value
+  const part = /** @type {Record<string, any>} */ (value)
+  const text = imagePartText(part)
+  if (text) return text
+  return Object.fromEntries(Object.entries(part).map(([key, inner]) => [key, withoutImageBytes(inner)]))
+}
+
+/**
  * The request body as it goes into the log: a JSON object without its `tools`
- * (large, and re-derivable), anything else verbatim.
+ * (large, and re-derivable) and with each inline image replaced by a
+ * `[image: <mime>, <w>x<h>]` text part, anything else verbatim.
  * @param {import('node:buffer').Buffer} buf
  * @returns {unknown}
  */
@@ -22,7 +88,7 @@ export const toLogRequest = (buf) => {
     const body = JSON.parse(text)
     if (body === null || typeof body !== 'object' || Array.isArray(body)) return body
     const { tools: _tools, ...rest } = body
-    return rest
+    return withoutImageBytes(rest)
   } catch {
     return text
   }

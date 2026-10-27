@@ -202,7 +202,8 @@ error instead of HTML.
 Both relays log conversations to a per-day JSONL file, one record per relayed
 POST: `{ts, chatId, kind, path, status, request, response, ms}`, plus
 `inference` (the free option's id) and `costUsd` for a free turn. The request
-body drops `tools` (large and re-derivable). The production relay's directory is
+body drops `tools` (large and re-derivable), and each inline image part becomes
+a text part `[image: <mime>, <w>x<h>]`, so no image bytes are written. The production relay's directory is
 `CHAT_LOG_DIR`, default `./data/chat-logs`; `0` turns logging off. It keeps
 `CHAT_LOG_RETAIN_DAYS` (default 90) day files and prunes the rest. The value is
 a whole number of days from 1 to 3650: a fraction is floored, anything outside

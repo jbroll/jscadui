@@ -93,6 +93,28 @@ describe('readConversations', () => {
     expect(conversation.turns[0]).toMatchObject({ user: 'A cube', final: 'Sorry.', steps: [{ name: 'eval', ok: false, error: 'boom' }] })
   })
 
+  it('reads a logged image placeholder as part of the user message, on every wire', async () => {
+    const note = '[image: image/jpeg, 1200x900]'
+    const dir = writeLog({
+      '2026-09-27.jsonl': [
+        rec('2026-09-27T10:00:00.000Z', 'oai', OAI, { model: 'm', messages: [sys, { role: 'user', content: [{ type: 'text', text: 'like this' }, { type: 'text', text: note }] }] }, openaiText('ok')),
+        rec('2026-09-27T10:00:00.000Z', 'ant', 'v1/messages', { model: 'c', system: 'S', messages: [{ role: 'user', content: [{ type: 'text', text: note }, { type: 'text', text: 'like this' }] }] }, anthropicText('ok')),
+        rec('2026-09-27T10:00:00.000Z', 'rsp', 'v1/responses', { model: 'r', input: [{ role: 'user', content: [{ type: 'input_text', text: 'like this' }, { type: 'input_text', text: note }] }] }, responsesCall('r1', 'measure', {})),
+      ],
+    })
+    const users = Object.fromEntries((await readConversations(dir)).map((c) => [c.chatId, c.turns.map((t) => t.user)]))
+    expect(users).toEqual({ oai: [`like this\n${note}`], ant: [`${note}\nlike this`], rsp: [`like this\n${note}`] })
+  })
+
+  it('keeps the view images after a tool result inside the turn that asked for them', async () => {
+    const view = { role: 'user', content: [{ type: 'text', text: '[image: image/png, 800x600]' }] }
+    const messages = [sys, ask, call('c1', 'view', {}), result('c1', { ok: true, cameras: [] }), view]
+    const dir = writeLog({ '2026-09-27.jsonl': [rec('2026-09-27T10:00:00.000Z', 'c', OAI, { model: 'm', messages: [sys, ask] }, openaiCall('c1', 'view', {})), rec('2026-09-27T10:00:01.000Z', 'c', OAI, { model: 'm', messages }, openaiText('Looks right.'))] })
+    const [conversation] = await readConversations(dir)
+    expect(conversation.turns).toHaveLength(1)
+    expect(conversation.turns[0]).toMatchObject({ user: 'A single sphere', final: 'Looks right.', steps: [{ name: 'view', ok: true }] })
+  })
+
   it('gives each record without a chat id its own conversation, with an unanswered call', async () => {
     const request = { model: 'muse', input: [{ role: 'system', content: 'S' }, { role: 'user', content: 'A sphere' }] }
     const dir = writeLog({

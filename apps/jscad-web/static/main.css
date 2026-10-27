@@ -1198,6 +1198,87 @@ p {
   font: inherit;
   overflow-y: auto;
 }
+/* Attaching images: the paperclip before the input, the pending thumbnails
+   above it, and a short note when an attach was refused or capped. */
+.chat-attach {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  color: var(--chat-muted);
+  cursor: pointer;
+}
+.chat-attach:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.chat-attach-note {
+  padding: 0 10px;
+  font-size: 9pt;
+  color: var(--chat-muted);
+}
+.chat-attach-note.active {
+  padding-top: 4px;
+}
+.chat-pending {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 10px;
+}
+.chat-pending:not(:empty) {
+  padding-top: 6px;
+}
+.chat-pending-item {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--chat-rule);
+  border-radius: 4px;
+}
+.chat-pending-item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.chat-pending-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+#ai-chat.chat-dragover {
+  outline: 2px dashed var(--chat-focus);
+  outline-offset: -4px;
+}
+.chat-user-images {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.chat-user-text + .chat-user-images {
+  margin-top: 6px;
+}
+.chat-user-image-gone {
+  padding: 2px 6px;
+  font-size: 9pt;
+  color: var(--chat-muted);
+  border: 1px dashed var(--chat-rule);
+  border-radius: 4px;
+}
 .chat-status {
   display: flex;
   gap: 8px;
@@ -1400,7 +1481,8 @@ p {
   gap: 6px;
   padding: 4px 6px 6px 1.4em;
 }
-.chat-tool-thumb {
+.chat-tool-thumb,
+.chat-user-thumb {
   width: 72px;
   height: 72px;
   padding: 0;
@@ -1410,14 +1492,17 @@ p {
   border-radius: 4px;
   cursor: zoom-in;
 }
-.chat-tool-thumb:hover {
+.chat-tool-thumb:hover,
+.chat-user-thumb:hover {
   border-color: var(--chat-focus);
 }
-.chat-tool-thumb:focus-visible {
+.chat-tool-thumb:focus-visible,
+.chat-user-thumb:focus-visible {
   outline: 2px solid var(--chat-focus);
   outline-offset: 1px;
 }
-.chat-tool-thumb img {
+.chat-tool-thumb img,
+.chat-user-thumb img {
   display: block;
   width: 100%;
   height: 100%;

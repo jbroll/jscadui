@@ -38,7 +38,7 @@ the run's warning collector (`getApi()`).
 ## Conversation context
 
 ```js
-buildMessages({ systemPrompt, transcript, files, build, message, budget = CONTEXT_BUDGET, projectBudget = PROJECT_BUDGET, summary = '' })
+buildMessages({ systemPrompt, transcript, files, build, message, images = [], budget = CONTEXT_BUDGET, projectBudget = PROJECT_BUDGET, summary = '' })
 ```
 
 Returns the system prompt, the summary of earlier turns when given, the
@@ -76,6 +76,44 @@ persists in the stored transcript as a `{ role: 'system', text, basis }`
 message (`basis` counts the leading messages already folded in), so a resumed
 chat keeps summarizing where it left off; a summarizer failure leaves the
 transcript to plain truncation, as before.
+
+### Images
+
+A user message may carry `images: [{ mime, dataUrl, width?, height? }]`
+beside its `content`, the shape a `view` tool message uses; `buildMessages`
+puts its `images` argument on the new message. A message without images, or
+with an empty list, goes out exactly as before: plain string content on every
+wire. Each adapter sends a user message's images as that provider's parts:
+
+| Wire | User message content |
+|---|---|
+| Anthropic messages | `image` blocks (`source: { type: 'base64', media_type, data }`) and then the `text` block |
+| Chat completions | a `text` part and then `image_url` parts (`image_url: { url: dataUrl }`) |
+| Responses | an `input_text` part and then `input_image` parts (`image_url: dataUrl`) |
+
+An images-only message (empty `content`) sends no text part, since Anthropic
+refuses an empty text block. Images never count toward the character budgets.
+`buildMessages` runs `pruneUserImages` (`src/userImages.js`) over the kept
+history and the new message: only the newest user message with images keeps
+them, and only while it is one of the last `USER_IMAGE_TURNS` (3) user
+messages, the new one included. Every other image becomes a line in its
+message's text, `[earlier image, no longer attached: image/jpeg, 1200x900]`
+(`imageNote`), so the model knows one was there; an images-only message
+becomes just those lines. An image without a `dataUrl` (one a caller stored
+without its bytes) is always a note. The summary prompt names a summarized
+message's images as `[image: image/jpeg, 1200x900]` (`imageLabel`).
+
+In a turn, `runTurn` keeps the caller's user images untouched, and only the
+newest `view` result keeps its renders. `MAX_VIEW_IMAGE_CHARS` (700,000) bounds
+the image data URLs one request carries: the user images in the conversation
+come first, and a view's renders get what they leave, oldest dropped first,
+the newest always kept.
+
+`createProvider({ maxBodyBytes })` refuses a request body larger than that
+many bytes before posting it, with `RequestTooLargeError` (`bytes`, `limit`,
+and the message `the request is N bytes, over the L-byte limit; send fewer or
+smaller images, or start a new chat`). The app sets it to the relay's 1 MB
+when it goes through the relay; without it nothing is checked.
 
 ### Model spec
 
@@ -435,7 +473,13 @@ The `jscad-chat` launcher's relay logs each chat request as one JSONL line
 to `<data>/logs` and `<data>/results` when that repo is present, else the XDG
 fallback (logs) or nothing (results, see `EVAL_RESULTS_DIR` below). The reader
 groups the lines by chat id, splits them into turns, and parses each response
-with the adapters' own stream parsers.
+with the adapters' own stream parsers. The log holds no image bytes: both
+relays write each inline image part as a text part `[image: image/jpeg,
+1200x900]` (`toLogRequest` in `apps/jscad-web/server/src/relay/chatLog.js`;
+the size is read from the PNG, GIF or JPEG header and left out when it cannot
+be). The reader joins a user message's text parts, placeholders included,
+into its `user` text; the images a `view` result sends as a user message after
+the tool result stay parts, so they never start a turn.
 
 ```bash
 npm run read-log -w @jscadui/agent-loop -- --since 2026-09-27T00:00:00Z

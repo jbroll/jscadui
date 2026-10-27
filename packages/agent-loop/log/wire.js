@@ -11,6 +11,14 @@ const parseArgs = (text) => {
 
 const blocksText = (blocks) => blocks.filter((b) => b.type === 'text').map((b) => b.text).join('')
 
+// A user message's text parts, the logged `[image: …]` placeholders among them,
+// as one string. A view's images follow a tool result as a user message of
+// their own; that one stays parts so it never reads as the user's text.
+const TEXT_PARTS = new Set(['text', 'input_text'])
+const partsText = (parts) => parts.filter((p) => TEXT_PARTS.has(p?.type)).map((p) => p.text).join('\n')
+const userMessage = (role, content, previous) =>
+  Array.isArray(content) && previous?.role !== 'tool' ? { role, content: partsText(content) } : { role, content }
+
 const fromAnthropic = (request) => {
   const out = []
   if (request.system) out.push({ role: 'system', content: typeof request.system === 'string' ? request.system : blocksText(request.system) })
@@ -20,7 +28,7 @@ const fromAnthropic = (request) => {
     } else if (m.role === 'assistant') {
       const toolCalls = m.content.filter((b) => b.type === 'tool_use').map((b) => ({ id: b.id, name: b.name, input: b.input }))
       out.push({ role: 'assistant', content: blocksText(m.content) || null, toolCalls })
-    } else {
+    } else if (m.content.some((b) => b.type === 'tool_result')) {
       for (const b of m.content) {
         if (b.type === 'tool_result') {
           out.push({ role: 'tool', toolCallId: b.tool_use_id, content: typeof b.content === 'string' ? b.content : JSON.stringify(b.content) })
@@ -28,19 +36,21 @@ const fromAnthropic = (request) => {
           out.push({ role: 'user', content: b.text })
         }
       }
+    } else {
+      out.push({ role: m.role, content: partsText(m.content) })
     }
   }
   return out
 }
 
 const fromOpenAI = (request) =>
-  (request.messages ?? []).map((m) => {
+  (request.messages ?? []).map((m, i, all) => {
     if (m.role === 'tool') return { role: 'tool', toolCallId: m.tool_call_id, content: m.content }
     if (m.role === 'assistant') {
       const toolCalls = (m.tool_calls ?? []).map((c) => ({ id: c.id, name: c.function.name, input: parseArgs(c.function.arguments) }))
       return { role: 'assistant', content: m.content ?? null, toolCalls }
     }
-    return { role: m.role, content: m.content }
+    return userMessage(m.role, m.content, all[i - 1])
   })
 
 const fromResponses = (request) => {
@@ -57,7 +67,7 @@ const fromResponses = (request) => {
     } else if (item.role === 'assistant') {
       out.push({ role: 'assistant', content: item.content, toolCalls: [] })
     } else {
-      out.push({ role: item.role, content: item.content })
+      out.push(userMessage(item.role, item.content, out.at(-1)))
     }
   }
   return out

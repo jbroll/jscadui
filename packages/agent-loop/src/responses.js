@@ -2,7 +2,7 @@
 // Grok, GPT Luna) are served here instead of `/v1/chat/completions`. Shape
 // follows the public Responses API; verified against mocks only until budget
 // allows a live run.
-import { PROVIDER_BASE_URLS, ssePayloads, streamWithRetry } from './providers.js'
+import { encodeBody, PROVIDER_BASE_URLS, ssePayloads, streamWithRetry } from './providers.js'
 import { parseToolArguments } from './toolArguments.js'
 
 const toResponsesTool = (tool) => ({
@@ -33,6 +33,14 @@ export const toResponsesInput = (messages) => {
       for (const call of message.toolCalls ?? []) {
         input.push({ type: 'function_call', call_id: call.id, name: call.name, arguments: JSON.stringify(call.input) })
       }
+    } else if (message.role === 'user' && Array.isArray(message.images) && message.images.length > 0) {
+      input.push({
+        role: 'user',
+        content: [
+          ...(message.content ? [{ type: 'input_text', text: message.content }] : []),
+          ...message.images.map((image) => ({ type: 'input_image', image_url: image.dataUrl })),
+        ],
+      })
     } else {
       input.push({ role: message.role, content: message.content })
     }
@@ -119,7 +127,7 @@ export const responsesProvider = (config) => {
       }
       if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
       if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
-      const post = (payload) => streamWithRetry('responses', url, { method: 'POST', headers, body: JSON.stringify(payload) }, parseResponsesStream)
+      const post = (payload) => streamWithRetry('responses', url, { method: 'POST', headers, body: encodeBody(payload, config.maxBodyBytes) }, parseResponsesStream)
       try {
         yield* post(body)
       } catch (err) {

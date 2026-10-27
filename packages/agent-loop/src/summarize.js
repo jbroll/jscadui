@@ -1,3 +1,5 @@
+import { hasImages, imageLabel } from './userImages.js'
+
 export const SUMMARY_PREFIX = 'Summary of earlier work in this chat:\n\n'
 export const MAX_SUMMARY_CHARS = 2000
 
@@ -12,7 +14,8 @@ const turnText = (turn) =>
       const who = m.role === 'assistant' ? 'Assistant' : 'User'
       const calls = (m.toolCalls ?? []).map((c) => `${c.name}(${JSON.stringify(c.input ?? {})})`).join(', ')
       const mentions = (m.mentions ?? []).filter((p) => typeof p === 'string').join(', ')
-      return `${who}: ${trunc(m.content ?? '')}${calls ? `\nTools: ${calls}` : ''}${mentions ? `\nFiles touched: ${mentions}` : ''}`
+      const images = hasImages(m) ? ` ${m.images.map(imageLabel).join(' ')}` : ''
+      return `${who}: ${trunc(m.content ?? '')}${images}${calls ? `\nTools: ${calls}` : ''}${mentions ? `\nFiles touched: ${mentions}` : ''}`
     })
     .join('\n')
 

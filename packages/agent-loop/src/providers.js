@@ -108,6 +108,25 @@ const backoffDelayMs = (attempt, headerDelayMs) => {
 
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+export class RequestTooLargeError extends Error {
+  constructor(bytes, limit) {
+    super(`the request is ${bytes} bytes, over the ${limit}-byte limit; send fewer or smaller images, or start a new chat`)
+    this.name = 'RequestTooLargeError'
+    this.bytes = bytes
+    this.limit = limit
+  }
+}
+
+// A request over the caller's `maxBodyBytes` (the relay's limit) fails here
+// with a clear error instead of a 413 from the relay.
+export const encodeBody = (body, maxBodyBytes) => {
+  const json = JSON.stringify(body)
+  if (maxBodyBytes === undefined || json.length <= maxBodyBytes / 3) return json
+  const bytes = new TextEncoder().encode(json).length
+  if (bytes > maxBodyBytes) throw new RequestTooLargeError(bytes, maxBodyBytes)
+  return json
+}
+
 /**
  * Retries a fetch that has not yet produced a response body: a 429/5xx status,
  * a provider error code meaning overloaded/rate-limited, or a network error.
@@ -334,7 +353,17 @@ const anthropicToolResult = (message) => {
   return result
 }
 
+const hasImages = (message) => Array.isArray(message.images) && message.images.length > 0
+
+// Anthropic advises images before the text that refers to them; an empty text
+// block is refused, so an images-only message sends none.
+const anthropicUserContent = (message) => [
+  ...message.images.map((image) => ({ type: 'image', source: { type: 'base64', media_type: image.mime, data: imageBase64(image.dataUrl) } })),
+  ...(message.content ? [{ type: 'text', text: message.content }] : []),
+]
+
 const toAnthropicMessage = (message) => {
+  if (message.role === 'user' && hasImages(message)) return { role: 'user', content: anthropicUserContent(message) }
   if (message.role === 'tool') {
     return { role: 'user', content: [anthropicToolResult(message)] }
   }
@@ -445,7 +474,7 @@ const anthropicProvider = (config) => {
       yield* streamWithRetry(
         'anthropic',
         `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind] ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`,
-        { method: 'POST', headers, body: JSON.stringify(body) },
+        { method: 'POST', headers, body: encodeBody(body, config.maxBodyBytes) },
         parseAnthropicStream,
       )
     },
@@ -480,6 +509,14 @@ export const toOpenAIMessages = (messages) => {
           type: 'function',
           function: { name: call.name, arguments: JSON.stringify(call.input) },
         })),
+      })
+    } else if (message.role === 'user' && hasImages(message)) {
+      out.push({
+        role: 'user',
+        content: [
+          ...(message.content ? [{ type: 'text', text: message.content }] : []),
+          ...message.images.map((image) => ({ type: 'image_url', image_url: { url: image.dataUrl } })),
+        ],
       })
     } else {
       out.push({ role: message.role, content: message.content })
@@ -572,7 +609,7 @@ const openaiProvider = (config) => {
       yield* streamWithRetry(
         'openai',
         `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/chat/completions`,
-        { method: 'POST', headers, body: JSON.stringify(body) },
+        { method: 'POST', headers, body: encodeBody(body, config.maxBodyBytes) },
         parseOpenAIStream,
       )
     },
@@ -580,7 +617,8 @@ const openaiProvider = (config) => {
 }
 
 /**
- * @param {{kind:'anthropic'|'openai'|'opencode-go'|'meta'|'jscad-web',apiKey:string,model:string,baseUrl?:string,sessionId?:string,effort?:string,chatId?:string,temperature?:number,maxTokens?:number}} config
+ * `maxBodyBytes`, when set, refuses a larger request body with `RequestTooLargeError` before it is posted.
+ * @param {{kind:'anthropic'|'openai'|'opencode-go'|'meta'|'jscad-web',apiKey:string,model:string,baseUrl?:string,sessionId?:string,effort?:string,chatId?:string,temperature?:number,maxTokens?:number,maxBodyBytes?:number}} config
  */
 export const createProvider = (config) => {
   if (!config.apiKey) throw new Error('createProvider: apiKey is required')

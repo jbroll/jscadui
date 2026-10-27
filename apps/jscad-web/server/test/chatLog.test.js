@@ -44,6 +44,50 @@ describe('toLogRequest', () => {
     expect(toLogRequest(Buffer.from(JSON.stringify({ model: 'm', tools: [{ name: 'eval' }] })))).toEqual({ model: 'm' })
     expect(toLogRequest(Buffer.from('not json'))).toBe('not json')
   })
+
+  // A 3x2 PNG and a 5x4 baseline JPEG, just past the headers that carry their size.
+  const pngBytes = Buffer.concat([Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex'), Buffer.from([0, 0, 0, 3, 0, 0, 0, 2]), Buffer.alloc(8)])
+  const jpegBytes = Buffer.concat([
+    Buffer.from('ffd8ffe000104a46494600010100000100010000', 'hex'),
+    Buffer.from('ffc0001108', 'hex'),
+    Buffer.from([0, 4, 0, 5]),
+    Buffer.alloc(12),
+  ])
+  const pngUrl = `data:image/png;base64,${pngBytes.toString('base64')}`
+  const jpegUrl = `data:image/jpeg;base64,${jpegBytes.toString('base64')}`
+  const logged = (body) => toLogRequest(Buffer.from(JSON.stringify(body)))
+
+  it('replaces chat-completions image parts with a text placeholder naming type and size', () => {
+    const request = logged({ model: 'm', messages: [{ role: 'user', content: [{ type: 'text', text: 'like this' }, { type: 'image_url', image_url: { url: jpegUrl } }, { type: 'image_url', image_url: { url: pngUrl } }] }] })
+    expect(request.messages[0].content).toEqual([
+      { type: 'text', text: 'like this' },
+      { type: 'text', text: '[image: image/jpeg, 5x4]' },
+      { type: 'text', text: '[image: image/png, 3x2]' },
+    ])
+  })
+
+  it('replaces anthropic image blocks, in user content and in tool results', () => {
+    const block = { type: 'image', source: { type: 'base64', media_type: 'image/png', data: pngBytes.toString('base64') } }
+    const request = logged({
+      messages: [
+        { role: 'user', content: [block, { type: 'text', text: 'like this' }] },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't', content: [{ type: 'text', text: '{}' }, block] }] },
+      ],
+    })
+    expect(request.messages[0].content).toEqual([{ type: 'text', text: '[image: image/png, 3x2]' }, { type: 'text', text: 'like this' }])
+    expect(request.messages[1].content[0].content[1]).toEqual({ type: 'text', text: '[image: image/png, 3x2]' })
+  })
+
+  it('replaces responses input_image parts with input_text', () => {
+    const request = logged({ input: [{ role: 'user', content: [{ type: 'input_text', text: 'hi' }, { type: 'input_image', image_url: jpegUrl }] }] })
+    expect(request.input[0].content).toEqual([{ type: 'input_text', text: 'hi' }, { type: 'input_text', text: '[image: image/jpeg, 5x4]' }])
+  })
+
+  it('names the type alone when the size cannot be read, and leaves a linked image as it is', () => {
+    const request = logged({ messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/webp;base64,UklGRg==' } }, { type: 'image_url', image_url: { url: 'https://example.com/a.png' } }] }] })
+    expect(request.messages[0].content).toEqual([{ type: 'text', text: '[image: image/webp]' }, { type: 'image_url', image_url: { url: 'https://example.com/a.png' } }])
+    expect(JSON.stringify(logged({ messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: jpegUrl } }] }] }))).not.toContain('base64')
+  })
 })
 
 describe('teeRelayUpstream', () => {

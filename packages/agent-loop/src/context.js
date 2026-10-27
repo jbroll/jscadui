@@ -1,6 +1,7 @@
 import { SUMMARY_PREFIX } from './summarize.js'
 import { notesIndex } from './notes.js'
 import { specSection } from './modelSpec.js'
+import { pruneUserImages } from './userImages.js'
 
 export const CONTEXT_BUDGET = 24_000
 
@@ -160,19 +161,22 @@ export const partitionTranscript = (transcript, budget = CONTEXT_BUDGET) => {
   return { evicted, kept }
 }
 
-export const buildMessages = ({ systemPrompt, transcript = [], files = {}, build = null, message, budget = CONTEXT_BUDGET, projectBudget = PROJECT_BUDGET, summary = '' }) => {
+// Images ride outside every character budget; `pruneUserImages` bounds them.
+export const buildMessages = ({ systemPrompt, transcript = [], files = {}, build = null, message, images = [], budget = CONTEXT_BUDGET, projectBudget = PROJECT_BUDGET, summary = '' }) => {
   const project = projectMessage(files, build, mentionedPaths(transcript), projectBudget)
   const summaryText = summary ? `${SUMMARY_PREFIX}${summary}` : ''
   // Fixed parts outside history; history shrinks so the total holds.
   const fixed = (systemPrompt?.length ?? 0) + summaryText.length + project.content.length + (message?.length ?? 0)
   const historyBudget = Math.max(0, Math.min(budget, TOTAL_BUDGET - fixed))
   const { kept } = partitionTranscript(transcript, historyBudget)
+  const latest = { role: 'user', content: message, ...(Array.isArray(images) && images.length > 0 ? { images } : {}) }
+  const conversation = pruneUserImages([...kept, latest])
   return [
     { role: 'system', content: systemPrompt },
     ...(summary ? [{ role: 'user', content: summaryText }] : []),
-    ...kept,
+    ...conversation.slice(0, -1),
     project,
-    { role: 'user', content: message },
+    conversation.at(-1),
   ]
 }
 

@@ -106,6 +106,28 @@ A transpiled `.scad` file exposes a clean JS surface:
   `area_$f$obj`, variables as values or `$`-reading thunks). Generated files
   call each other through it; JS callers want the names above.
 
+## Images in the chat
+
+Paste an image into the chat input, drop one on the chat panel, or pick files
+with the paperclip button. Each shows as a thumbnail above the input; its ×
+removes it. The images go with the next message, which may be images alone.
+
+- Up to 4 images per message.
+- Only a model that reads images can take them. With any other model the
+  paperclip is disabled, and a paste or drop says the model does not read
+  images. When a provider does not say which models read images, tick
+  `Model reads images` in Chat settings.
+- Images are scaled down to 1568 px on the long side and re-encoded (JPEG,
+  or PNG for a small PNG) before they are sent.
+- A message too large for the relay's 1 MB limit fails with an error and
+  puts its images back above the input; send fewer.
+- The model sees a message's images for that turn and the next two. After
+  that, or once a newer message carries images, it gets only a note that an
+  image was there.
+- Your messages show their images as thumbnails; click one for full size.
+- A conversation keeps the images of its newest 4 image messages; older
+  ones show as an `image` marker.
+
 ## Undoing the assistant's changes
 
 A turn that wrote files to a saved project gets an `Undo this turn's

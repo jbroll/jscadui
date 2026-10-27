@@ -823,7 +823,8 @@ that repo is cloned at `~/src/jscad-chat-evals` or `$JSCAD_CHAT_DATA`, else
 `~/.local/state/jscad-chat/logs` with `$XDG_STATE_HOME` when set;
 `JSCAD_CHAT_LOG=<dir>` moves it regardless, `=0` turns it off): time, the
 `x-jscad-chat-id` header the chat sends, provider kind, sub-path, status, the
-request body without `tools`, the response text and the elapsed ms. Headers
+request body without `tools` and with each inline image as a `[image: <mime>,
+<w>x<h>]` text part (`toLogRequest`), the response text and the elapsed ms. Headers
 are never written. The response is teed while it streams, and a failed write
 warns once without failing the request. The relay forwards with undici's own
 `fetch` and an `Agent` whose header and body timeouts are 15 minutes
@@ -914,7 +915,7 @@ The message list shows each kind of row differently, light and dark alike
 
 | Row | Element | Look |
 |---|---|---|
-| User message | `.chat-msg.user` | right-aligned bubble tinted from the drawer's blue toggle |
+| User message | `.chat-msg.user` | right-aligned bubble tinted from the drawer's blue toggle; attached images as thumbnails (`.chat-user-images`) that open the `.chat-view-overlay` dialog |
 | Reply text | `.chat-msg.assistant` | plain text on the panel |
 | Reasoning | `<details class="chat-reasoning">` | smaller muted text behind a thin left rule, collapsed |
 | Tool call | `<details class="chat-tool">` | one monospace row: tool, its path, query or format (`toolDetail` from agent-loop), and `…`, `ok` or `failed`; opening it shows the input and the result; a `view` result auto-opens with thumbnail images (`.chat-tool-images`) that open full-size in a `.chat-view-overlay` dialog |
@@ -975,6 +976,49 @@ providers refuse an empty assistant message. `endTurn` still runs, so the
 writes the turn made get their version. A tool call already running is not
 cancelled: its line fills in when it answers, and a write it stores after the
 snapshot is versioned with the next turn.
+
+### Images from the user
+
+The chat takes images three ways: a paste into the input, a drop on the
+panel, and the paperclip button's file picker (`accept="image/*"`). All three
+go through `attachFiles` in `src/aiChat.js`, and only while
+`visionCapable(selection)` holds, the test that also offers `view`. Otherwise
+the button is disabled with a title saying why, and a paste or drop writes a
+note line (`.chat-attach-note`) instead of attaching. A paste carrying plain
+text is left to the input. A drop with no image in it goes on to the app's
+project drop on the body; an image drop stops at the panel.
+
+`src/chatImages.js` prepares each file: `createImageBitmap` decodes it, a
+canvas scales it so the long side is at most 1,568 px, and it is encoded as
+PNG when the source is PNG and the data URL fits `MAX_IMAGE_CHARS` (120,000
+characters), else as JPEG at quality 0.85, 0.7 and 0.55, shrinking by a
+quarter until it fits, so an image sends at most about 90 KB. Pending
+images sit as removable thumbnails above the input (`.chat-pending`), at most
+`MAX_CHAT_IMAGES` (4) per message; a Send while one is still being prepared
+waits for it, and a message may be images alone.
+
+The message is `{ role: 'user', content, images: [{ mime, dataUrl, width,
+height }] }`, the shape `view` results use. agent-loop sends it as each
+provider's image parts and keeps only the newest user images in history
+(`packages/agent-loop/docs/user-manual.md`, Images).
+
+The relay takes 1 MB of JSON (`RELAY_JSON_LIMIT`, `server/src/relay/body.ts`,
+1,048,576 bytes). Four images are at most 480,000 characters. agent-loop's
+`MAX_VIEW_IMAGE_CHARS` (700,000) caps the images of one request with the
+user's first, so a view render gets what they leave (always at least the
+newest), and the text stays inside `TOTAL_BUDGET` plus the turn's tool
+results. Through the relay the chat passes `maxBodyBytes: 1048576` to
+`createProvider`, so a request that is still too large fails before it is
+posted with `RequestTooLargeError`. That and a relay 413 both show
+`This message is too large for the relay, which takes 1 MB. Send fewer images
+or start a new chat.`, and the message's images go back to the pending row. A
+custom base URL calls the provider directly and is not checked.
+
+The stored conversation keeps the bytes of the newest `STORED_IMAGE_MESSAGES`
+(4) user messages with images, so a rowboat row stays bounded; older ones keep
+`{ mime, width, height }` and redraw as an `image` marker. Chat logs never
+hold image bytes: the relays write each image part as `[image: image/jpeg,
+1200x900]`.
 
 ### API style
 
@@ -1200,7 +1244,8 @@ the user's own camera and view are undisturbed. It hands the loop the raw
 result (`{ ok, shots }`), each shot a PNG data URL as a provider-native image
 part beside the camera used; the chat transcript shows only the cameras, so no
 data URL reaches the DOM, and the loop drops the oldest images when one call's
-renders would push the relay past its 1MB body limit. The tool is offered to a
+renders, with the user's own images, would push the relay past its 1MB body
+limit. The tool is offered to a
 vision-capable model alone — the provider's own model metadata
 (`capabilities.vision`, carried on the selection from the account dialog's
 model list, which the relay free catalog serves per model), a manual per-model

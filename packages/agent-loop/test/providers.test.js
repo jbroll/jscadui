@@ -1,7 +1,7 @@
 // packages/agent-loop/test/providers.test.js
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createProvider, fetchWithRetry, parseAnthropicStream, parseOpenAIStream, STREAM_IDLE_MS, STREAM_STALLED, streamWithRetry } from '../src/providers.js'
-import { parseResponsesStream } from '../src/responses.js'
+import { createProvider, fetchWithRetry, parseAnthropicStream, parseOpenAIStream, STREAM_IDLE_MS, STREAM_STALLED, streamWithRetry, toAnthropicMessages, toOpenAIMessages } from '../src/providers.js'
+import { parseResponsesStream, toResponsesInput } from '../src/responses.js'
 import { buildMessages } from '../src/context.js'
 
 const TOOLS = [
@@ -1038,5 +1038,82 @@ describe('openai: an error the provider streams in place of a reply', () => {
     await vi.advanceTimersByTimeAsync(1000)
     await expect(done).rejects.toThrow('openai: bad tools')
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('user message images', () => {
+  const jpeg = 'data:image/jpeg;base64,/9j/AAAA'
+  const png = 'data:image/png;base64,iVBORw0K'
+  const withImages = { role: 'user', content: 'make this', images: [{ mime: 'image/jpeg', dataUrl: jpeg }, { mime: 'image/png', dataUrl: png }] }
+  const imagesOnly = { role: 'user', content: '', images: [{ mime: 'image/jpeg', dataUrl: jpeg }] }
+  const textOnly = { role: 'user', content: 'make this' }
+
+  it('anthropic sends base64 image blocks before the text block', () => {
+    expect(toAnthropicMessages([withImages])).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: '/9j/AAAA' } },
+          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0K' } },
+          { type: 'text', text: 'make this' },
+        ],
+      },
+    ])
+  })
+
+  it('chat-completions sends a text part then image_url parts', () => {
+    expect(toOpenAIMessages([withImages])).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'make this' },
+          { type: 'image_url', image_url: { url: jpeg } },
+          { type: 'image_url', image_url: { url: png } },
+        ],
+      },
+    ])
+  })
+
+  it('responses sends an input_text part then input_image parts', () => {
+    expect(toResponsesInput([withImages])).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'input_text', text: 'make this' },
+          { type: 'input_image', image_url: jpeg },
+          { type: 'input_image', image_url: png },
+        ],
+      },
+    ])
+  })
+
+  it('an images-only message sends no empty text part', () => {
+    expect(toAnthropicMessages([imagesOnly])[0].content).toEqual([{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: '/9j/AAAA' } }])
+    expect(toOpenAIMessages([imagesOnly])[0].content).toEqual([{ type: 'image_url', image_url: { url: jpeg } }])
+    expect(toResponsesInput([imagesOnly])[0].content).toEqual([{ type: 'input_image', image_url: jpeg }])
+  })
+
+  it('a text-only message keeps its plain string content on every wire', () => {
+    expect(toAnthropicMessages([textOnly])).toEqual([{ role: 'user', content: 'make this' }])
+    expect(toOpenAIMessages([textOnly])).toEqual([{ role: 'user', content: 'make this' }])
+    expect(toResponsesInput([textOnly])).toEqual([{ role: 'user', content: 'make this' }])
+    expect(toAnthropicMessages([{ ...textOnly, images: [] }])).toEqual([{ role: 'user', content: 'make this' }])
+  })
+
+  it.each([
+    ['anthropic', { kind: 'anthropic' }],
+    ['chat-completions', { kind: 'openai' }],
+    ['responses', { kind: 'opencode-go', model: 'grok-4.6' }],
+  ])('%s refuses a body over maxBodyBytes before posting it', async (_name, config) => {
+    const provider = createProvider({ apiKey: 'k', model: 'm', baseUrl: 'https://relay.test', maxBodyBytes: 1000, ...config })
+    const big = { role: 'user', content: '', images: [{ mime: 'image/jpeg', dataUrl: `data:image/jpeg;base64,${'A'.repeat(2000)}` }] }
+    const drain = async () => {
+      for await (const _event of provider.send([big], [])) {
+        // nothing streams
+      }
+    }
+    await expect(drain()).rejects.toMatchObject({ name: 'RequestTooLargeError', bytes: expect.any(Number), limit: 1000 })
+    await expect(drain()).rejects.toThrow(/over the 1000-byte limit/)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
