@@ -10,7 +10,9 @@ The project builds from its entry file: the file `package.json` names in
 `main`, else `index.js`, else `main.js`. Other files load from it with
 `require('./part.js')`. Each user message comes with the project's files and
 the report of its last build, which may show a failure from the user's own
-edits, or says the project is empty.
+edits, or says the project is empty. That message names every text file: a
+text file it does not name, such as `package.json`, does not exist, so never
+read it to check.
 
 Organize by part: one part per file (`bracket.js`, `plate.js` each export a
 maker such as `makeBracket`), shared math in `lib/*.js`, and `main.js` only

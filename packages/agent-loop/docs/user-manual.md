@@ -81,7 +81,8 @@ transcript to plain truncation, as before.
 `notes/model-spec.md` is the project's durable instructions: design intent,
 units, printer, fits and clearances, style and conventions. The agent creates
 it from the first spec-worthy instruction and merges later corrections into it
-with `read` then `write`/`edit`, one line per rule under `Intent`,
+with `write`/`edit` (a `read` first only when the inlined copy is truncated),
+one line per rule under `Intent`,
 `Constraints & preferences`, `Decisions` (newest wins, retractions delete the
 line). The whole file inlines in every project message under `Model spec:`
 (4,000 characters; over that the newest lines survive with a `[truncated]`
@@ -117,7 +118,11 @@ turn: the provider adapters hand it on with `badArguments`, its first 300
 characters, and `runTurn` answers it without running the tool, as
 `{ ok: false, error: { name: 'ArgumentsError', message: 'arguments for
 measure were not valid JSON (finish_reason length); call it again with a JSON
-object: {"parts":…' } }`, which the transcript keeps.
+object: {"parts":…' } }`, which the transcript keeps. A tool call that has not
+answered after `toolTimeoutMs` (120,000 ms by default) rejects the turn with
+`ToolTimeoutError`. Calls in `AWAITS_USER` (`question`) have no time limit,
+since they wait on the user, and end only with an answer or an abort through
+`signal`.
 
 ## Turn status
 

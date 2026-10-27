@@ -5,7 +5,7 @@
 import { DEFAULT_API } from './api.js'
 import { CONTEXT_BUDGET } from './context.js'
 import { argumentsError } from './toolArguments.js'
-import { buildTools, READ_ONLY } from './tools.js'
+import { AWAITS_USER, buildTools, READ_ONLY } from './tools.js'
 
 const DEFAULT_TOOL_TIMEOUT_MS = 120_000
 
@@ -173,7 +173,7 @@ const nextOrAbort = async (iterator, signal) => {
   })
 }
 
-// Races a tool result against its timeout and the abort signal.
+// Races a tool result against its timeout (none when null) and the abort signal.
 const withTimeout = (promise, timeoutMs, signal, makeTimeoutError) =>
   new Promise((resolve, reject) => {
     let settled = false
@@ -181,12 +181,15 @@ const withTimeout = (promise, timeoutMs, signal, makeTimeoutError) =>
       clearTimeout(timer)
       signal?.removeEventListener('abort', onAbort)
     }
-    const timer = setTimeout(() => {
-      if (settled) return
-      settled = true
-      cleanup()
-      reject(makeTimeoutError())
-    }, timeoutMs)
+    const timer =
+      timeoutMs === null
+        ? undefined
+        : setTimeout(() => {
+            if (settled) return
+            settled = true
+            cleanup()
+            reject(makeTimeoutError())
+          }, timeoutMs)
     const onAbort = () => {
       if (settled) return
       settled = true
@@ -418,7 +421,7 @@ export const runTurn = (options) => {
             report({ phase: 'tool', tool: call.name, ...(detail === undefined ? {} : { detail }) })
             let result = await withTimeout(
               requestTool(call.name, input),
-              toolTimeoutMs,
+              AWAITS_USER.has(call.name) ? null : toolTimeoutMs,
               signal,
               () => new ToolTimeoutError(call.id, call.name, toolTimeoutMs),
             )

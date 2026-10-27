@@ -234,3 +234,6 @@ export const TOOLS = buildTools()
 // Calls safe to run concurrently: they read state without saving.
 // write/edit/delete/export save or expose download state and stay serial.
 export const READ_ONLY = new Set(['glob', 'read', 'grep', 'measure', 'check', 'docs', 'skill', 'execute', 'view', 'question', 'websearch', 'webfetch'])
+
+// Calls that wait on the user, so no tool timeout applies; Stop still ends them.
+export const AWAITS_USER = new Set(['question'])

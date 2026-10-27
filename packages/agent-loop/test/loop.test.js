@@ -364,6 +364,38 @@ describe('runTurn', () => {
     expect(JSON.parse(error.messages.at(-1).content)).toMatchObject({ ok: false, error: { name: 'ToolTimeoutError' } })
   })
 
+  it('waits on a question past the tool timeout', async () => {
+    const provider = roundsProvider([
+      [{ type: 'tool_use', id: 'q1', name: 'question', input: { question: 'Which gauge?' } }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'text', text: 'ok' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    const { messages } = await runTurn({
+      conversation: { messages: [{ role: 'user', content: 'a caboose' }] },
+      provider,
+      requestTool: () => new Promise((resolve) => setTimeout(() => resolve('45mm'), 60)),
+      toolTimeoutMs: 25,
+    })
+    expect(messages.find((m) => m.toolCallId === 'q1').content).toBe('45mm')
+  })
+
+  it('still aborts an open question on Stop', async () => {
+    const provider = roundsProvider([
+      [{ type: 'tool_use', id: 'q1', name: 'question', input: { question: 'Which gauge?' } }, { type: 'done', stopReason: 'tool_use' }],
+    ])
+    const controller = new AbortController()
+    const turn = runTurn({
+      conversation: { messages: [{ role: 'user', content: 'a caboose' }] },
+      provider,
+      requestTool: () => {
+        setTimeout(() => controller.abort(), 10)
+        return new Promise(() => {})
+      },
+      signal: controller.signal,
+    })
+    const error = await turn.catch((e) => e)
+    expect(error.name).toBe('AbortError')
+  })
+
   it('stops after maxRounds provider rounds and reports it', async () => {
     const toolRound = () => [
       { type: 'tool_use', id: `t${Math.random()}`, name: 'check', input: {} },
