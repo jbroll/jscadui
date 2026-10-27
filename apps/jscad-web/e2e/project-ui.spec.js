@@ -76,6 +76,19 @@ test.describe('editor drawer projects', () => {
     await expect(page.locator('#editor-files .file-node[data-path="/widget/index.js"]')).toBeAttached()
   })
 
+  test('New Project opens a blank editor with no error', async ({ page }) => {
+    await page.goto('/')
+    await dismissWelcome(page)
+    await waitForRender(page)
+    await expect(page.locator('.cm-content')).not.toHaveText('')
+    await page.locator('#editor-header .project-new').click()
+    await expect(page.locator('#editor-header .project-select option')).toHaveCount(2)
+    await expect(page.locator('.cm-content')).toHaveText('')
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.vertices)).toBe('0')
+    await expect(page.locator('#error-bar')).not.toBeVisible()
+    await expect(page.locator('#paramsDiv')).toBeEmpty()
+  })
+
   test('deletes a project after confirmation', async ({ page }) => {
     await page.goto('/')
     await dismissWelcome(page)

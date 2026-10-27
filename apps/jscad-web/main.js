@@ -664,6 +664,22 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
   paramsCtrl.reset()
   paramsUI.destroyParamsTreeView()
 
+  // A blank script (a new project's main.js) draws nothing: run, it fails as
+  // NoMainError and the error path keeps the previous model on screen.
+  if (typeof script === 'string' && script.trim() === '') {
+    streamRuns.end(runId)
+    if (isStale()) return STALE
+    byId('paramsDiv').innerHTML = ''
+    viewState.setModel([])
+    meshRefs.remember([])
+    updatePipelineStats(statsContent, { triangles: 0, vertices: 0 })
+    document.documentElement.dataset.vertices = '0'
+    setError(undefined)
+    if (url.startsWith(PROJECT_BASE)) projectBuilds.recordNoEntry()
+    else projectBuilds.recordLoad(url, {})
+    return {}
+  }
+
   try {
     // Mixed local/rowboat models merge at load time: rowboat project files
     // land in the worker's file cache (its require path), each manifest path
