@@ -103,6 +103,10 @@ export const projectMessage = (files = {}, build = null, mentioned = [], budget 
   const listed = filesSection(files, mentioned, Math.max(0, budget - (spec?.length ?? 0)))
   const notes = notesIndex(files)
   if (!listed && !notes && !build && Object.keys(files).length === 0) return { role: 'user', content: EMPTY_PROJECT }
+  // A new project's blank main.js fails its build with NoMainError, which reads
+  // as a failure to fix rather than a blank start.
+  const blank = Object.keys(files).length > 0 && Object.values(files).every((content) => typeof content === 'string' && content.trim() === '')
+  if (blank) return { role: 'user', content: EMPTY_PROJECT }
   const onlyNotes = Object.keys(files).length > 0 && Object.keys(files).every((path) => path.startsWith('notes/'))
   const sections = [
     listed ?? (onlyNotes ? null : (Object.keys(files).length > 0 ? 'The project has no text files; glob shows every file.' : 'The project has no files.')),

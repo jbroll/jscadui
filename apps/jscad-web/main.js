@@ -1236,7 +1236,6 @@ editorHeader = initEditorHeader(byId('editor-header'), {
   },
   onError: setError,
   onFlip: () => editorHeader.render(),
-  readBuffer: () => ({ code: editor.getSource(), path: 'main.js' }),
   canUseRowboat: (await getRowboatStore()) !== null,
   confirm,
   confirmDiscard: () => editor.confirmDiscard(),

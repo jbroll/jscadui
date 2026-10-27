@@ -23,7 +23,6 @@ const setup = async (options = {}) => {
       const { project, files } = await manager.readForSwitch(id)
       await local.writeFiles(id, { ...files, [path]: content }, { message: `new ${path}`, entry: project.entry })
     },
-    readBuffer: () => ({ code: 'buf', path: 'main.js' }),
     confirmDiscard: async () => true,
     ...options,
   })
@@ -89,14 +88,14 @@ describe('project dropdown', () => {
 })
 
 describe('new project and new file', () => {
-  it('creates a project from the buffer and opens it', async () => {
+  it('creates a project with an empty main.js and opens it', async () => {
     const { manager, onSwitch } = await setup()
     await vi.waitFor(() => expect(document.querySelector('.project-new')).not.toBeNull())
     document.querySelector('.project-new').click()
     const created = (await manager.listAll()).find((p) => p.name === 'Untitled')
     expect(created).toBeDefined()
     await vi.waitFor(() => expect(onSwitch).toHaveBeenCalledWith(created.id))
-    expect((await manager.readForSwitch(created.id)).files).toEqual({ 'main.js': 'buf' })
+    expect((await manager.readForSwitch(created.id)).files).toEqual({ 'main.js': '' })
     expect(document.querySelector('.project-select').value).toBe(created.id)
   })
 

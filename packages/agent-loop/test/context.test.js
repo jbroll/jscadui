@@ -60,6 +60,12 @@ describe('buildMessages', () => {
     expect(PROJECT_NOTE).toBe('Every message comes with this note on the project: its text files and its last build, so glob is rarely needed.')
   })
 
+  it('says a project of blank files is empty, even with its failed build', () => {
+    const build = { ok: false, entry: 'main.js', error: { name: 'NoMainError', message: 'main.js exports no main()' } }
+    const [, project] = buildMessages({ systemPrompt: 'S', files: { 'main.js': ' \n' }, build, message: 'new' })
+    expect(project).toEqual({ role: 'user', content: EMPTY_PROJECT })
+  })
+
   it('ends every project note saying it comes with every message', () => {
     const build = { ok: true, entry: 'main.js', warnings: [], console: [], params: [] }
     for (const [files, b] of [[{}, null], [{ 'main.js': 'M' }, null], [{ 'main.js': 'M' }, build], [{ 'part.stl': new ArrayBuffer(4) }, null]]) {

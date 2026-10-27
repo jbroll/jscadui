@@ -20,7 +20,6 @@ const modeLabel = (mode) => MODE_LABEL[mode] ?? mode
  * @property {(id:string) => (void|Promise<void>)} [onRestore] after a version was restored in place
  * @property {(path:string) => (void|Promise<void>)} [onFileCreate] after a new file was written
  * @property {(projectId:string, path:string, content:string) => Promise<void>} [writeFile] lands a new file in the current project
- * @property {() => ({code:string,path:string})} [readBuffer] seeds a new project from the editor
  * @property {(projectId:string, dataTransfer:DataTransfer) => (void|Promise<void>)} [onDropOnProject]
  * @property {(id:string, mode:string) => void} [onFlip] after a mode flip
  * @property {(id:string) => Promise<void>} [onDelete]
@@ -43,7 +42,6 @@ export const initEditorHeader = (container, {
   onRestore = () => {},
   onFileCreate = () => {},
   writeFile = async () => {},
-  readBuffer = () => ({ code: '', path: 'main.js' }),
   onDropOnProject,
   onFlip,
   onDelete,
@@ -235,8 +233,7 @@ export const initEditorHeader = (container, {
 
   newProject.addEventListener('click', async () => {
     try {
-      const { code, path } = readBuffer()
-      const created = await manager.createProject('Untitled', { entry: path, files: { [path]: code } })
+      const created = await manager.createProject('Untitled', { entry: 'main.js', files: { 'main.js': '' } })
       await render()
       await select(created.id)
       await onSwitch(created.id)

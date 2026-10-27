@@ -1493,7 +1493,9 @@ its own `#/models` hash). A URL-driven load wins over the restore: a `#/...`
 route already loaded its own script, and a `#/models/<entry>` disk entry opens
 by its hash, so neither is replaced by a stored project. The boot-created
 `default` project seeds its two-cars `main.js` together with the sibling that
-example requires, so reopening it resolves the require as a project. Flipping
+example requires, so reopening it resolves the require as a project. New
+Project creates `Untitled` with an empty `main.js`, never a copy of the open
+editor, so the chat agent starts from a blank project. Flipping
 a project's mode copies it to the other backend and deletes the source row, so
 it is listed once; `listAll` also dedupes by id.
 Delete removes the project, its versions and its conversation from the owner

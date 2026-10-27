@@ -49,8 +49,9 @@ and the new message. The files have their own `projectBudget` (24,000 by
 default); when they exceed it the oldest-mentioned go first, ranked by the
 paths in the transcript's `mentions` (or `toolCalls[].input.path`), and binary
 files are skipped. The
-project message is always sent: an empty project with no build is
-`The project is empty; no build yet.`, and a missing part says
+project message is always sent: an empty project with no build, or one whose
+files are all blank (a new project's empty `main.js`, whatever its build
+said), is `The project is empty; no build yet.`, and a missing part says
 `The project has no files.` or `The project has not been built yet.`, so the
 model needs no `glob` to learn the project's state. Every header ends with
 `PROJECT_NOTE`: "Every message comes with this note on the project: its text
