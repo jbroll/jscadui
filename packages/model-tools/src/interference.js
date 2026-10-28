@@ -72,8 +72,16 @@ export const interference = (items) => {
         unchecked++
         continue
       }
-      const shared = intersect(parts[a], parts[b])
-      const volume = measurements.measureVolume(shared)
+      // A boolean can reject a part (Manifold throws on a non-manifold import);
+      // that pair goes unchecked rather than failing the whole check.
+      let shared, volume
+      try {
+        shared = intersect(parts[a], parts[b])
+        volume = measurements.measureVolume(shared)
+      } catch {
+        unchecked++
+        continue
+      }
       if (!(volume > INTERFERENCE_EPSILON)) continue
       const allowedBy = [a, b].filter((i) => tags.get(i)?.allowed.has(i === a ? b : a))
       if (allowedBy.length === 0) {

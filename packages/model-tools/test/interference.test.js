@@ -1,8 +1,10 @@
-import { expect, test } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import jscad from '@jscad/modeling'
 import { check, INTERFERENCE_EPSILON, MAX_INTERSECTIONS } from '../index.js'
 
-const { primitives } = jscad
+const { booleans, primitives } = jscad
+
+afterEach(() => vi.restoreAllMocks())
 const { cuboid, rectangle } = primitives
 
 const cube = (x, extra = {}) => Object.assign(cuboid({ size: [10, 10, 10], center: [x, 0, 0] }), extra)
@@ -88,6 +90,18 @@ test('past MAX_INTERSECTIONS candidates are counted, not intersected', () => {
   const r = check(Array.from({ length: 26 }, () => cuboid({ size: [1, 1, 1] })))
   expect(r.interferenceUnchecked).toBe(25)
   expect(r.interference.total).toBe(300)
+})
+
+test('a pair whose intersect throws is counted unchecked and the other pairs are still reported', () => {
+  const broken = cube(5)
+  const intersect = booleans.intersect
+  vi.spyOn(booleans, 'intersect').mockImplementation((a, b) => {
+    if (a === broken || b === broken) throw new Error('Not manifold')
+    return intersect(a, b)
+  })
+  const r = check([cube(0), cube(3), broken])
+  expect(r.interferenceUnchecked).toBe(2)
+  expect(r.interference.pairs).toEqual([expect.objectContaining({ a: '0', b: '1' })])
 })
 
 test('interference: false skips the work', () => {

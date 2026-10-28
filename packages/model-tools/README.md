@@ -49,7 +49,8 @@ and reports shared volume (above `INTERFERENCE_EPSILON`, 0.001 mm³) as
 `interference: { pairs, total }`: each pair is `{ a, b, volume, size }`,
 largest first, at most 20; `total` counts all. At most `MAX_INTERSECTIONS`
 (300) candidate pairs are intersected; `interferenceUnchecked` counts the
-rest. Pass `interference: false` to skip this. Items with `previewOnly` are
+rest, and also each pair whose intersection throws (Manifold rejects a
+non-manifold imported mesh). Pass `interference: false` to skip this. Items with `previewOnly` are
 not parts and are skipped.
 
 An item tagged `reference = 'reason'` or `reference = { reason, allow? }` is a
