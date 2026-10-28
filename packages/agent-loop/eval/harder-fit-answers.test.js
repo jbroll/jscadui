@@ -251,14 +251,14 @@ const main = (params) => {
   const al = (params.altitude * Math.PI) / 180
   const pivZ = 90
   const base = jf.cuboid({ size: [300, 230, 8] }).translate([40, 0, 4])
-  const pinion = gear(20, 10).translate([110.25, 0, 16])
-  const pelton = jf.cylinder({ radius: 19, height: 7 }).translate([110.25, 0, 45])
-  const gun = [gear(100, 8).rotateX(Math.PI / 2), jf.cylinder({ radius: 8, height: 110 }).rotateY(Math.PI / 2).translateX(70)]
+  const pinion = gear(20, 10).translate([112, 0, 16])
+  const pelton = jf.cylinder({ radius: 19, height: 7 }).translate([112, 0, 45])
+  const gun = [gear(100, 8).rotateX(Math.PI / 2), jf.cylinder({ radius: 8, height: 73 }).rotateY(Math.PI / 2).translateX(88.5)]
   const turret = [
     gear(200, 8).translate([0, 0, 16]),
     jf.cuboid({ size: [150, 110, 8] }).translate([0, 0, 28]),
     ...[-32, 32].map((y) => jf.cuboid({ size: [26, 10, pivZ - 32] }).translate([0, y, (pivZ + 32) / 2])),
-    gear(20, 10).rotateX(Math.PI / 2).translate([-60.25, 0, pivZ]),
+    gear(20, 10).rotateX(Math.PI / 2).translate([-62, 0, pivZ]),
     ...gun.map((g) => g.rotateY(-al).translateZ(pivZ)),
   ]
   return [base, pinion, pelton, ...turret.map((g) => g.rotateZ(az))]
@@ -287,14 +287,14 @@ const main = (params) => {
   const al = (params.elevation * Math.PI) / 180
   const pivZ = 90
   const base = translate([40, 0, 4], cuboid({ size: [300, 230, 8] }))
-  const pinion = translate([110.25, 0, 16], gear(20, 10))
-  const pelton = translate([110.25, 0, 45], cylinder({ radius: 22, height: 8 }))
-  const gun = [rotateX(Math.PI / 2, gear(100, 8)), translateX(70, rotateY(Math.PI / 2, cylinder({ radius: 8, height: 110 })))]
+  const pinion = translate([112, 0, 16], gear(20, 10))
+  const pelton = translate([112, 0, 45], cylinder({ radius: 22, height: 8 }))
+  const gun = [rotateX(Math.PI / 2, gear(100, 8)), translateX(88.5, rotateY(Math.PI / 2, cylinder({ radius: 8, height: 73 })))]
   const turret = [
     translate([0, 0, 16], gear(200, 8)),
     translate([0, 0, 28], cuboid({ size: [150, 110, 8] })),
     ...[-32, 32].map((y) => translate([0, y, (pivZ + 32) / 2], cuboid({ size: [26, 10, pivZ - 32] }))),
-    translate([-60.25, 0, pivZ], rotateX(Math.PI / 2, gear(20, 10))),
+    translate([-62, 0, pivZ], rotateX(Math.PI / 2, gear(20, 10))),
     ...gun.map((g) => translateZ(pivZ, rotateY(-al, g))),
   ]
   return [base, pinion, pelton, ...turret.map((g) => rotateZ(az, g))]
@@ -403,12 +403,12 @@ describe('harder fit and profile fixtures against reference answers', { timeout:
   it.each(['fluent', 'modeling'])('turret-lower: the %s starting turret from the log fails the height and the two-stage azimuth train', async (api) => {
     const { graded, results } = await grade('turret-lower', turret.apiFiles[api]['index.js'], api)
     expect(graded.measure.dimensions[2]).toBeCloseTo(TURRET.height, 3)
-    expect(failing({ results })).toEqual(['at least 5% lower', 'azimuth driven by one gear pair'])
+    expect(failing({ results })).toEqual(['at least 5% lower', 'azimuth driven by one gear pair', 'parts do not share volume'])
   }, 30000)
 
   it('turret-lower fails a lowered deck over the two-stage azimuth train, and a single reduction left as tall', async () => {
     const lowered = turret.apiFiles.fluent['index.js'].replace('deckZ = 68', 'deckZ = 40')
-    expect(failing(await grade('turret-lower', lowered, 'fluent'))).toEqual(['azimuth driven by one gear pair'])
+    expect(failing(await grade('turret-lower', lowered, 'fluent'))).toEqual(['azimuth driven by one gear pair', 'parts do not share volume'])
     const tall = REFERENCES['turret-lower'].modeling.replace('const pivZ = 90', 'const pivZ = 180')
     expect(failing(await grade('turret-lower', tall, 'modeling'))).toEqual(['at least 5% lower'])
   }, 30000)

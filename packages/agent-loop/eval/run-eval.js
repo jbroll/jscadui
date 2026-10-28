@@ -12,7 +12,7 @@ import { evalResultsDir } from '../log/log-dir.js'
 import { isMainModule } from '../src/mainModule.js'
 import { resolveCredentials } from './credentials.js'
 import { complexGates, complexProbe, complexReport, isComplex, renderRecord, scoreComplex, settleRun, userMessagesOf } from './complex.js'
-import { endedWithoutReply, GRADE_TIMEOUT_MS, gradedModel, gradeFixture, gradeTranscript, geometryError, transcriptMetrics } from './grade.js'
+import { endedWithoutReply, GRADE_TIMEOUT_MS, gradedModel, gradeFixture, gradeTranscript, geometryError, interferenceFields, transcriptMetrics } from './grade.js'
 import { conversationTag, createLiveLog, formatLiveHeader, liveLogPath, prefixBlock } from './live-log.js'
 import { concurrencyFrom, runSuiteParallel } from './parallel.js'
 import { computeSpeed, formatComparison, formatSummary, summarize } from './report.js'
@@ -511,6 +511,7 @@ async function regradeRun(stored, fixture, grader) {
       total: dimensions.discipline + dimensions.recovery + geometry + dimensions.conservation,
       firstAttemptFailures,
       checkRate: result.report.checkRate,
+      ...interferenceFields(result.report),
     }
     regradeNote = 'prompt differs from the current fixture; kept stored geometry'
   }

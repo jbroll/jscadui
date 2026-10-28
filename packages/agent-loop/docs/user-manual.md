@@ -1015,7 +1015,7 @@ The summary gives, per fixture, the mean `firstAttemptFailures`, the pass rate
 of its geometry checks, the mean total, the count of runs with an `error` and
 `interfering`, the mean number of interfering pairs (`interference.total`, 0 for
 a run without any). `--compare` shows it as `interfering a → b`.
-A `providerError` or `infraError` run has no answer to score, so those three
+A `providerError` or `infraError` run has no answer to score, so those four
 means leave it out; they are `null` (printed `-`) when every run had one.
 Errors the model caused (a tool timeout from a model that never finishes, an
 executor its code ended) score like any other run. The metric means below include every run.
@@ -1310,7 +1310,7 @@ probes, never something the user left open. `pieces` (default 1) is how many
 separate pieces the request calls for. `followUps: [{ message }]` holds later
 user messages; they have no checks of their own, and the judge reads them
 all. A complex fixture is graded with the `bodies` probe added to its own
-`probe`, and gets three harness gates before its own:
+`probe`, and gets harness gates before its own (five, three when `solid` is `null`):
 
 - `builds`: the project builds to geometry.
 - `watertight`: from `solid`.
@@ -1323,6 +1323,8 @@ all. A complex fixture is graded with the `bodies` probe added to its own
   bodies cannot show the whole model's grouping, so `connected` fails rather
   than pass on the listed bodies alone; `groups` still counts only the listed
   bodies, so it never claims more groups than they support.
+- `parts do not share volume` and `reference tags are valid`: the two automatic
+  checks, from `solid`. A grade with no `solid` has only the first three.
 
 Geometry is 2 when the verdict is success and every gate passes, 1 when the
 verdict is success and a gate fails, and 0 when the verdict is failure or the
@@ -1506,7 +1508,8 @@ Checks a run's outcome against a reviewed label set:
 result file's name (not a path), `run` the run number. A run's outcome is
 `success` only when its verdict is `success` and every gate passed (the same
 test as geometry 2, `eval/complex.js`); a passing verdict with a failed gate
-is a `failure` outcome. For each label it finds the matching file and run
+is a `failure` outcome. A run labeled `success` whose model interferes now counts
+as a disagreement after a regrade. For each label it finds the matching file and run
 among the given result files and prints the run's verdict, its failed gates
 (if any), and whether the outcome agrees with `expected`, or why it has no
 verdict (no majority, not described, not rendered, `renderStale`, or the file

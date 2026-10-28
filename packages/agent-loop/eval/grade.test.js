@@ -605,7 +605,7 @@ describe('interference in the grade', () => {
     expect(report.tagErrors).toHaveLength(1)
   })
 
-  it('names the two automatic checks to the fixture checks count', () => {
+  it('calls the fixture checks once and adds the two automatic ones to the rate', () => {
     const names = []
     const spy = { ...fixture, checks: (m) => { names.push('own'); return fixture.checks(m) } }
     expect(gradeFixture(spy, transcript, { volume: 6400 }, { solid: { interference } }).checkRate).toBeCloseTo(0.75)

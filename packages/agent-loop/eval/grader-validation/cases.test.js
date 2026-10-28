@@ -36,6 +36,8 @@ describe('grader-validation cases', () => {
       expect(gates[0].pass).toBe(true)
       expect(renderFacts(graded)).toEqual({ dimensions: TRIAL[c.name].dimensions, bodies: TRIAL[c.name].bodies })
       expect(gates[2].pass).toBe(TRIAL[c.name].connected)
+      expect(gates.find((g) => g.name === 'parts do not share volume').pass).toBe(false)
+      expect(graded.solid.interference.total).toBeGreaterThan(0)
     }, 30_000)
   }
 

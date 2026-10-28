@@ -291,7 +291,7 @@ describe('harder fixtures against reference answers', () => {
 
   it('sliding-lid-box fails a lid that cuts into the walls, and one fused to the box', async () => {
     const overlapping = REFERENCES['sliding-lid-box'].modeling.replace('cuboid({ size: [78, 46.4, 2] })', 'cuboid({ size: [78, 50, 2] })')
-    expect(failing(await grade('sliding-lid-box', overlapping, 'modeling'))).toEqual(['parts do not overlap'])
+    expect(failing(await grade('sliding-lid-box', overlapping, 'modeling'))).toEqual(['parts do not overlap', 'parts do not share volume'])
     const fused = REFERENCES['sliding-lid-box'].modeling.replace('return [box, lid]', 'return union(box, translate([0, 0, 1], lid))').replace('const { subtract }', 'const { subtract, union }')
     expect(failing(await grade('sliding-lid-box', fused, 'modeling'))).toContain('box and lid are separate parts')
   })
