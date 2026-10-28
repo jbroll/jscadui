@@ -169,6 +169,15 @@ describe('createProjectBuilds', () => {
     expect(await b.noGeometry()).toBe(null)
   })
 
+  it('an interference failure still has geometry for measure and check', async () => {
+    const b = builds()
+    b.recordLoad('http://project.local/main.js', { result: {} })
+    b.recordReport({ ok: false, entry: 'main.js', error: { name: 'InterferenceError' }, geometry: { parts: 2 } })
+    expect(await b.noGeometry()).toBe(null)
+    b.recordReport({ ok: false, entry: 'main.js', error: { name: 'SyntaxError', message: 'x' } })
+    expect((await b.noGeometry()).error.name).toBe('NoGeometryError')
+  })
+
   it('reports a build whose geometry cannot be measured with the eval\'s error, and lets nothing measure it', async () => {
     const b = builds({ measure: vi.fn(async () => { throw new Error('not a geometry') }) })
     b.recordLoad('http://project.local/main.js', { result: {} })

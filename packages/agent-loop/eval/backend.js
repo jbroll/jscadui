@@ -296,7 +296,8 @@ const runModel = async (files, entry, api, { wrapRequire, values = {} } = {}) =>
 // answers { ok, format, size } without the bytes.
 const exportModel = (geometry, format) => {
   const config = exportConfig(format)
-  return { ok: true, format, size: exportedSize(jscadIo[config.serializerKey].serialize({ ...config.defaultOptions }, geometry)) }
+  const parts = geometry.filter((g) => !g?.reference && !g?.previewOnly)
+  return { ok: true, format, size: exportedSize(jscadIo[config.serializerKey].serialize({ ...config.defaultOptions }, parts)) }
 }
 
 const MAX_VARIANTS = 12
@@ -338,7 +339,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
     const loaded = await runModel(modelFiles, entry, api)
     if (started !== generation) return null
     const error = loaded.error ? modelError(loaded.error, api, modelFiles) : loaded.hasMain ? undefined : noMainError(entry)
-    const geometry = [loaded.value].flat(Infinity)
+    const geometry = [loaded.value].flat(Infinity).filter((g) => !g?.previewOnly)
     const report = await assembleReport({
       entry,
       error,
@@ -514,7 +515,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
       try {
         if (!loaded) throw new Error('timed out')
         if (loaded.error) throw loaded.error
-        const { dimensions, volume } = measure(asGeometry([loaded.value].flat(Infinity)))
+        const { dimensions, volume } = measure(asGeometry([loaded.value].flat(Infinity).filter((g) => !g?.previewOnly)))
         const changed = dimensions.some((d, k) => differs(d, base.dimensions[k])) || differs(volume ?? 0, base.volume ?? 0)
         out.push({ ...variant, dimensions, volume, changed })
       } catch (error) {

@@ -711,8 +711,14 @@ message: "run stopped after 30 s; try a smaller case" } }`, in the app and the
 live eval alike, and an allocation failure in a run or a build reads `out of
 memory; try a smaller case`.
 
+A build that fails with `InterferenceError` or `PartTagError` keeps its
+geometry, so `measure`, `check` and `export` still answer on it. Items marked
+`previewOnly` (ghosts) are dropped from the eval's geometry: they are not
+parts, so they are not measured, checked or exported.
+
 `export` answers like the app: `{ ok, format, size }`, the byte size of the
-model as the frame's `@jscad/io` serializer for that format writes it
+model, without parts tagged `reference` and without ghosts, as the frame's
+`@jscad/io` serializer for that format writes it
 (`exportConfig` in `src/exportFormat.js`; `stl` is binary STL). A format with
 no serializer fails with `ExportFormatError` in both. The bytes never reach
 the model; the user downloads from the app. Under the local launcher, where

@@ -107,7 +107,7 @@ const modelTools = () => {
 const jscadMeasure = ({ options = {} }) => withSolids((solids) => modelTools().measure(asGeometry(solids), options))
 
 // The chat's scratch `run` answers with this, as the eval's backend does.
-setRunSummary((run) => summarizeRun(run, (items) => modelTools().measure(items), (items) => modelTools().check(items)))
+setRunSummary((run) => summarizeRun(run, (items) => modelTools().measure(items), (items, options) => modelTools().check(items, options)))
 
 const jscadCheck = ({ bed, options = {} }) => withSolids((solids) => modelTools().check(asGeometry(solids), { ...options, bed }))
 

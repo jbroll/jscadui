@@ -161,8 +161,26 @@ module.exports = { main }`
     expect(res.ok).toBe(false)
     expect(res.error.name).toBe('InterferenceError')
     expect((await call(backend, 'measure')).dimensions[0]).toBeCloseTo(15, 3)
+    expect((await call(backend, 'check')).ok).toBe(true)
     const graded = await createEvalBackend().gradeProject({ files: { 'main.js': source }, entry: 'main.js' })
     expect(graded.measure).not.toBeNull()
+  })
+
+  it('ghosts are not parts in the eval', async () => {
+    const source = `const jf = require('@jbroll/jscad-fluent')\nconst ghost = jf.cuboid({ size: [10, 10, 10] }).translate([5, 0, 0])\nghost.previewOnly = true\nmodule.exports = { main: () => [jf.cuboid({ size: [10, 10, 10] }), ghost] }`
+    const res = await writeMain(source)
+    expect(res).toMatchObject({ ok: true, geometry: { parts: 1 } })
+  })
+
+  it('export drops reference parts', async () => {
+    const model = (tag) => `const jf = require('@jbroll/jscad-fluent')\nconst motor = jf.cuboid({ size: [4, 4, 4] }).translate([30, 0, 0])\n${tag ? "motor.reference = 'motor'\n" : ''}module.exports = { main: () => [jf.cuboid({ size: [10, 10, 10] }), motor] }`
+    const sizeOf = async (tag) => {
+      const backend = createEvalBackend()
+      await writeMain(model(tag), backend)
+      return (await call(backend, 'export', { format: 'stl' })).size
+    }
+    expect(await sizeOf(false)).toBeGreaterThan(0)
+    expect(await sizeOf(true)).toBeLessThan(await sizeOf(false))
   })
 
   it('names the available fonts when a model asks for an unknown one', async () => {

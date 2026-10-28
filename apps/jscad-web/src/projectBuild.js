@@ -112,7 +112,7 @@ export const createProjectBuilds = ({ measure, check, getApi = () => DEFAULT_API
     // Null when the last build has geometry for measure, check and export; else their answer.
     noGeometry: async () => {
       const built = await report()
-      return built?.ok && built.entry !== null ? null : noGeometryError(built)
+      return built?.geometry || (built?.ok && built.entry !== null) ? null : noGeometryError(built)
     },
   }
 }
