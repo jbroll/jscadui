@@ -25,7 +25,7 @@ const boxesOverlap = ([aLo, aHi], [bLo, bHi]) => [0, 1, 2].every((k) => aLo[k] <
 const boxOverlapVolume = ([aLo, aHi], [bLo, bHi]) =>
   [0, 1, 2].reduce((v, k) => v * (Math.min(aHi[k], bHi[k]) - Math.max(aLo[k], bLo[k])), 1)
 
-// Returns { reason, allow? (as written), allowed: Set<number> } or { error }.
+// Returns { reason, allow? (as written), allowed: Set<number>, selectors: [{ selector, indexes }] } or { error }.
 const readTag = (tag, items, index) => {
   const fail = (message) => ({ error: `part ${index}: ${message}` })
   const object = typeof tag === 'string' ? { reason: tag } : tag
