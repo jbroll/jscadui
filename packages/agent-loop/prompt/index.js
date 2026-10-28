@@ -29,6 +29,7 @@ import bossInsertThreadSkill from './skills/boss-insert-thread.md?raw'
 import gearsMeshingSkill from './skills/gears-meshing.md?raw'
 import pipHingeSkill from './skills/pip-hinge.md?raw'
 import dovetailSliderSkill from './skills/dovetail-slider.md?raw'
+import livingHingeSkill from './skills/living-hinge.md?raw'
 
 export const PROSE = prose
 
@@ -56,6 +57,7 @@ export const SKILLS = {
   'gears-meshing': gearsMeshingSkill,
   'pip-hinge': pipHingeSkill,
   'dovetail-slider': dovetailSliderSkill,
+  'living-hinge': livingHingeSkill,
 }
 
 export const EXAMPLES = {
