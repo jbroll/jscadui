@@ -251,21 +251,22 @@ const main = (params) => {
   const al = (params.altitude * Math.PI) / 180
   const pivZ = 90
   const base = jf.cuboid({ size: [300, 230, 8] }).translate([40, 0, 4])
-  const pinion = gear(20, 10).translate([112, 0, 16])
-  const pelton = jf.cylinder({ radius: 19, height: 7 }).translate([112, 0, 45])
-  const gun = [gear(100, 8).rotateX(Math.PI / 2), jf.cylinder({ radius: 8, height: 73 }).rotateY(Math.PI / 2).translateX(88.5)]
+  const pinion = gear(20, 10).rotateZ(-10 * az + Math.PI / 20).translate([110.25, 0, 16])
+  const pelton = jf.cylinder({ radius: 19, height: 7 }).translate([110.25, 0, 45])
+  const gun = gear(100, 8).rotateX(Math.PI / 2).union(jf.cylinder({ radius: 8, height: 110 }).rotateY(Math.PI / 2).translateX(70))
   const turret = [
     gear(200, 8).translate([0, 0, 16]),
     jf.cuboid({ size: [150, 110, 8] }).translate([0, 0, 28]),
     ...[-32, 32].map((y) => jf.cuboid({ size: [26, 10, pivZ - 32] }).translate([0, y, (pivZ + 32) / 2])),
-    gear(20, 10).rotateX(Math.PI / 2).translate([-62, 0, pivZ]),
-    ...gun.map((g) => g.rotateY(-al).translateZ(pivZ)),
+    gear(20, 10).rotateZ(-5 * al + Math.PI / 20).rotateX(Math.PI / 2).translate([-60.25, 0, pivZ]),
+    gun.rotateY(-al).translateZ(pivZ),
   ]
   return [base, pinion, pelton, ...turret.map((g) => g.rotateZ(az))]
 }
 
 module.exports = { main }`,
-    modeling: `const { extrusions, primitives, transforms } = require('@jscad/modeling')
+    modeling: `const { booleans, extrusions, primitives, transforms } = require('@jscad/modeling')
+const { union } = booleans
 const { cuboid, cylinder, polygon } = primitives
 const { rotateX, rotateY, rotateZ, translate, translateX, translateZ } = transforms
 
@@ -287,15 +288,15 @@ const main = (params) => {
   const al = (params.elevation * Math.PI) / 180
   const pivZ = 90
   const base = translate([40, 0, 4], cuboid({ size: [300, 230, 8] }))
-  const pinion = translate([112, 0, 16], gear(20, 10))
-  const pelton = translate([112, 0, 45], cylinder({ radius: 22, height: 8 }))
-  const gun = [rotateX(Math.PI / 2, gear(100, 8)), translateX(88.5, rotateY(Math.PI / 2, cylinder({ radius: 8, height: 73 })))]
+  const pinion = translate([110.25, 0, 16], rotateZ(-10 * az + Math.PI / 20, gear(20, 10)))
+  const pelton = translate([110.25, 0, 45], cylinder({ radius: 22, height: 8 }))
+  const gun = union(rotateX(Math.PI / 2, gear(100, 8)), translateX(70, rotateY(Math.PI / 2, cylinder({ radius: 8, height: 110 }))))
   const turret = [
     translate([0, 0, 16], gear(200, 8)),
     translate([0, 0, 28], cuboid({ size: [150, 110, 8] })),
     ...[-32, 32].map((y) => translate([0, y, (pivZ + 32) / 2], cuboid({ size: [26, 10, pivZ - 32] }))),
-    translate([-62, 0, pivZ], rotateX(Math.PI / 2, gear(20, 10))),
-    ...gun.map((g) => translateZ(pivZ, rotateY(-al, g))),
+    translate([-60.25, 0, pivZ], rotateX(Math.PI / 2, rotateZ(-5 * al + Math.PI / 20, gear(20, 10)))),
+    translateZ(pivZ, rotateY(-al, gun)),
   ]
   return [base, pinion, pelton, ...turret.map((g) => rotateZ(az, g))]
 }
