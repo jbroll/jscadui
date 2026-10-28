@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { exportedGeometry, initScadRuntime, evalScadSolidSync } from '../bin/run-jscad.js'
+import { tempDir } from './tempDir.js'
 
 describe('exportedGeometry', () => {
   it('unwraps a lone solid left after dropping ghosts, same as no ghosts at all', () => {
@@ -29,7 +29,7 @@ describe('exportedGeometry', () => {
 describe('evalScadSolidSync with ghosts and an empty result', () => {
   it('does not throw when an intersection is empty and only ghost children remain', async () => {
     const ctx = await initScadRuntime()
-    const dir = mkdtempSync(join(tmpdir(), 'export-ghosts-'))
+    const dir = tempDir('export-ghosts-')
     const file = join(dir, 'issue1833.scad')
     writeFileSync(file, `
       intersection() {

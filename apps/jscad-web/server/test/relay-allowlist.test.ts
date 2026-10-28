@@ -1,13 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { loadAllowlistFile } from '../src/relay/allowlist.js'
 import { isPublicHttpsUrl, resolveUpstream } from '../src/relay/policy.js'
 import { PROVIDER_BASE_URLS } from '../../../../packages/agent-loop/src/providers.js'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const dir = join(tmpdir(), `relay-test-${process.pid}`)
-mkdirSync(dir, { recursive: true })
+let dir: string
+beforeAll(() => {
+  dir = mkdtempSync(join(tmpdir(), 'relay-allowlist-'))
+})
+afterAll(() => rmSync(dir, { recursive: true, force: true }))
 const file = (name: string, body: string) => {
   const p = join(dir, name)
   writeFileSync(p, body)

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { CHAT_LOG_FILE, appendChatRecord, chatLogFileName, createChatLog, teeRelayUpstream, toLogRequest } from '../src/relay/chatLog.js'
+import { tempDir } from './tempDir.js'
 
 const record = (ts, extra = {}) => ({ ts, chatId: 'c', kind: 'openai', path: 'v1/chat/completions', status: 200, request: {}, response: 'x', ms: 1, ...extra })
 
@@ -16,7 +16,7 @@ describe('chatLogFileName', () => {
 
 describe('appendChatRecord', () => {
   it('writes one JSON line per record to a file named by the UTC day, creating the dir', () => {
-    const dir = join(mkdtempSync(join(tmpdir(), 'chatlog-')), 'logs')
+    const dir = join(tempDir('chatlog-'), 'logs')
     appendChatRecord(dir, record('2026-09-27T10:00:00.000Z'))
     appendChatRecord(dir, record('2026-09-27T11:00:00.000Z'))
     const lines = readFileSync(join(dir, '2026-09-27.jsonl'), 'utf8').trim().split('\n')
@@ -24,14 +24,14 @@ describe('appendChatRecord', () => {
   })
 
   it('keeps the optional inference and costUsd fields', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'chatlog-'))
+    const dir = tempDir('chatlog-')
     appendChatRecord(dir, record('2026-09-27T10:00:00.000Z', { inference: 'deepseek-flash', costUsd: 0.0004 }))
     const line = JSON.parse(readFileSync(join(dir, '2026-09-27.jsonl'), 'utf8').trim())
     expect(line).toMatchObject({ inference: 'deepseek-flash', costUsd: 0.0004 })
   })
 
   it('warns and never throws when the dir cannot be created', () => {
-    const base = mkdtempSync(join(tmpdir(), 'chatlog-'))
+    const base = tempDir('chatlog-')
     writeFileSync(join(base, 'file'), '')
     const warn = vi.fn()
     expect(() => appendChatRecord(join(base, 'file', 'logs'), record('2026-09-27T10:00:00.000Z'), { warn })).not.toThrow()
@@ -92,7 +92,7 @@ describe('toLogRequest', () => {
 
 describe('teeRelayUpstream', () => {
   it('builds the record from the streamed response, with no tools and no headers', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'chatlog-'))
+    const dir = tempDir('chatlog-')
     const log = createChatLog(dir)
     const request = Buffer.from(JSON.stringify({ model: 'm', tools: [{ name: 'eval' }], messages: [] }))
     const tee = teeRelayUpstream({ log, ts: '2026-09-27T10:00:00.000Z', kind: 'openai', path: 'v1/chat/completions', chatId: 'c', request, started: Date.now() })
@@ -117,7 +117,7 @@ describe('teeRelayUpstream', () => {
 
 describe('createChatLog', () => {
   it('warns once and never throws when the dir cannot be created', () => {
-    const base = mkdtempSync(join(tmpdir(), 'chatlog-'))
+    const base = tempDir('chatlog-')
     writeFileSync(join(base, 'file'), '')
     const warn = vi.fn()
     const log = createChatLog(join(base, 'file', 'logs'), { warn })

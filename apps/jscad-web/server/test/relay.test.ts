@@ -1,19 +1,24 @@
 import express from 'express'
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { describe, expect, it, vi, afterAll, beforeAll, beforeEach, afterEach } from 'vitest'
 import request from 'supertest'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { appendChatRecord, chatLogFileName } from '../src/relay/chatLog.js'
 import { DEFAULT_CHAT_LOG_RETAIN_DAYS, mountRelayRoutes } from '../src/relay/routes.js'
+import { tempDir } from './tempDir.js'
 
-const dir = join(tmpdir(), `relay-routes-${process.pid}`)
-mkdirSync(dir, { recursive: true })
-const allowlistPath = join(dir, 'providers.json')
-writeFileSync(allowlistPath, JSON.stringify({ openai: 'https://upstream.test' }))
-// A directory under the file's name is a read failure (EISDIR), not the
-// missing-file case that falls back to the built-in providers.
-mkdirSync(join(dir, 'does-not-exist.json'), { recursive: true })
+let dir: string
+let allowlistPath: string
+beforeAll(() => {
+  dir = mkdtempSync(join(tmpdir(), 'relay-routes-'))
+  allowlistPath = join(dir, 'providers.json')
+  writeFileSync(allowlistPath, JSON.stringify({ openai: 'https://upstream.test' }))
+  // A directory under the file's name is a read failure (EISDIR), not the
+  // missing-file case that falls back to the built-in providers.
+  mkdirSync(join(dir, 'does-not-exist.json'))
+})
+afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
 let fetchMock: ReturnType<typeof vi.fn>
 beforeEach(() => {
@@ -42,7 +47,7 @@ const relayApp = (logs: unknown[], chatLog: { chatLogDir?: string; chatLogRetain
 const sseResponse = (text: string) =>
   ({ ok: true, status: 200, headers: new Headers({ 'content-type': 'text/event-stream' }), body: new Response(text).body }) as unknown as Response
 
-const tmpLogDir = () => mkdtempSync(join(tmpdir(), 'relay-chatlog-'))
+const tmpLogDir = () => tempDir('relay-chatlog-')
 
 /** Every record in `dir`'s JSONL files, in file order. */
 const logRecords = (dir: string): Record<string, unknown>[] =>

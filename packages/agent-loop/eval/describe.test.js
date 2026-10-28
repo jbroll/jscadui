@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DESCRIBE_PROMPT_SHA256, DESCRIBER_READY_TIMEOUT_MS, describeFiles, describerEnv, describeStop, freeGpu, pendingRuns, REQUIRED_FREE_MIB, startDescriber, viewPrompt } from './describe.js'
 import { VIEWS } from './views.js'
+import { tempDir } from '../test/tempDir.js'
 
 const FAKE = fileURLToPath(new URL('./fake-describer.js', import.meta.url))
 const fake = (env = {}) => startDescriber({ command: process.execPath, args: [FAKE], env: { PATH: process.env.PATH, ...env } })
@@ -27,7 +27,7 @@ const rendered = (overrides = {}) => ({
 })
 
 const resultFile = (runs, extra = {}) => {
-  const dir = mkdtempSync(join(tmpdir(), 'describe-test-'))
+  const dir = tempDir('describe-test-')
   mkdirSync(join(dir, 'r.renders', 'caboose-1'), { recursive: true })
   for (const view of VIEWS) writeFileSync(join(dir, 'r.renders', 'caboose-1', `${view.name}.png`), 'png')
   const path = join(dir, 'r.json')

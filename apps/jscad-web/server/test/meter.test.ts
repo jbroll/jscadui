@@ -1,15 +1,15 @@
 import express from 'express'
 import request from 'supertest'
 import { describe, expect, it, vi } from 'vitest'
-import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { costUsd, createMeter, estimateTokens, ipGroup, parseUsage } from '../src/relay/meter.js'
 import { mountRelayRoutes } from '../src/relay/routes.js'
+import { tempDir } from './tempDir.js'
 
 const NOW = Date.parse('2026-10-15T18:00:00Z')
 const budgets = { monthlyUsd: 5, perIpDailyUsd: 0.1 }
-const tmp = () => mkdtempSync(join(tmpdir(), 'meter-'))
+const tmp = () => tempDir('meter-')
 const meterAt = (now: () => number, statePath = join(tmp(), 'relay-spend.json')) => createMeter({ statePath, now })
 
 describe('meter parsing', () => {

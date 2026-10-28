@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs'
+import { describe, expect, it, onTestFinished } from 'vitest'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { defaultRoots, inlineIncludes } from './inlineIncludes.js'
@@ -8,9 +8,15 @@ const readFile = (p) => {
   try { return readFileSync(p, 'utf8') } catch { return undefined }
 }
 
+const tempDir = () => {
+  const dir = mkdtempSync(join(tmpdir(), 'inc-'))
+  onTestFinished(() => rmSync(dir, { recursive: true, force: true }))
+  return dir
+}
+
 describe('inlineIncludes', () => {
   it('inlines a sibling relative include', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'inc-'))
+    const dir = tempDir()
     writeFileSync(join(dir, 'lib.jscad'), 'function helper() { return 42; }')
     writeFileSync(join(dir, 'main.jscad'), 'include("./lib.jscad");\nfunction main() { return helper(); }')
     const out = inlineIncludes(readFile(join(dir, 'main.jscad')), join(dir, 'main.jscad'), { readFile })
@@ -19,7 +25,7 @@ describe('inlineIncludes', () => {
   })
 
   it('resolves absolute includes against library roots', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'inc-'))
+    const dir = tempDir()
     mkdirSync(join(dir, 'library', 'mechanics'), { recursive: true })
     mkdirSync(join(dir, 'models'), { recursive: true })
     writeFileSync(join(dir, 'library', 'mechanics', 'part.jscad'), 'var PART = 7;')
@@ -29,7 +35,7 @@ describe('inlineIncludes', () => {
   })
 
   it('inlines transitively and includes once on cycles', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'inc-'))
+    const dir = tempDir()
     writeFileSync(join(dir, 'a.jscad'), 'include("./b.jscad");\nvar A = 1;')
     writeFileSync(join(dir, 'b.jscad'), 'include("./a.jscad");\nvar B = 2;')
     const out = inlineIncludes(readFile(join(dir, 'a.jscad')), join(dir, 'a.jscad'), { readFile })
@@ -77,7 +83,7 @@ describe('inlineIncludes', () => {
 
 describe('defaultRoots', () => {
   it('finds the nearest ancestor library dir', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'inc-'))
+    const dir = tempDir()
     mkdirSync(join(dir, 'library'), { recursive: true })
     mkdirSync(join(dir, 'models', 'sub'), { recursive: true })
     const libReal = join(dir, 'library')

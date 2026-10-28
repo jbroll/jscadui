@@ -1,9 +1,9 @@
-import { mkdtempSync, symlinkSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { symlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { isMainModule } from './mainModule.js'
+import { tempDir } from '../test/tempDir.js'
 
 describe('isMainModule', () => {
   const moduleUrl = import.meta.url
@@ -14,7 +14,7 @@ describe('isMainModule', () => {
   })
 
   it('matches through a symlink, unlike a raw argv[1] comparison', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'main-module-symlink-'))
+    const dir = tempDir('main-module-symlink-')
     const link = join(dir, 'linked.test.js')
     symlinkSync(realPath, link)
     expect(isMainModule(link, moduleUrl)).toBe(true)

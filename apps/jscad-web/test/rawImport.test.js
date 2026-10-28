@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import * as esbuild from 'esbuild'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { rawImportPlugin } from '../src_build/rawImport.js'
+import { tempDir } from './tempDir.js'
 
 describe('raw import plugin', () => {
   it('bundles a ?raw import as the file text', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'raw-'))
+    const dir = tempDir('raw-')
     writeFileSync(join(dir, 'note.md'), '# note `x`\n')
     writeFileSync(join(dir, 'ex.js'), 'module.exports = { main }\n')
     writeFileSync(join(dir, 'entry.js'), "import note from './note.md?raw'\nimport ex from './ex.js?raw'\nexport default [note, ex]\n")

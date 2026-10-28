@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import http from 'node:http'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { serve } from '../serve.js'
@@ -8,9 +8,10 @@ import { serve } from '../serve.js'
 describe('serve.js', () => {
   let server
   let base
+  let root
 
   beforeAll(async () => {
-    const root = mkdtempSync(join(tmpdir(), 'jscad-serve-'))
+    root = mkdtempSync(join(tmpdir(), 'jscad-serve-'))
     mkdirSync(join(root, 'build'))
     writeFileSync(join(root, 'build', 'font.woff2'), 'w')
     writeFileSync(join(root, 'build', 'part.scad'), 'cube(1);')
@@ -24,6 +25,7 @@ describe('serve.js', () => {
   afterAll(() => {
     server.close()
     vi.restoreAllMocks()
+    rmSync(root, { recursive: true, force: true })
   })
 
   it('has no /remote proxy', async () => {

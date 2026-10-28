@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { formatConversations, readBatch, readConversations } from './read-log.js'
+import { tempDir } from '../test/tempDir.js'
 
 const sse = (...events) => events.map((e) => `data: ${typeof e === 'string' ? e : JSON.stringify(e)}\n\n`).join('')
 const openaiCall = (id, name, args) =>
@@ -31,7 +32,7 @@ const fail = { ok: false, error: { name: 'Error', message: 'failed to load modul
 const OAI = 'v1/chat/completions'
 
 const writeLog = (files) => {
-  const dir = mkdtempSync(join(tmpdir(), 'readlog-'))
+  const dir = tempDir('readlog-')
   for (const [name, records] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, name)), { recursive: true })
     writeFileSync(join(dir, name),records.map((r) => JSON.stringify(r)).join('\n') + '\n')

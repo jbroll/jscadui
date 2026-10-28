@@ -1,8 +1,7 @@
 import express from 'express'
 import request from 'supertest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { mountRelayRoutes } from '../src/relay/routes.js'
 import {
@@ -14,13 +13,14 @@ import {
   parseInferenceConfig,
 } from '../src/relay/inference.js'
 import { MESSAGES_MODELS as AGENT_LOOP_MESSAGES, RESPONSES_MODELS as AGENT_LOOP_RESPONSES } from '../../../../packages/agent-loop/src/providers.js'
+import { tempDir } from './tempDir.js'
 
 // One fixed instant so day/month rollovers in the meter are deterministic.
 const NOW = Date.parse('2026-10-15T18:00:00Z')
 const DAY = '2026-10-15'
 const MONTH = '2026-10'
 
-const tmp = () => mkdtempSync(join(tmpdir(), 'inference-'))
+const tmp = () => tempDir('inference-')
 
 const modelEntry = (over: Record<string, unknown> = {}) => ({
   model: 'deepseek-v4.1-flash',

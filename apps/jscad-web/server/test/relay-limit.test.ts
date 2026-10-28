@@ -1,16 +1,20 @@
 import express from 'express'
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { describe, expect, it, vi, afterAll, beforeAll, beforeEach, afterEach } from 'vitest'
 import request from 'supertest'
-import { writeFileSync, mkdirSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { mountRelayRoutes } from '../src/relay/routes.js'
 import { relayJson, relayJsonError } from '../src/relay/body.js'
 
-const dir = join(tmpdir(), `relay-limit-${process.pid}`)
-mkdirSync(dir, { recursive: true })
-const allowlistPath = join(dir, 'providers.json')
-writeFileSync(allowlistPath, JSON.stringify({ openai: 'https://upstream.test' }))
+let dir: string
+let allowlistPath: string
+beforeAll(() => {
+  dir = mkdtempSync(join(tmpdir(), 'relay-limit-'))
+  allowlistPath = join(dir, 'providers.json')
+  writeFileSync(allowlistPath, JSON.stringify({ openai: 'https://upstream.test' }))
+})
+afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
 let fetchMock: ReturnType<typeof vi.fn>
 beforeEach(() => {

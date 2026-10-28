@@ -1,10 +1,10 @@
 import express from 'express'
 import request from 'supertest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { mountRelayRoutes } from '../src/relay/routes.js'
+import { tempDir } from './tempDir.js'
 
 // The single relay endpoint family serves every provider through a hook chosen
 // by wire `kind`. `jscad-web` is the free specialization; every other kind is
@@ -15,7 +15,7 @@ const NOW = Date.parse('2026-10-15T18:00:00Z')
 const DAY = '2026-10-15'
 const MONTH = '2026-10'
 
-const tmp = () => mkdtempSync(join(tmpdir(), 'providers-'))
+const tmp = () => tempDir('providers-')
 
 const modelEntry = (over: Record<string, unknown> = {}) => ({
   model: 'deepseek-v4.1-flash',

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { castVote, JUDGE, JUDGE_PROMPT_SHA256, judgeFiles, judgePrompt, parseVote, unjudgedRuns, verdictOf } from './judge.js'
+import { tempDir } from '../test/tempDir.js'
 
 // A scripted judge in the shape of eval/fake-provider.js: each reply in order, an Error thrown as a provider failure.
 const replies = (...texts) => {
@@ -38,7 +38,7 @@ const described = (overrides = {}) => ({
   ...overrides,
 })
 const fileWith = (runs) => {
-  const path = join(mkdtempSync(join(tmpdir(), 'judge-test-')), 'r.json')
+  const path = join(tempDir('judge-test-'), 'r.json')
   writeFileSync(path, JSON.stringify({ suite: 'complex', summary: [], results: runs }))
   return path
 }

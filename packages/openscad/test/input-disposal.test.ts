@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import jscad from '@jscad/modeling'
 import j$ from '@jscadui/openscad-runtime'
 import { initScadRuntime, evalScadSolidSync } from '../bin/run-jscad.js'
+import { tempDir } from './tempDir.js'
 
 type Ctx = Awaited<ReturnType<typeof initScadRuntime>>
 type Geom = { manifold?: unknown, crossSection?: unknown, volume(): number, area(): number }
@@ -80,7 +80,7 @@ describe('manifold inputs are disposed once an op consumes them', () => {
   })
 
   const scad = (source: string) => {
-    const dir = mkdtempSync(join(tmpdir(), 'disposal-'))
+    const dir = tempDir('disposal-')
     const file = join(dir, 'model.scad')
     writeFileSync(file, source)
     return evalScadSolidSync(file, ctx)

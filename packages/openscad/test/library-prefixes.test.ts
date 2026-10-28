@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DEFAULT_LIBRARY_PREFIXES, resolveLibraryPrefix } from '../bin/libraryPrefixes.js'
+import { tempDir } from './tempDir.js'
 
 const makeTree = () => {
-  const root = mkdtempSync(join(tmpdir(), 'libprefix-'))
+  const root = tempDir('libprefix-')
   mkdirSync(join(root, 'libs', 'BOSL2'), { recursive: true })
   writeFileSync(join(root, 'libs', 'BOSL2', 'std.scad'), '// std')
   mkdirSync(join(root, 'libs', 'BOSL'), { recursive: true })

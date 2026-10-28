@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import { inflateSync } from 'node:zlib'
@@ -8,6 +7,7 @@ import { chromium } from '@playwright/test'
 import { collectMesh, meshPage, meshPages } from './mesh.js'
 import { createRenderer, createRunRenderer, RENDER_SIZE } from './render.js'
 import { VIEW_LABELS, VIEWS } from './views.js'
+import { tempDir } from '../test/tempDir.js'
 
 const { colors, primitives } = createRequire(import.meta.url)('@jscad/modeling')
 
@@ -111,7 +111,7 @@ describe.skipIf(!hasChromium)('createRenderer', () => {
         colors.colorize([0.78, 0.14, 0.13], primitives.cuboid({ size: [80, 30, 28] })),
         primitives.cylinder({ radius: 9, height: 6, center: [26, 17, -10] }),
       ])
-      const dir = mkdtempSync(join(tmpdir(), 'render-test-'))
+      const dir = tempDir('render-test-')
       const views = await renderer.render(parts, dir)
       expect(views.map((v) => v.name)).toEqual(VIEWS.map((v) => v.name))
       for (const view of views) {
@@ -131,7 +131,7 @@ describe.skipIf(!hasChromium)('createRenderer', () => {
     const renderer = await createRenderer()
     try {
       const parts = await partsOf([primitives.cuboid({ size: [40, 40, 40], center: [-60, 0, 0] }), primitives.cuboid({ size: [40, 40, 40], center: [60, 0, 0] })])
-      const views = await renderer.render(parts, mkdtempSync(join(tmpdir(), 'render-test-')))
+      const views = await renderer.render(parts, tempDir('render-test-'))
       const png = readFileSync(views.find((v) => v.name === 'iso-front').path)
       // palette[0] #c8553d is red-heavy, palette[1] #3d7cc8 is blue-heavy; both must show up.
       expect(countPixels(png, (r, g, b) => r > g + 30 && r > b + 30)).toBeGreaterThan(RENDER_SIZE * RENDER_SIZE * 0.01)
@@ -150,7 +150,7 @@ describe.skipIf(!hasChromium)('createRenderer', () => {
     })
     try {
       const parts = await partsOf([colors.colorize([0.78, 0.14, 0.13], primitives.cuboid({ size: [80, 30, 28] }))])
-      const views = await renderer.render(parts, mkdtempSync(join(tmpdir(), 'render-test-')))
+      const views = await renderer.render(parts, tempDir('render-test-'))
       for (const view of views) expect(redPixels(readFileSync(view.path))).toBeGreaterThan(RENDER_SIZE * RENDER_SIZE * 0.05)
       const [page] = browser.contexts()[0].pages()
       const gl = await page.evaluate(() => {

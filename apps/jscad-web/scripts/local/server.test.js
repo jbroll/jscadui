@@ -1,15 +1,15 @@
 // apps/jscad-web/scripts/local/server.test.js
 import { describe, expect, it } from 'vitest'
 import http from 'node:http'
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync, symlinkSync } from 'node:fs'
 import { join } from 'node:path'
+import { tempDir } from '../../test/tempDir.js'
 import { createRelayHandler } from './relay.js'
 import { startLocal } from './server.js'
 
 describe('local server', () => {
   it('serves app, frame dir, /models and relay-origin rules', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    const root = tempDir('jscad-local-')
     mkdirSync(join(root, 'frame'), { recursive: true })
     mkdirSync(join(root, 'models'), { recursive: true })
     writeFileSync(join(root, 'index.html'), '<h1>app</h1>')
@@ -34,7 +34,7 @@ describe('local server', () => {
   })
 
   it('mounts the fs api for the app origin only, ahead of the static routes', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    const root = tempDir('jscad-local-')
     mkdirSync(join(root, 'frame'), { recursive: true })
     mkdirSync(join(root, 'models'), { recursive: true })
     mkdirSync(join(root, 'api', 'fs'), { recursive: true })
@@ -64,7 +64,7 @@ describe('local server', () => {
   })
 
   it('sends CORS on missing and forbidden files so the frame sees the status', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    const root = tempDir('jscad-local-')
     mkdirSync(join(root, 'frame'), { recursive: true })
     mkdirSync(join(root, 'models'), { recursive: true })
     const relayHandler = createRelayHandler({ allowlist: {}, trustedOrigins: [] })
@@ -91,7 +91,7 @@ describe('local server', () => {
   })
 
   it('serves fonts, source maps and OpenSCAD files with their MIME types', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    const root = tempDir('jscad-local-')
     mkdirSync(join(root, 'frame'), { recursive: true })
     mkdirSync(join(root, 'models'), { recursive: true })
     writeFileSync(join(root, 'font.woff2'), 'w')
@@ -118,7 +118,7 @@ describe('local server', () => {
   })
 
   it('answers 500 and keeps serving when a handler throws', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    const root = tempDir('jscad-local-')
     mkdirSync(join(root, 'frame'), { recursive: true })
     mkdirSync(join(root, 'models'), { recursive: true })
     const relayHandler = async () => { throw new TypeError('terminated') }
@@ -135,7 +135,7 @@ describe('local server', () => {
   })
 
   it('routes /api/fetch to the fetch handler, ahead of the static routes', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    const root = tempDir('jscad-local-')
     mkdirSync(join(root, 'frame'), { recursive: true })
     mkdirSync(join(root, 'models'), { recursive: true })
     mkdirSync(join(root, 'api'), { recursive: true })
@@ -159,7 +159,7 @@ describe('local server', () => {
   })
 
   it('serves /models through a symlinked model directory root', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    const root = tempDir('jscad-local-')
     mkdirSync(join(root, 'frame'), { recursive: true })
     const realModels = join(root, 'real-models')
     mkdirSync(realModels, { recursive: true })
@@ -179,7 +179,7 @@ describe('local server', () => {
   })
 
   it('refuses dotfiles and symlinks that leave the model directory', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    const root = tempDir('jscad-local-')
     mkdirSync(join(root, 'frame'), { recursive: true })
     mkdirSync(join(root, 'models', '.git'), { recursive: true })
     writeFileSync(join(root, 'models', '.env'), 'SECRET=1')
@@ -201,7 +201,7 @@ describe('local server', () => {
   })
 
   it('refuses foreign origins and unmarked requests to /models', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    const root = tempDir('jscad-local-')
     mkdirSync(join(root, 'frame'), { recursive: true })
     mkdirSync(join(root, 'models'), { recursive: true })
     writeFileSync(join(root, 'models', 'cube.js'), 'module.exports = {}')
@@ -229,7 +229,7 @@ describe('local server', () => {
   })
 
   it('refuses a rebound host on /models even when the request looks same-origin', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    const root = tempDir('jscad-local-')
     mkdirSync(join(root, 'frame'), { recursive: true })
     mkdirSync(join(root, 'models'), { recursive: true })
     writeFileSync(join(root, 'models', 'cube.js'), 'module.exports = {}')
@@ -253,7 +253,7 @@ describe('local server', () => {
   })
 
   it('serves the static branch cross-origin', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'jscad-local-'))
+    const root = tempDir('jscad-local-')
     mkdirSync(join(root, 'frame'), { recursive: true })
     mkdirSync(join(root, 'models'), { recursive: true })
     writeFileSync(join(root, 'index.html'), '<h1>app</h1>')

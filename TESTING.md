@@ -69,6 +69,15 @@ npm run coverage
 - `packages/format-*` - Format conversion
 - `packages/render-*` - Rendering engines
 
+**Temp dirs**: a test that creates a dir under the OS temp dir removes it when
+it finishes. For a dir made inside a test, register the removal with vitest's
+`onTestFinished(() => rmSync(dir, { recursive: true, force: true }))`; the
+`tempDir(prefix)` helpers in `apps/jscad-web/test/`, `apps/jscad-web/server/test/`,
+`packages/agent-loop/test/` and `packages/openscad/test/` do both steps. For a
+dir shared by a whole file, create it with `mkdtempSync` in `beforeAll` and
+remove it in `afterAll`. Name dirs with `mkdtempSync`, not a fixed name such
+as `` `relay-${process.pid}` ``, so two runs never share one.
+
 ---
 
 ### 2. JSCAD Example Execution Tests

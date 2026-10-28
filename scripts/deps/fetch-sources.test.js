@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { mkdtempSync, symlinkSync } from 'node:fs'
+import { describe, expect, it, onTestFinished } from 'vitest'
+import { mkdtempSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,6 +15,7 @@ describe('isMainModule', () => {
 
   it('matches through a symlink, unlike a raw argv[1] comparison', () => {
     const dir = mkdtempSync(join(tmpdir(), 'fetch-sources-symlink-'))
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true }))
     const link = join(dir, 'linked.test.js')
     symlinkSync(realPath, link)
     expect(isMainModule(link, moduleUrl)).toBe(true)

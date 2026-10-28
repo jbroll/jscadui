@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { tempDir } from '../test/tempDir.js'
 
 const DESCRIBE_PY = fileURLToPath(new URL('./describer/describe.py', import.meta.url))
 const SETUP = fileURLToPath(new URL('../../../scripts/describer-setup.sh', import.meta.url))
@@ -42,7 +41,7 @@ describe.skipIf(!hasPython)('describe.py', () => {
 
 describe('describer-setup.sh --check', () => {
   it('names the missing venv and fails', () => {
-    const home = mkdtempSync(join(tmpdir(), 'describer-home-'))
+    const home = tempDir('describer-home-')
     const out = spawnSync('bash', [SETUP, '--check'], { encoding: 'utf8', env: { ...process.env, DESCRIBER_HOME: home } })
     expect(out.status).toBe(1)
     expect(out.stderr).toContain(`describer: no venv at ${join(home, 'venv')}`)
