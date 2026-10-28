@@ -1,4 +1,5 @@
 import { measureArray, wrapOne } from './array-geom.js'
+import { interference } from './interference.js'
 import { analyzeMesh, outlinesClosed, weldedTriangles } from './mesh.js'
 import { findSelfIntersections } from './self-intersect.js'
 
@@ -127,7 +128,7 @@ const anyOf = (values) => {
   return known.length ? known.some(Boolean) : null
 }
 
-const checkArray = (arr, bed) => {
+const checkArray = (arr, bed, withInterference = true) => {
   const items = arr.map((item, index) => {
     const geomType = classify(item)
     if (geomType === 'unknown') {
@@ -151,11 +152,12 @@ const checkArray = (arr, bed) => {
     entityCount: items.length,
     items: items.map(({ notes: _, ...it }) => it),
     ...(notes.length ? { notes } : {}),
+    ...(withInterference ? interference(arr) : {}),
   }
 }
 
-export const checkGeom = (geom, geomType, bed) => {
-  if (geomType === 'array') return checkArray(geom, bed)
+export const checkGeom = (geom, geomType, bed, withInterference = true) => {
+  if (geomType === 'array') return checkArray(geom, bed, withInterference)
   if (geomType === 'geom3') return checkSolid(geom, bed)
   if (geomType === 'geom2') return checkOutline(geom, bed)
   return { empty: true, watertight: null, manifold: null, notes: ['not a geom2 or geom3'] }
@@ -166,4 +168,5 @@ export const check = (geometry, options = {}) =>
     Array.isArray(geometry) ? geometry : wrapOne(geometry),
     Array.isArray(geometry) ? 'array' : classify(geometry),
     options.bed,
+    options.interference !== false,
   )

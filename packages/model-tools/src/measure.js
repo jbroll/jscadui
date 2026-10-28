@@ -56,7 +56,7 @@ const namesOf = (item) => {
   }
 }
 
-const itemsNamed = (items, selector) => {
+const indexesNamed = (items, selector) => {
   const names = items.map(namesOf)
   const matches = matchPartName(selector, names.flat())
   if (matches.length > 1) {
@@ -65,14 +65,16 @@ const itemsNamed = (items, selector) => {
   if (matches.length === 0) {
     throw new Error(`part ${JSON.stringify(selector)} is not a part of this model; name ${partRefForms(items.length, names.flat())}`)
   }
-  return items.filter((_, i) => names[i].includes(matches[0]))
+  return items.flatMap((_, i) => (names[i].includes(matches[0]) ? [i] : []))
 }
 
-const selectedItems = (items, selector) => {
-  if (!isIndexSelector(selector)) return itemsNamed(items, selector)
+export const partIndexes = (items, selector) => {
+  if (!isIndexSelector(selector)) return indexesNamed(items, selector)
   const [from, to] = selectorRange(selector, items.length)
-  return items.slice(from, to + 1)
+  return Array.from({ length: to - from + 1 }, (_, k) => from + k)
 }
+
+const selectedItems = (items, selector) => partIndexes(items, selector).map((i) => items[i])
 
 const selectItems = (items, selector) => {
   const picked = selectedItems(items, selector).flat(Infinity)
