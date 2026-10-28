@@ -2,7 +2,8 @@
 // { ok, entry, error?: { name, message, file, line, column }, warnings,
 //   console, params, geometry?: { parts, boundingBox, dimensions, volume,
 //   watertight, manifold, selfIntersecting } }, which writeReport heads with
-// the file saved.
+// the file saved. A part interference or reference tag failure keeps geometry
+// and adds `interference` and `references` from check().
 // `measured` and `checked` are @jscadui/model-tools measure() and check()
 // results for the geometry main() returned.
 
@@ -89,7 +90,36 @@ export const assembleReport = async ({ entry, error, warnings = [], console: lin
   } catch {
     return buildReport({ entry, error: notGeometryError(), warnings, console: lines })
   }
-  return buildReport({ entry, warnings, console: lines, params, measured, checked })
+  const unchecked = checked?.interferenceUnchecked > 0 ? [{ severity: 'warning', source: 'check', message: `${checked.interferenceUnchecked} overlapping part pairs were not checked for shared volume` }] : []
+  const all = [...warnings, ...unchecked]
+  const references = checked?.references?.length > 0 ? checked.references : undefined
+  const failure = partFailure(checked)
+  if (!failure) return { ...buildReport({ entry, warnings: all, console: lines, params, measured, checked }), ...(references ? { references } : {}) }
+  return {
+    ok: false,
+    entry,
+    error: reportError(failure),
+    warnings: all,
+    console: lines,
+    params: reportParams(params),
+    geometry: geometrySummary(measured, checked),
+    ...(checked.interference ? { interference: checked.interference } : {}),
+    ...(references ? { references } : {}),
+  }
+}
+
+const mm = (n) => Math.round(n * 10) / 10
+
+// Bad tags win: a misread tag makes the overlap list untrustworthy.
+const partFailure = (checked) => {
+  if (checked?.tagErrors?.length > 0) return { name: 'PartTagError', message: checked.tagErrors.join('; ') }
+  const { pairs = [], total = 0 } = checked?.interference ?? {}
+  if (total === 0 || pairs.length === 0) return undefined
+  const [first] = pairs
+  const more = total - 1
+  const rest = more > 0 ? `; ${more} more ${more === 1 ? 'pair overlaps' : 'pairs overlap'}` : ''
+  const message = `parts ${first.a} and ${first.b} share ${mm(first.volume)} mm³ (a ${first.size.map(mm).join(' x ')} mm region)${rest}. Separate parts must not share volume: move or resize one, or union them into one part. Purchased hardware is a reference part and is checked too (docs reference).`
+  return { name: 'InterferenceError', message }
 }
 
 export const NO_ENTRY_NOTE ='no entry yet (main.js, index.js or package.json main)'
@@ -148,7 +178,7 @@ const isGeometry = (item) => item !== null && typeof item === 'object' && ('poly
 export const summarizeRun = ({ hasMain, value }, measure, check) => {
   const shown = hasMain ? value : withoutSelfDefault(value)
   const items = [shown].flat(Infinity)
-  if (hasMain && items.length > 0 && items.every(isGeometry)) return { geometry: geometrySummary(measure(items), check?.(items)) }
+  if (hasMain && items.length > 0 && items.every(isGeometry)) return { geometry: geometrySummary(measure(items), check?.(items, { interference: false })) }
   const empty = !hasMain && shown !== null && typeof shown === 'object' && Object.keys(shown).length === 0
   return empty ? {} : { returned: previewValue(shown) }
 }

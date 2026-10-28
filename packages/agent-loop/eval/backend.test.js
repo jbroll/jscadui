@@ -154,6 +154,17 @@ module.exports = { main }`
     expect(FONT_NAMES).toContain('Liberation Sans:style=Bold')
   }, 60_000)
 
+  it('fails overlapping parts with InterferenceError, and still grades their geometry', async () => {
+    const backend = createEvalBackend()
+    const source = `const jf = require('@jbroll/jscad-fluent')\nmodule.exports = { main: () => [jf.cuboid({ size: [10, 10, 10] }), jf.cuboid({ size: [10, 10, 10] }).translate([5, 0, 0])] }`
+    const res = await writeMain(source, backend)
+    expect(res.ok).toBe(false)
+    expect(res.error.name).toBe('InterferenceError')
+    expect((await call(backend, 'measure')).dimensions[0]).toBeCloseTo(15, 3)
+    const graded = await createEvalBackend().gradeProject({ files: { 'main.js': source }, entry: 'main.js' })
+    expect(graded.measure).not.toBeNull()
+  })
+
   it('names the available fonts when a model asks for an unknown one', async () => {
     const res = await writeMain(UNKNOWN_FONT)
     expect(res.ok).toBe(false)
@@ -819,10 +830,10 @@ module.exports = { main: () => jf.circle({ radius: 5 }).extrudeLinear({ hieght: 
   it('names unknown options on fluent functions and methods added for modeling parity', async () => {
     const res = await writeMain(`const jf = require('@jbroll/jscad-fluent')
 module.exports = { main: () => [
-  jf.circle({ radius: 1, center: [5, 0] }).extrudeHelical({ pitchh: 10 }),
-  jf.path({ closd: false }, [[0, 0], [10, 0]]).appendArc({ endpoint: [10, 10], radius: [5, 5], clockwize: true }).expand({ delta: 1 }).extrudeLinear({ height: 1 }),
-  jf.cube({ size: 4 }).project({ axiss: [0, 0, 1] }).extrudeLinear({ height: 1 }),
-  jf.geom3Array(jf.cube({ size: 1 }), jf.cube({ size: 2 })).rotateX(90),
+  jf.circle({ radius: 1, center: [5, 0] }).extrudeHelical({ pitchh: 10 }).translate([0, 100, 0]),
+  jf.path({ closd: false }, [[0, 0], [10, 0]]).appendArc({ endpoint: [10, 10], radius: [5, 5], clockwize: true }).expand({ delta: 1 }).extrudeLinear({ height: 1 }).translate([0, -100, 0]),
+  jf.cube({ size: 4 }).project({ axiss: [0, 0, 1] }).extrudeLinear({ height: 1 }).translate([100, 0, 0]),
+  jf.geom3Array(jf.cube({ size: 1 }), jf.cube({ size: 2 }).translate([10, 0, 0])).rotateX(90).translate([0, 50, 0]),
 ] }`)
     expect(res.ok).toBe(true)
     expect(res.warnings.map(({ fn, option, suggestions }) => ({ fn, option, suggestions }))).toEqual([

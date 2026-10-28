@@ -211,3 +211,56 @@ describe('memoryMessage and runTimeoutError', () => {
     expect(runTimeoutError()).toEqual({ ok: false, error: { name: 'TimeoutError', message: 'run stopped after 30 s; try a smaller case' } })
   })
 })
+
+describe('part interference in the build report', () => {
+  const measured = { boundingBox: [[0, 0, 0], [10, 10, 10]], dimensions: [10, 10, 10], volume: 1000, entityCount: 2 }
+  const pair = { a: '0', b: '1', volume: 273.66, size: [29.4179, 44.5922, 14.5] }
+  const build = (checked) => assembleReport({ entry: 'main.js', console: ['c'], warnings: [{ w: 1 }], params: [{ name: 'n', type: 'slider', initial: 5 }], measure: () => measured, check: () => ({ watertight: true, ...checked }) })
+  const base = 'parts 0 and 1 share 273.7 mm³ (a 29.4 x 44.6 x 14.5 mm region)'
+  const advice = 'Separate parts must not share volume: move or resize one, or union them into one part. Purchased hardware is a reference part and is checked too (docs reference).'
+
+  it('interference fails the build and keeps the geometry', async () => {
+    const interference = { pairs: [pair, pair, pair, pair, pair], total: 5 }
+    const report = await build({ interference })
+    expect(report.ok).toBe(false)
+    expect(report.error.name).toBe('InterferenceError')
+    expect(report.error.message).toBe(`${base}; 4 more pairs overlap. ${advice}`)
+    expect(report.geometry.parts).toBe(2)
+    expect(report.params).toEqual([{ name: 'n', type: 'slider', default: 5 }])
+    expect(report.interference.total).toBe(5)
+    expect(report.console).toEqual(['c'])
+  })
+
+  it('words the count of other overlapping pairs', async () => {
+    expect((await build({ interference: { pairs: [pair], total: 1 } })).error.message).toBe(`${base}. ${advice}`)
+    expect((await build({ interference: { pairs: [pair], total: 2 } })).error.message).toBe(`${base}; 1 more pair overlaps. ${advice}`)
+  })
+
+  it('a bad tag fails the build, ahead of interference', async () => {
+    const report = await build({ tagErrors: ['part 1: reference needs a reason', 'part 2: bad'], interference: { pairs: [pair], total: 1 } })
+    expect(report.ok).toBe(false)
+    expect(report.error).toEqual({ name: 'PartTagError', message: 'part 1: reference needs a reason; part 2: bad' })
+    expect(report.geometry.parts).toBe(2)
+    expect(report.params).toHaveLength(1)
+  })
+
+  it('references ride on a passing report', async () => {
+    const references = [{ part: '1', reason: 'M3 screw', overlaps: [{ part: '0', volume: 2 }] }]
+    const report = await build({ references })
+    expect(report.ok).toBe(true)
+    expect(report.references).toEqual(references)
+  })
+
+  it('unchecked pairs add a warning', async () => {
+    const report = await build({ interferenceUnchecked: 7 })
+    expect(report.ok).toBe(true)
+    expect(report.warnings).toEqual([{ w: 1 }, { severity: 'warning', source: 'check', message: '7 overlapping part pairs were not checked for shared volume' }])
+  })
+
+  it('summarizeRun asks check to skip interference', () => {
+    const check = vi.fn(() => ({ watertight: true }))
+    const geometry = { polygons: [] }
+    summarizeRun({ hasMain: true, value: geometry }, () => measured, check)
+    expect(check).toHaveBeenCalledWith([geometry], { interference: false })
+  })
+})

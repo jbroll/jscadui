@@ -424,6 +424,18 @@ called (sync or async) for the geometry `main()` returned, and a throw from
 either gives the `notGeometryError()` report. `params` are params-core
 definitions.
 
+When `check` reports bad reference tags (`tagErrors`) or parts that share
+volume (`interference`), the report is `ok: false` with `error.name`
+`PartTagError` or `InterferenceError` (tag errors win), and it still carries
+`geometry`, `params`, `warnings` and `console`. `InterferenceError` names the
+largest pair and counts the other overlapping pairs; the report also carries
+`interference: { pairs, total }`. `references` from `check` ride on passing and
+failing reports alike. `interferenceUnchecked > 0` adds a `check` warning
+that many overlapping pairs were not checked for shared volume. `summarizeRun`
+calls `check(items, { interference: false })`, so a scratch `run` never fails
+on overlap. The eval backend keeps the geometry of such a failed build, so
+`measure`, `check`, `view` and `gradeProject` still read it.
+
 ```js
 reportError(error, { api, index, files })
 ```

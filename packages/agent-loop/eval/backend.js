@@ -348,7 +348,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
       measure: () => measure(asGeometry(geometry)),
       check: () => check(asGeometry(geometry)),
     })
-    current = report.ok ? { report, geometry, params: loaded.params } : { report }
+    current = report.geometry ? { report, geometry, params: loaded.params } : { report }
     return report
   }
 
@@ -562,7 +562,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
       seed()
       return none
     }
-    if (!report?.ok) return none
+    if (!report?.geometry) return none
     const measured = JSON.parse(await requestTool('measure', {}))
     const checked = JSON.parse(await requestTool('check', {}))
     const graded = { measure: measured.ok ? measured : null, solid: checked.ok ? checked : null, params: current.params }

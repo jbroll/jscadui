@@ -140,7 +140,7 @@ export const WARNING_CASES = [
     name: 'K: tilting a 2D shape about X or Y says it only squashes, and to extrude first',
     api: 'fluent',
     source: fluent(
-      'module.exports = { main: () => [jf.rectangle({ size: [10, 10] }).rotateX(Math.PI / 3).extrudeLinear({ height: 2 }), jf.rectangle({ size: [10, 10] }).rotateY(Math.PI).rotateZ(1).extrudeLinear({ height: 2 })] }',
+      'module.exports = { main: () => [jf.rectangle({ size: [10, 10] }).rotateX(Math.PI / 3).extrudeLinear({ height: 2 }), jf.rectangle({ size: [10, 10] }).rotateY(Math.PI).rotateZ(1).extrudeLinear({ height: 2 }).translate([20, 0, 0])] }',
     ),
     warnings: [{ fn: 'FluentGeom2.rotateX', option: 'angle', hints: ['rotateX only squashes a 2D shape', 'shape.extrudeLinear({ height }).rotateX('] }],
   },
@@ -148,7 +148,7 @@ export const WARNING_CASES = [
     name: 'K: a modeling rotate of a 2D shape about X says to extrude first',
     api: 'modeling',
     source: modeling(
-      'module.exports = { main: () => [extrusions.extrudeLinear({ height: 2 }, transforms.rotate([Math.PI / 3, 0, 0], primitives.rectangle({ size: [10, 10] }))), transforms.rotateX(Math.PI / 2, primitives.cube({ size: 2 }))] }',
+      'module.exports = { main: () => [extrusions.extrudeLinear({ height: 2 }, transforms.rotate([Math.PI / 3, 0, 0], primitives.rectangle({ size: [10, 10] }))), transforms.translate([20, 0, 0], transforms.rotateX(Math.PI / 2, primitives.cube({ size: 2 })))] }',
     ),
     warnings: [{ fn: 'transforms.rotate', option: 'angle', hints: ['extrusions.extrudeLinear({ height }, shape)'] }],
   },
@@ -361,7 +361,7 @@ module.exports = { main: () => primitives.cube({ size: 2 }).translate([1, 0, 0])
   {
     name: 'T: a valid trailing subtract options object warns nothing',
     api: 'fluent',
-    source: fluent('module.exports = { main: () => [jf.cube({ size: 3 }).subtract(jf.cube({ size: 1 }), { carry: {} }), jf.cube()] }'),
+    source: fluent('module.exports = { main: () => [jf.cube({ size: 3 }).subtract(jf.cube({ size: 1 }), { carry: {} }), jf.cube().translate([10, 0, 0])] }'),
     warnings: [],
   },
   {
