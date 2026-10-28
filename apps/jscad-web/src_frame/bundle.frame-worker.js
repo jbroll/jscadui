@@ -22,13 +22,13 @@ import {
 } from '@jscadui/worker'
 import { asGeometry, summarizeRun } from '@jscadui/agent-loop/src/buildReport.js'
 import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache, setScadExportsWrapper, setUserModuleWrapper, setLibraryPrefixes } from '@jscadui/require'
-import { withTransferable } from '@jscadui/postmessage'
 import { defaultSerializerConfigs } from '@jscadui/format-common/src/exportFormats.js'
 import { createScadHandler } from '@jscadui/agent-loop/src/scadHandler.js'
 import { createScadExportsWrapper } from '@jscadui/agent-loop/src/scadFluent.js'
 import { createImportData } from './importData.js'
 import { sealMessageListeners } from './sealMessages.js'
 import { createWithSolids } from './withSolids.js'
+import { serializeSolids } from './serializeSolids.js'
 import { installOptionWarnings } from './optionWarnings.js'
 import { installRunConsole } from './consoleCapture.js'
 import { createModelIsolation } from './modelIsolation.js'
@@ -115,10 +115,7 @@ const jscadExportData = async ({ format, options = {} }) => {
   const jscadIo = require('@jscad/io', null, readFileWeb)
   const config = defaultSerializerConfigs.find((c) => c.id === format)
   if (!config) throw new Error(`Unknown export format: ${format}`)
-  const serialize = (solids) => {
-    const data = jscadIo[config.serializerKey].serialize({ ...config.defaultOptions, ...options }, solids)
-    return withTransferable({ data }, data.filter((v) => typeof v !== 'string'))
-  }
+  const serialize = (solids) => serializeSolids(jscadIo[config.serializerKey], { ...config.defaultOptions, ...options }, solids)
   // Only a model that reads $preview can differ between the two modes, and
   // re-running one is expensive, so ask the runtime whether it ever mattered.
   // A streamed grid is re-run for the export anyway, in preview mode.

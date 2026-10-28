@@ -419,6 +419,24 @@ and a translucent color (background grey, highlight pink). The worker draws
 them as entities but keeps them out of `workerState.solids`, so export never
 sees them; `run-jscad.js` and grid cells drop them the same way.
 
+### Reference parts
+
+A part `main()` returns with an own `reference` property (purchased hardware)
+is drawn, measured and checked like any part but never
+exported. The tree evaluator builds fresh solids, so the worker copies a root
+node's `reference` onto each solid that node evaluates to (`evaluateRoot` in
+`packages/worker/worker.js`), assigned on the solid itself because Manifold
+solids are class instances. A tag set on a nested object or before a later
+transform is lost. Reference parts stay in `workerState.solids`, where
+`measure` and `check` read them; the worker's `jscadExportData` and the
+frame's `serializeSolids` drop them and `previewOnly` ghosts through
+`exportableSolids` (`packages/worker/src/exportable.js`).
+
+model-tools' interference check intersects parts with `booleans.intersect`.
+In the frame `@jscad/modeling` is the tree bundle, whose intersect returns a
+lazy node, so every tree bundle also exports `evaluateSync`, which
+model-tools uses to resolve that node to geometry.
+
 ### Geometry caps
 
 Geometry from the frame is untrusted input, so `src/caps.js` bounds it before

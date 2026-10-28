@@ -5,7 +5,7 @@
 // external so the bundle shares that one engine copy rather than inlining a
 // second.
 import * as raw from '@jscad/modeling-for-manifold'
-import { createEvaluator, createModelTree } from '@jscadui/model-tree'
+import { createEvaluator, createModelTree, createSyncEvaluator } from '@jscadui/model-tree'
 
 export {
   createBuildContext,
@@ -26,3 +26,4 @@ export const {
 
 // What loadBoundEvaluate reads off the active tree bundle.
 export const evaluate = createEvaluator(raw)
+export const evaluateSync = createSyncEvaluator(raw)

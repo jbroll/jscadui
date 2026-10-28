@@ -5,7 +5,7 @@
 // here. The raw engine comes from the plain '@jscad/modeling-for-manifold'
 // bundle, kept external, for the same reason as the plain tree.
 import * as raw from '@jscad/modeling-for-manifold'
-import { createEvaluator, createModelTree } from '@jscadui/model-tree'
+import { createEvaluator, createModelTree, createSyncEvaluator } from '@jscadui/model-tree'
 
 export {
   createBuildContext,
@@ -25,3 +25,4 @@ export const {
 } = tree
 
 export const evaluate = createEvaluator(raw)
+export const evaluateSync = createSyncEvaluator(raw)

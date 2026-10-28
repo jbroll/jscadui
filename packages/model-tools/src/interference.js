@@ -12,6 +12,13 @@ const isGeom3 = (g) => !!g && typeof g === 'object' && 'polygons' in g
 const isGeometry = (g) => isGeom3(g) || (!!g && typeof g === 'object' && 'sides' in g)
 const solid = (g) => (geometries.geom3.isA(g) ? g : geometries.geom3.create(g.polygons))
 
+// In the app frame '@jscad/modeling' is the lazy model tree: intersect returns
+// a node, which the bundle's sync evaluator resolves to geometry.
+const intersect = (a, b) => {
+  const shared = booleans.intersect(a, b)
+  return shared?.isTreeNode ? jscad.evaluateSync(shared).solids[0] : shared
+}
+
 const boxesOverlap = ([aLo, aHi], [bLo, bHi]) => [0, 1, 2].every((k) => aLo[k] < bHi[k] && bLo[k] < aHi[k])
 
 // Returns { reason, allow? (as written), allowed: Set<number> } or { error }.
@@ -65,7 +72,7 @@ export const interference = (items) => {
         unchecked++
         continue
       }
-      const shared = booleans.intersect(parts[a], parts[b])
+      const shared = intersect(parts[a], parts[b])
       const volume = measurements.measureVolume(shared)
       if (!(volume > INTERFERENCE_EPSILON)) continue
       const allowedBy = [a, b].filter((i) => tags.get(i)?.allowed.has(i === a ? b : a))

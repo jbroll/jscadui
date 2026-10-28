@@ -6,7 +6,7 @@
 // at runtime it is the one shared plain modeling copy.
 import { setWasmUrl, startInit } from '@jscadui/manifold'
 import * as manifold from '@jscadui/manifold'
-import { createEvaluator, createModelTree } from '@jscadui/model-tree'
+import { createEvaluator, createModelTree, createSyncEvaluator } from '@jscadui/model-tree'
 import { bundleFileUrl } from './bundleBase.js'
 
 export {
@@ -32,3 +32,4 @@ export const {
 } = tree
 
 export const evaluate = createEvaluator(manifold)
+export const evaluateSync = createSyncEvaluator(manifold)

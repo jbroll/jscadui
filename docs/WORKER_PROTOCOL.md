@@ -288,7 +288,9 @@ a grid load alone and never retires a worker still holding a pending app
 `jscadScript`.
 
 ### jscadExportData
-Export model to a format.
+Export model to a format. Reference parts (a solid with `reference` set) and
+`previewOnly` ghosts are left out; `jscadMeasure` and `jscadCheck` still see
+reference parts.
 
 ```typescript
 interface ExportDataOptions {

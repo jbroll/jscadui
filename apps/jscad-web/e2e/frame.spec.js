@@ -259,6 +259,75 @@ test('jscadCheck reports solidity and bed fit', async ({ page }) => {
   expect(res.result.fitsBed).toBe(true)
 })
 
+const overlapping = (tagSecond = '') => project(
+  `const { cuboid } = require('@jscad/modeling').primitives\n` +
+  `const { translate } = require('@jscad/modeling').transforms\n` +
+  `const main = () => {\n` +
+  `  const second = translate([5, 0, 0], cuboid({ size: [10, 10, 10] }))\n` +
+  tagSecond +
+  `  return [cuboid({ size: [10, 10, 10] }), second]\n` +
+  `}\n` +
+  `module.exports = { main }\n`,
+)
+
+for (const engine of ['jscad', 'manifold']) {
+  test(`jscadCheck reports shared volume between overlapping parts on the ${engine} engine`, async ({ page }) => {
+    await gotoHost(page)
+    expect((await load(page, overlapping(), { engine, timeoutMs: 60000 })).ok).toBe(true)
+
+    const res = await send(page, 'jscadCheck', { bed: [100, 100, 100], options: {} })
+    expect(res.ok).toBe(true)
+    expect(res.result.interference.total).toBe(1)
+    expect(res.result.interference.pairs[0]).toMatchObject({ a: '0', b: '1' })
+    expect(res.result.interference.pairs[0].volume).toBeCloseTo(500, 3)
+  })
+}
+
+test('a reference tag set on a returned part reaches jscadCheck', async ({ page }) => {
+  await gotoHost(page)
+  const tag = `  second.reference = { reason: 'bearing', allow: ['0'] }\n`
+  expect((await load(page, overlapping(tag))).ok).toBe(true)
+
+  const res = await send(page, 'jscadCheck', { bed: [100, 100, 100], options: {} })
+  expect(res.ok).toBe(true)
+  expect(res.result.interference).toBeUndefined()
+  expect(res.result.references).toMatchObject([{ part: '1', reason: 'bearing', overlaps: [{ part: '0' }] }])
+  expect(res.result.references[0].overlaps[0].volume).toBeCloseTo(500, 3)
+})
+
+test('a reference tag set on a returned fluent part reaches jscadCheck', async ({ page }) => {
+  await gotoHost(page)
+  expect((await load(page, project(
+    `const jf = require('@jbroll/jscad-fluent')\n` +
+    `const main = () => {\n` +
+    `  const second = jf.cuboid({ size: [10, 10, 10] }).translate([5, 0, 0])\n` +
+    `  second.reference = 'bearing'\n` +
+    `  return [jf.cuboid({ size: [10, 10, 10] }), second]\n` +
+    `}\n` +
+    `module.exports = { main }\n`,
+  ))).ok).toBe(true)
+
+  const res = await send(page, 'jscadCheck', { bed: [100, 100, 100], options: {} })
+  expect(res.ok).toBe(true)
+  expect(res.result.references).toMatchObject([{ part: '1', reason: 'bearing' }])
+  expect(res.result.interference.pairs[0].volume).toBeCloseTo(500, 3)
+})
+
+test('jscadExportData leaves a reference part out of the STL', async ({ page }) => {
+  await gotoHost(page)
+  expect((await load(page, overlapping(`  second.reference = 'bearing'\n`))).ok).toBe(true)
+
+  const res = await page.evaluate(() =>
+    window.send('jscadExportData', { format: 'stlb' }).then((r) => ({
+      ok: r.ok,
+      bytes: (r.result?.data ?? []).reduce((n, v) => n + v.byteLength, 0),
+    })),
+  )
+  expect(res.ok).toBe(true)
+  // A binary STL is an 84-byte header plus 50 bytes a triangle; one cube is 12.
+  expect(res.bytes).toBe(84 + 12 * 50)
+})
+
 test('jscadExportData returns binary STL as ArrayBuffers', async ({ page }) => {
   await gotoHost(page)
   expect((await load(page, CUBE)).ok).toBe(true)

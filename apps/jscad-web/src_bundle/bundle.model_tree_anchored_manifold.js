@@ -3,7 +3,7 @@
 // with the anchors tag ops applied.
 import { setWasmUrl, startInit } from '@jscadui/manifold'
 import * as manifold from '@jscadui/manifold'
-import { createEvaluator, createModelTree } from '@jscadui/model-tree'
+import { createEvaluator, createModelTree, createSyncEvaluator } from '@jscadui/model-tree'
 import { bundleFileUrl } from './bundleBase.js'
 
 export {
@@ -29,6 +29,7 @@ export const {
 } = tree
 
 export const evaluate = createEvaluator(manifold)
+export const evaluateSync = createSyncEvaluator(manifold)
 
 // Forwarded for the worker's heap reporting: each claim carries
 // getModule().HEAPU8.length, which the frame uses to recycle a worker whose

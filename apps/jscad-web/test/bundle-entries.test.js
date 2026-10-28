@@ -47,6 +47,15 @@ test('every tree bundle exports the engine-bound evaluate the worker loads', () 
   }
 })
 
+// model-tools' interference check (packages/model-tools/src/interference.js)
+// resolves a tree bundle's lazy intersect node through `.evaluateSync`.
+test('every tree bundle exports the engine-bound evaluateSync model-tools uses', () => {
+  for (const name of TREE_BUNDLES) {
+    const src = read(`../src_bundle/${name}`)
+    expect(src, name).toMatch(/export const evaluateSync = createSyncEvaluator\(/)
+  }
+})
+
 // The worker's WASM gate (packages/worker/worker.js) and the frame's fluent
 // option checks (src_frame/optionWarnings.js) await the modeling bundle's
 // `ready` before user code runs. The manifold tree bundles start WASM init,

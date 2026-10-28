@@ -4,6 +4,7 @@ import { clearAllCaches, clearFileCache, jscadClearTempCache, readFileWeb, requi
 import { createParamsProxy, createProxyState, buildParamTree, toParamDefinitions, extractDefaults as extractProxyDefaults, convertLegacyDefs, injectLegacyDefs, withProjectMains } from '@jscadui/params-core'
 
 import { exportStlText } from './src/exportStlText.js'
+import { exportableSolids } from './src/exportable.js'
 import { combineParameterDefinitions, getParameterDefinitionsFromSource } from './src/getParameterDefinitionsFromSource.js'
 import { extractDefaults } from './src/extractDefaults.js'
 import { extractPathInfo, readAsArrayBuffer, readAsText } from '../fs-provider/fs-provider.js'
@@ -246,6 +247,18 @@ export const flatten = arr=>{
 // entity the model returned beside its solids.
 const isRootGhostNode = (node) => Boolean(node && (node.op === 'ghost' || node.previewOnly))
 
+// The tree evaluator builds fresh solids, so a reference tag model code set on
+// the node main() returned reaches the solids only here. Manifold solids are
+// class instances, so the tag is set on each, never spread into a copy.
+const evaluateRoot = async (evaluate, node, memo) => {
+  const evaluated = await evaluate(node, memo)
+  const { reference } = node ?? {}
+  if (reference !== undefined) {
+    for (const solid of evaluated.solids) if (solid && typeof solid === 'object' && solid !== node) solid.reference = reference
+  }
+  return evaluated
+}
+
 // A root ghost streams under this trailing claim. Split part keys are digits
 // joined by '+' (model-tree splitter), so a word can never collide with one:
 // a count like `${parts.length}` can, once an anchor merge shrinks the part
@@ -373,7 +386,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
       const solids = []
       const ghosts = []
       for (const node of nodes) {
-        const evaluated = await boundEvaluate(node, live)
+        const evaluated = await evaluateRoot(boundEvaluate, node, live)
         solids.push(...evaluated.solids)
         ghosts.push(...evaluated.ghosts)
       }
@@ -445,7 +458,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
     treeTime = performance.now() - time
 
     const evaluateRootNode = (node) => boundEvaluate
-      ? boundEvaluate(node, memo)
+      ? evaluateRoot(boundEvaluate, node, memo)
       : Promise.resolve({ solids: node === undefined || node === null ? [] : [node], ghosts: [] })
     const evaluateNodes = async (nodes) => {
       const solids = []
@@ -767,7 +780,7 @@ const evaluateScratch = async (value, { ctx, evaluate }) => {
   if (!nodes.some(isTreeNode)) return value
   const memo = memoFromSpecials(ctx)
   const solids = []
-  for (const node of nodes) solids.push(...(await evaluate(node, memo)).solids)
+  for (const node of nodes) solids.push(...(await evaluateRoot(evaluate, node, memo)).solids)
   return solids.filter((solid) => !solid?.previewOnly)
 }
 
@@ -783,7 +796,7 @@ const scratchParams = () =>
  * @param {ExportDataOptions} params 
  * @returns {Promise<{data:ArrayBuffer[]}>}
  */
-const jscadExportData = async (params) => {
+export const jscadExportData = async (params) => {
   // L3 fix: Document hook - self.exportData can be set externally to override default export behavior
   // Set self.exportData = async (params) => ({data: ArrayBuffer[]}) to customize export
   if(self.exportData) return self.exportData(params)
@@ -792,7 +805,7 @@ const jscadExportData = async (params) => {
   // then we would not need to clone the data
   // other option is to clone data before sending transferable
   JscadToCommon.clearCache()
-  const entities = JscadToCommon.ConvertMulti(workerState.solids, [], false)
+  const entities = JscadToCommon.ConvertMulti(exportableSolids(workerState.solids), [], false)
 
   const arr = exportStlText(entities)
   const data = [await new Blob(arr).arrayBuffer()]
