@@ -77,6 +77,18 @@ describe('reference parts', () => {
     expect(workerState.solids.map((s) => s.reference)).toEqual(['purchased'])
   })
 
+  it('a tag set on a part does not follow it into copies built from it later in the array', async () => {
+    workerState.main = () => {
+      const lid = tagged(tree.primitives.cube({ size: 2 }), 'lid')
+      return [lid, tree.transforms.translate([5, 0, 0], lid), tree.colors.colorize([1, 0, 0], lid)]
+    }
+
+    await jscadMain({ params: {} })
+
+    expect(workerState.solids.map((s) => s.reference)).toEqual(['lid', undefined, undefined])
+    expect(exportableSolids(workerState.solids)).toEqual(workerState.solids.slice(1))
+  })
+
   it('a reference reaches the solids of claimed, streamed parts', async () => {
     workerState.main = () => [tree.primitives.cube({ size: 2 }), tagged(tree.primitives.sphere({ radius: 1 }))]
     workerState.claims = true

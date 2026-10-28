@@ -249,12 +249,17 @@ const isRootGhostNode = (node) => Boolean(node && (node.op === 'ghost' || node.p
 
 // The tree evaluator builds fresh solids, so a reference tag model code set on
 // the node main() returned reaches the solids only here. Manifold solids are
-// class instances, so the tag is set on each, never spread into a copy.
+// class instances, so the tag is set on each, never spread into a copy. It is
+// non-enumerable because the solid is memoized: jscad's transform and colorize
+// copy enumerable properties onto any later root built from the same node.
 const evaluateRoot = async (evaluate, node, memo) => {
   const evaluated = await evaluate(node, memo)
   const { reference } = node ?? {}
   if (reference !== undefined) {
-    for (const solid of evaluated.solids) if (solid && typeof solid === 'object' && solid !== node) solid.reference = reference
+    for (const solid of evaluated.solids) {
+      if (!solid || typeof solid !== 'object' || solid === node) continue
+      Object.defineProperty(solid, 'reference', { value: reference, writable: true, configurable: true, enumerable: false })
+    }
   }
   return evaluated
 }

@@ -426,8 +426,11 @@ is drawn, measured and checked like any part but never
 exported. The tree evaluator builds fresh solids, so the worker copies a root
 node's `reference` onto each solid that node evaluates to (`evaluateRoot` in
 `packages/worker/worker.js`), assigned on the solid itself because Manifold
-solids are class instances. A tag set on a nested object or before a later
-transform is lost. Reference parts stay in `workerState.solids`, where
+solids are class instances. The property is non-enumerable: the evaluator
+memoizes solids, and jscad's `transform`, `colorize` and `clone` copy
+enumerable properties, so an enumerable tag on `lid` would also tag a later
+root `translate(lid)` built from the same memoized solid. A tag set on a
+nested object or before a later transform is lost. Reference parts stay in `workerState.solids`, where
 `measure` and `check` read them; the worker's `jscadExportData` and the
 frame's `serializeSolids` drop them and `previewOnly` ghosts through
 `exportableSolids` (`packages/worker/src/exportable.js`).

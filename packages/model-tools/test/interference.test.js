@@ -34,6 +34,12 @@ test('a reference part collides', () => {
   expect(r.references).toEqual([{ part: '1', reason: 'NEMA 17', overlaps: [] }])
 })
 
+test('a non-enumerable reference tag is read', () => {
+  const motor = cube(5)
+  Object.defineProperty(motor, 'reference', { value: 'NEMA 17', writable: true, configurable: true, enumerable: false })
+  expect(check([cube(0), motor]).references).toEqual([{ part: '1', reason: 'NEMA 17', overlaps: [] }])
+})
+
 test('allow lets a reference overlap the named part', () => {
   const r = check([cube(0), cube(5, { reference: { reason: 'film path', allow: ['0'] } })])
   expect(r).not.toHaveProperty('interference')
