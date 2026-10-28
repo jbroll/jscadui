@@ -155,3 +155,31 @@ test('nested arrays and non-geometry items are skipped', () => {
 test('previewOnly items are not parts', () => {
   expect(check([cube(0), cube(5, { previewOnly: true })])).not.toHaveProperty('interference')
 })
+
+const stale = (i, selector) => `part ${i}: allow ${selector} shares no volume with it; remove it from allow`
+
+test('an allow naming a part the reference does not touch is a tag error', () => {
+  const r = check([cube(0), cube(50), cube(5, { reference: { reason: 'x', allow: ['0', '1'] } })])
+  expect(r.tagErrors).toEqual([stale(2, '1')])
+})
+
+test('an allow naming an overlapped part is no error and lists the overlap', () => {
+  const r = check([cube(0), cube(5, { reference: { reason: 'x', allow: ['0'] } })])
+  expect(r).not.toHaveProperty('tagErrors')
+  expect(r.references[0].overlaps).toEqual([{ part: '0', volume: 500 }])
+})
+
+test('a range allow is fine when one named part overlaps', () => {
+  const r = check([cube(0), cube(50), cube(5, { reference: { reason: 'x', allow: ['0-1'] } })])
+  expect(r).not.toHaveProperty('tagErrors')
+})
+
+test('an allow whose pair went unchecked is no error', () => {
+  const r = interference([cube(0), cube(5, { reference: { reason: 'x', allow: ['0'] } })], { now: (() => { let n = 0; return () => (n++ ? 1e9 : 0) })() })
+  expect(r.interferenceUnchecked).toBe(1)
+  expect(r).not.toHaveProperty('tagErrors')
+})
+
+test('a reason of only whitespace is a tag error', () => {
+  expect(check([cube(0), cube(50, { reference: '  ' })]).tagErrors).toEqual(['part 1: reference needs a reason'])
+})

@@ -446,10 +446,15 @@ on overlap. The eval backend keeps the geometry of such a failed build, so
 `measure`, `check`, `view` and `gradeProject` still read it.
 
 An `InterferenceError` message reads, to 0.1 mm: `parts 0 and 1 share 273.7
-mm³ (a 29.4 x 44.6 x 14.5 mm region); 4 more pairs overlap. Separate parts
-must not share volume: move or resize one, or union them into one part.
-Purchased hardware is a reference part and is checked too (docs reference).`
-A `PartTagError` message joins `check`'s `tagErrors` with `; `. The `check`
+mm³ (a 29.4 x 44.6 x 14.5 mm region); 4 more pairs overlap. Each item
+main() returns is a separate part. Assembly parts that share volume collide:
+move or resize one. Pieces meant as one printed part, such as colored pieces,
+are not one sliceable solid: union them. Purchased hardware is a reference part
+and is checked too (docs reference).`
+A `PartTagError` message joins `check`'s `tagErrors` with `; `. An `allow`
+selector that names no part sharing volume with the reference part is a tag
+error (`part 2: allow 1 shares no volume with it; remove it from allow`), unless
+its pair went unchecked. The `check`
 tool description names `interference`, `references` and `tagErrors`; the
 `measure` `overlaps` description says it lists every pair of parts that share
 volume, with the shared mm³ and the region size, allowed reference overlaps

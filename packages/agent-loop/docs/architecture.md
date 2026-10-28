@@ -225,7 +225,8 @@ build's `main()`, and evaluates the tree nodes `main()` returns before
 
 Each top-level item of the array `main()` returns is a separate part, and two
 parts that share more than 0.001 mm³ fail the build with `InterferenceError`.
-A combined solid is one part, made with `union`. Prod chat
+Two causes: assembly parts must fit, and one printed part must be one
+solid, so colored pieces that share volume are unioned. Prod chat
 972a48f1-8caa-4412-aa22-cb7e03f76087 built 19 parts, many buried in each
 other, and every build answered `warnings: []`. `measure`'s `overlaps` then
 compared bounding boxes, and the base plate's box held every other part, so
@@ -246,6 +247,11 @@ share volume, from the same intersections `check` runs (`sharedPairs` in
   through a gate); two printed parts can never share space once printed, so no
   tag exempts them. Every build report lists each allowed pair with its shared
   volume under `references`, so each exemption is seen again on every build.
+- An exemption must point at a real overlap, so a reviewer reading the reason
+  sees what it excuses. After the intersections, an `allow` selector whose
+  named parts share no volume with the reference part is a tag error. A pair
+  left unchecked by the cap, the budget or a throwing boolean is no evidence,
+  so a selector with only unchecked candidates passes.
 - `previewOnly` ghosts (OpenSCAD `%`) are not parts: not checked, not
   exported.
 - The tag must be set last, on the object `main()` returns. The app's tree

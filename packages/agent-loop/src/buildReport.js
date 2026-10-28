@@ -118,7 +118,7 @@ const partFailure = (checked) => {
   const [first] = pairs
   const more = total - 1
   const rest = more > 0 ? `; ${more} more ${more === 1 ? 'pair overlaps' : 'pairs overlap'}` : ''
-  const message = `parts ${first.a} and ${first.b} share ${mm(first.volume)} mm³ (a ${first.size.map(mm).join(' x ')} mm region)${rest}. Separate parts must not share volume: move or resize one, or union them into one part. Purchased hardware is a reference part and is checked too (docs reference).`
+  const message = `parts ${first.a} and ${first.b} share ${mm(first.volume)} mm³ (a ${first.size.map(mm).join(' x ')} mm region)${rest}. Each item main() returns is a separate part. Assembly parts that share volume collide: move or resize one. Pieces meant as one printed part, such as colored pieces, are not one sliceable solid: union them. Purchased hardware is a reference part and is checked too (docs reference).`
   return { name: 'InterferenceError', message }
 }
 

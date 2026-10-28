@@ -418,7 +418,7 @@ Each item of the array is a separate part. If two share volume the build fails w
 Tag purchased hardware (a magnet, a screw, a PCB) as a reference part. It is shown and checked like any part, and never exported:
 part.reference = 'M3 screw'
 part.reference = { reason: 'M3 screw', allow: ['gate'] }
-allow takes the part selectors measure takes (index, "1-3" range, anchor part name) and only exempts overlaps between the reference part and those parts. Overlaps between two printed parts cannot be allowed.
+allow takes the part selectors measure takes (index, "1-3" range, anchor part name) and only exempts overlaps between the reference part and those parts. Overlaps between two printed parts cannot be allowed. An allow entry that names no part sharing volume with the reference part is a PartTagError: remove it. Pieces meant as one printed part, such as colored pieces, must be one solid: union them.
 Set the tag last, on the object main() returns. A tag on a nested object, or on an object transformed after the tag is set, is lost. A malformed tag fails the build with PartTagError.
 Every build report, and check, lists each reference part and each overlap it is allowed, with its shared volume, under references.`
 

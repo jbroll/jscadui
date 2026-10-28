@@ -29,25 +29,28 @@ const boxOverlapVolume = ([aLo, aHi], [bLo, bHi]) =>
 const readTag = (tag, items, index) => {
   const fail = (message) => ({ error: `part ${index}: ${message}` })
   const object = typeof tag === 'string' ? { reason: tag } : tag
-  if (!object || typeof object !== 'object' || typeof object.reason !== 'string' || object.reason === '') {
+  if (!object || typeof object !== 'object' || typeof object.reason !== 'string' || object.reason.trim() === '') {
     return fail('reference needs a reason')
   }
   const { reason, allow } = object
-  if (allow === undefined) return { reason, allowed: new Set() }
+  if (allow === undefined) return { reason, allowed: new Set(), selectors: [] }
   const asSelector = (s) => (Number.isInteger(s) && s >= 0 ? String(s) : s)
   if (!Array.isArray(allow) || !allow.every((s) => typeof asSelector(s) === 'string')) {
     return fail('allow must be a list of part selectors')
   }
   const allowed = new Set()
+  const selectors = []
   for (const selector of allow) {
     try {
-      partIndexes(items, asSelector(selector)).forEach((i) => allowed.add(i))
+      const indexes = partIndexes(items, asSelector(selector))
+      indexes.forEach((i) => allowed.add(i))
+      selectors.push({ selector, indexes })
     } catch (err) {
       return fail(`allow ${selector}: ${err.message}`)
     }
   }
   if (allowed.has(index)) return fail('reference allows itself')
-  return { reason, allow, allowed }
+  return { reason, allow, allowed, selectors }
 }
 
 // Every pair of solids sharing more than INTERFERENCE_EPSILON, allowed or not.
@@ -66,7 +69,7 @@ export const sharedPairs = (items, { now = () => performance.now() } = {}) => {
   const parts = items.map((item) => (isGeom3(item) && !item.previewOnly ? solid(item) : null))
   const boxes = parts.map((g) => (g ? measurements.measureBoundingBox(g) : null))
   const shared = []
-  let unchecked = 0
+  const uncheckedPairs = []
 
   const candidates = []
   for (let a = 0; a < parts.length; a++) {
@@ -81,7 +84,7 @@ export const sharedPairs = (items, { now = () => performance.now() } = {}) => {
   const start = now()
   candidates.forEach(({ a, b }, n) => {
     if (n >= MAX_INTERSECTIONS || now() - start >= INTERFERENCE_BUDGET_MS) {
-      unchecked++
+      uncheckedPairs.push([a, b])
       return
     }
     // A boolean can reject a part (Manifold throws on a non-manifold import);
@@ -91,7 +94,7 @@ export const sharedPairs = (items, { now = () => performance.now() } = {}) => {
       common = intersect(parts[a], parts[b])
       volume = measurements.measureVolume(common)
     } catch {
-      unchecked++
+      uncheckedPairs.push([a, b])
       return
     }
     if (!(volume > INTERFERENCE_EPSILON)) return
@@ -103,7 +106,17 @@ export const sharedPairs = (items, { now = () => performance.now() } = {}) => {
       allowedBy: [a, b].filter((i) => tags.get(i)?.allowed.has(i === a ? b : a)),
     })
   })
-  return { shared, tags, tagErrors, unchecked }
+
+  // An exemption must name a real overlap. A pair left unchecked is no evidence either way.
+  const touching = (i) => (j) =>
+    shared.some((s) => (s.a === i && s.b === j) || (s.a === j && s.b === i)) ||
+    uncheckedPairs.some(([a, b]) => (a === i && b === j) || (a === j && b === i))
+  for (const [index, { selectors }] of tags) {
+    for (const { selector, indexes } of selectors) {
+      if (!indexes.some(touching(index))) tagErrors.push(`part ${index}: allow ${selector} shares no volume with it; remove it from allow`)
+    }
+  }
+  return { shared, tags, tagErrors, unchecked: uncheckedPairs.length }
 }
 
 export const interference = (items, options) => {

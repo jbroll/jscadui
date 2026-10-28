@@ -65,7 +65,8 @@ parts unless `allow` lists them (selectors as in `measure`'s `parts`). `check`
 lists each tagged item in `references` as `{ part, reason, allow?, overlaps }`,
 where `overlaps` holds the allowed pairs as `{ part, volume }`, largest
 first. A malformed tag (no reason,
-`allow` not a list, an unresolvable selector, a part allowing itself) adds a
+`allow` not a list, an unresolvable selector, a part allowing itself, an `allow` selector
+naming no part that shares volume with it) adds a
 `part N: ...` message to `tagErrors`.
 
 `measure(geometry, { overlaps: true })` uses the same intersections and

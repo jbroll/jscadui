@@ -480,6 +480,8 @@ describe('docs answers on reference parts', () => {
 
   it('says which tags are lost and that every build report lists the allowed overlaps', () => {
     expect(REFERENCE_ANSWER).toContain('A tag on a nested object, or on an object transformed after the tag is set, is lost.')
+    expect(REFERENCE_ANSWER).toMatch(/names no part sharing volume.*PartTagError/)
+    expect(REFERENCE_ANSWER).toContain('must be one solid: union them')
     expect(REFERENCE_ANSWER).toMatch(/Every build report, and check, lists .* under references/)
   })
 })
