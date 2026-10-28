@@ -3,7 +3,7 @@ import { SKILLS } from '../prompt/index.js'
 
 describe('starter skills', () => {
   it('exposes starter skills under 250 words each', () => {
-    for (const id of ['brainstorming', 'writing-plans', 'executing-plans', 'systematic-debugging', 'model-spec', 'fit-clearance', 'printability-design', 'box-lid']) {
+    for (const id of ['brainstorming', 'writing-plans', 'executing-plans', 'systematic-debugging', 'model-spec', 'fit-clearance', 'printability-design', 'box-lid', 'snap-fit']) {
       expect(SKILLS[id].split(/\s+/).length).toBeLessThan(250)
     }
   })
