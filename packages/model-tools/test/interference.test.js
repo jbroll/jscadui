@@ -22,10 +22,16 @@ test('two overlapping cubes are interference', () => {
   const r = check([cube(0), cube(5)])
   expect(r.interference.pairs).toHaveLength(1)
   const [pair] = r.interference.pairs
-  expect(pair).toMatchObject({ a: '0', b: '1' })
-  expect(pair.volume).toBeCloseTo(500, 3)
-  pair.size.forEach((s, i) => expect(s).toBeCloseTo([5, 10, 10][i], 3))
+  expect(pair).toEqual({ a: '0', b: '1', volume: 500, size: [5, 10, 10] })
   expect(r.interference.total).toBe(1)
+})
+
+test('volumes are rounded to 0.0001 mm³', () => {
+  const ball = (extra) => Object.assign(primitives.sphere({ radius: 3, center: [5, 0, 0], segments: 16 }), extra)
+  const r = check([cube(0), ball(), ball({ reference: { reason: 'x', allow: ['0'] } })])
+  const volumes = [...r.interference.pairs.map((p) => p.volume), ...r.references[0].overlaps.map((o) => o.volume)]
+  expect(volumes.length).toBeGreaterThan(0)
+  for (const v of volumes) expect(Math.round(v * 1e4) / 1e4).toBe(v)
 })
 
 test('cubes that touch at a face share nothing', () => {
@@ -49,9 +55,7 @@ test('allow lets a reference overlap the named part', () => {
   expect(r).not.toHaveProperty('interference')
   expect(r.references).toHaveLength(1)
   expect(r.references[0]).toMatchObject({ part: '1', reason: 'film path', allow: ['0'] })
-  expect(r.references[0].overlaps).toHaveLength(1)
-  expect(r.references[0].overlaps[0].part).toBe('0')
-  expect(r.references[0].overlaps[0].volume).toBeCloseTo(500, 3)
+  expect(r.references[0].overlaps).toEqual([{ part: '0', volume: 500 }])
 })
 
 test('allow takes an anchor part name', () => {

@@ -34,9 +34,10 @@ with its outline cut to at most 40 points (collinear points dropped, then the
 least significant ones) and rounded to 0.001 mm. At most 12 loops are listed;
 `loopsLeftOut` counts the rest.
 
-`check`'s only option: `bed` (optional), one of the named beds in `BEDS` (`mk3`, `mk4`,
-`mini`, `x1`, `p1`, `a1mini`, `ender3`, case-insensitive) or its size in mm
-as `[x, y, z]`, `{x, y, z}`, or a JSON array string (`"[x, y, z]"`). It
+`check` takes two options. `bed` (optional) is one of the named beds in `BEDS`
+(`mk3`, `mk4`, `mini`, `x1`, `p1`, `a1mini`, `ender3`, case-insensitive) or
+its size in mm as `[x, y, z]`, `{x, y, z}`, or a JSON array string
+(`"[x, y, z]"`). `interference: false` skips the interference check below. It
 reports `watertight`, `manifold`, `openEdges`, `nonManifoldEdges`,
 `selfIntersecting`, `insideOut`, `bbox` and `dimensions` for solids, with
 `openEdgeSamples` (the midpoints of up to 5 open edges, to 0.001 mm) when
@@ -46,21 +47,23 @@ there are open edges and `intersectionSamples` likewise, and
 
 For an array, `check` also intersects the solids whose bounding boxes overlap
 and reports shared volume (above `INTERFERENCE_EPSILON`, 0.001 mm³) as
-`interference: { pairs, total }`: each pair is `{ a, b, volume, size }`,
-largest first, at most 20; `total` counts all. Candidates are intersected in
+`interference: { pairs, total }`: each pair is `{ a, b, volume, size }`
+(`a` and `b` index strings, `volume` in mm³ and `size` the shared region's
+bounding-box dimensions, both to 0.0001), largest first, at most 20; `total`
+counts all. Candidates are intersected in
 order of bounding-box overlap volume, largest first. At most
 `MAX_INTERSECTIONS` (300) are intersected, and none is started once
 `INTERFERENCE_BUDGET_MS` (5000 ms) has passed since the first: one plain-jscad
 intersection of two 8192-polygon spheres takes about 2.3 s.
 `interferenceUnchecked` counts the candidates left out by either limit, and
 each pair whose intersection throws (Manifold rejects a non-manifold imported
-mesh). Pass `interference: false` to skip this. Items with `previewOnly` are
-not parts and are skipped.
+mesh). Items with `previewOnly` are not parts and are skipped.
 
 An item tagged `reference = 'reason'` or `reference = { reason, allow? }` is a
 stand-in for something outside the printed part. It still collides with other
 parts unless `allow` lists them (selectors as in `measure`'s `parts`). `check`
 lists each tagged item in `references` as `{ part, reason, allow?, overlaps }`,
-where `overlaps` holds the allowed shared volumes, largest first. A malformed tag (no reason,
+where `overlaps` holds the allowed pairs as `{ part, volume }`, largest
+first. A malformed tag (no reason,
 `allow` not a list, an unresolvable selector, a part allowing itself) adds a
 `part N: ...` message to `tagErrors`.

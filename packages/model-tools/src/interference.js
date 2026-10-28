@@ -96,9 +96,9 @@ export const interference = (items, { now = () => performance.now() } = {}) => {
     if (!(volume > INTERFERENCE_EPSILON)) return
     const allowedBy = [a, b].filter((i) => tags.get(i)?.allowed.has(i === a ? b : a))
     if (allowedBy.length === 0) {
-      found.push({ a: String(a), b: String(b), volume, size: measurements.measureDimensions(shared).map(round4) })
+      found.push({ a: String(a), b: String(b), volume: round4(volume), size: measurements.measureDimensions(shared).map(round4) })
     }
-    for (const i of allowedBy) overlapsOf.get(i).push({ part: String(i === a ? b : a), volume })
+    for (const i of allowedBy) overlapsOf.get(i).push({ part: String(i === a ? b : a), volume: round4(volume) })
   })
   for (const overlaps of overlapsOf.values()) overlaps.sort((x, y) => y.volume - x.volume)
 

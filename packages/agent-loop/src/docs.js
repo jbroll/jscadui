@@ -419,10 +419,10 @@ Tag purchased hardware (a magnet, a screw, a PCB) as a reference part. It is sho
 part.reference = 'M3 screw'
 part.reference = { reason: 'M3 screw', allow: ['gate'] }
 allow takes the part selectors measure takes (index, "1-3" range, anchor part name) and only exempts overlaps between the reference part and those parts. Overlaps between two printed parts cannot be allowed.
-Set the tag last, on the object main() returns. A tag set earlier is lost when the app evaluates the model. A malformed tag fails the build with PartTagError.
-check lists reference parts and every overlap they are allowed under references.`
+Set the tag last, on the object main() returns. A tag on a nested object, or on an object transformed after the tag is set, is lost. A malformed tag fails the build with PartTagError.
+Every build report, and check, lists each reference part and each overlap it is allowed, with its shared volume, under references.`
 
-const TAPER_QUERY =/^(?:[\w$]+\.)?(cone|taper|frustum)$/i
+const TAPER_QUERY = /^(?:[\w$]+\.)?(cone|taper|frustum)$/i
 const TAPER_TARGET = { fluent: 'jf.cylinder', modeling: 'primitives.cylinderElliptic' }
 
 const taperAnswer = (byName, api) => `${TAPER[api][0].toUpperCase()}${TAPER[api].slice(1)}.\n\n${render(byName.get(TAPER_TARGET[api]), byName)}`

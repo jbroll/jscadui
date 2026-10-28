@@ -254,7 +254,16 @@ modeling a pointer to `@jscad/modeling`'s stroke-only `text` namespace; the
 (also `params.<name>`) answers with the prompt's parameter conventions
 (`PARAMS_ANSWER`): the proxy assignment, the types params-core keeps and
 their fields, `_type` sections with how a section's parameter is defined and
-read back (`params.lid.height`), and hidden names. `jf.cylinder`'s `outer` has
+read back (`params.lid.height`), and hidden names. `reference`,
+`interference`, `overlap` or `overlaps` answers in both APIs with
+`REFERENCE_ANSWER`: separate parts must not share volume and fail the build
+with `InterferenceError`, there is no allowance for press fits, the two tag
+forms (`part.reference = 'M3 screw'` and `{ reason, allow }`), that `allow`
+exempts only overlaps between the reference part and the parts it names, that
+the tag is set last on the object `main()` returns (one on a nested object or
+on an object transformed after the tag is set is lost), `PartTagError` for a
+malformed tag, and that every build report lists the allowed overlaps under
+`references`. `jf.cylinder`'s `outer` has
 no default in the index, since fluent reads it only with `inner` or `wall`,
 and a lone `outer` warns. A namespace or class answers
 with one line per member, `cylinder({ center = [0,0,0], height = 2, radius =

@@ -477,6 +477,11 @@ describe('docs answers on reference parts', () => {
     expect(REFERENCE_ANSWER).toMatch(/last/)
     expect(REFERENCE_ANSWER).toMatch(/never exported/)
   })
+
+  it('says which tags are lost and that every build report lists the allowed overlaps', () => {
+    expect(REFERENCE_ANSWER).toContain('A tag on a nested object, or on an object transformed after the tag is set, is lost.')
+    expect(REFERENCE_ANSWER).toMatch(/Every build report, and check, lists .* under references/)
+  })
 })
 
 describe('parts', () => {

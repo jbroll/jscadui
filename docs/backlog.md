@@ -759,3 +759,11 @@ from the 2026-10-01 review.
   that built geometry, so a model whose parts still share volume scores like
   any other. Add the interference check to grading (prod chat
   972a48f1-8caa-4412-aa22-cb7e03f76087).
+- **A `reference` tag on a top-level array is ignored.** `screws.reference =
+  'M3'` on an array `main()` returns among its parts is dropped without a
+  word when the array is flattened, and the hardware is exported. Check the
+  raw `main()` value and fail the build with `PartTagError` (prod chat
+  972a48f1-8caa-4412-aa22-cb7e03f76087).
+- **A model of only reference parts exports an empty file.** Every part is
+  filtered out of the export and nothing tells the user why (prod chat
+  972a48f1-8caa-4412-aa22-cb7e03f76087).
