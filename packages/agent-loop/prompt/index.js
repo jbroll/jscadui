@@ -21,6 +21,7 @@ import writingPlansSkill from './skills/writing-plans.md?raw'
 import executingPlansSkill from './skills/executing-plans.md?raw'
 import modelSpecSkill from './skills/model-spec.md?raw'
 import systematicDebuggingSkill from './skills/systematic-debugging.md?raw'
+import fitClearanceSkill from './skills/fit-clearance.md?raw'
 
 export const PROSE = prose
 
@@ -40,6 +41,7 @@ export const SKILLS = {
   'executing-plans': executingPlansSkill,
   'model-spec': modelSpecSkill,
   'systematic-debugging': systematicDebuggingSkill,
+  'fit-clearance': fitClearanceSkill,
 }
 
 export const EXAMPLES = {
