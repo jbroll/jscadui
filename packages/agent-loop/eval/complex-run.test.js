@@ -59,6 +59,8 @@ describe('a complex run', () => {
       { name: 'builds', pass: true },
       { name: 'watertight', pass: true },
       { name: 'connected', pass: true, groups: 1 },
+      { name: 'parts do not share volume', pass: true },
+      { name: 'reference tags are valid', pass: true },
       { name: 'about 20 mm', pass: true },
     ])
     expect(result.userMessages).toEqual(['a cube please'])
@@ -71,7 +73,7 @@ describe('a complex run', () => {
     expect(result.description).toBeNull()
     expect(result.verdict).toBeNull()
     expect(result.report.dimensions.geometry).toBe(0)
-    expect(result.report.checkRate).toBeCloseTo(4 / 5)
+    expect(result.report.checkRate).toBeCloseTo(6 / 7)
   })
 
   it('renders nothing and settles at geometry 0 when the project does not build', async () => {

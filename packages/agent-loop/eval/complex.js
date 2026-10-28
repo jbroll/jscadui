@@ -1,7 +1,7 @@
 // Grading for `complex` fixtures, which declare `gates` in place of `checks`: the gates,
 // then geometry from a verdict on a blind description of the renders (eval/describe.js, eval/judge.js).
 import { isRecord, NO_GRADE } from './executor-protocol.js'
-import { geometryError, gradedModel, gradeTranscript, requiresWrite } from './grade.js'
+import { geometryError, gradedModel, gradeTranscript, interferenceChecks, interferenceFields, requiresWrite } from './grade.js'
 import { meshSha256 } from './mesh.js'
 
 export const isComplex = (fixture) => typeof fixture?.gates === 'function'
@@ -52,6 +52,7 @@ export const harnessGates = ({ measure, solid, probe }, pieces = 1) => {
     { name: 'builds', pass: builds },
     { name: 'watertight', pass: builds && solid?.watertight === true },
     { name: 'connected', pass: !bodiesCapped(probe, listed) && groups >= 1 && groups <= pieces, groups },
+    ...interferenceChecks(solid),
   ]
 }
 
@@ -84,10 +85,10 @@ export const settledReport = (report, gates, verdict) => {
   }
 }
 
-export const complexReport = (fixture, transcript, gates, { maxTurns, providerError = false } = {}) => {
+export const complexReport = (fixture, transcript, gates, { maxTurns, providerError = false, solid = null } = {}) => {
   const { dimensions, firstAttemptFailures } = gradeTranscript(fixture, transcript, { maxTurns })
   const unwritten = requiresWrite(fixture) && !gradedModel(fixture, transcript)
-  const report = { dimensions: { ...dimensions, geometry: 0 }, total: 0, firstAttemptFailures, checkRate: 0, ...(unwritten && !providerError ? { wrote: false } : {}) }
+  const report = { dimensions: { ...dimensions, geometry: 0 }, total: 0, firstAttemptFailures, checkRate: 0, ...interferenceFields(solid), ...(unwritten && !providerError ? { wrote: false } : {}) }
   return settledReport(report, gates, null)
 }
 
@@ -129,6 +130,6 @@ export async function scoreComplex(fixture, run, transcript, graded, { maxTurns,
       }
     }
   }
-  const { report, ...settled } = settleRun({ report: complexReport(fixture, transcript, gates, { maxTurns, providerError }), ...fields })
+  const { report, ...settled } = settleRun({ report: complexReport(fixture, transcript, gates, { maxTurns, providerError, solid: graded.solid }), ...fields })
   return { report, fields: settled, geometryError: geometryError(fixture.target, graded.measure) }
 }

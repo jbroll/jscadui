@@ -442,7 +442,7 @@ const staleNote = (record) =>
 async function regradeComplex(run, fixture, grader, { transcript, maxTurns, providerError, metrics }) {
   const graded = await grader.gradeProject(gradedModel(fixture, transcript), { probe: complexProbe(fixture), mesh: true })
   const gates = complexGates(fixture, graded)
-  const report = complexReport(fixture, transcript, gates, { maxTurns, providerError })
+  const report = complexReport(fixture, transcript, gates, { maxTurns, providerError, solid: graded.solid })
   const { description, votes, verdict, graderError, describeError, render, renderError: _error, renderStale: stale, ...kept } = run
   const base = { ...kept, gates, report, metrics: { ...metrics, geometryError: geometryError(fixture.target, graded.measure) } }
   const cleared = { ...base, description: null, verdict: null }

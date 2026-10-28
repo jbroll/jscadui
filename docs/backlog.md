@@ -755,10 +755,6 @@ from the 2026-10-01 review.
 - **Reference parts are not drawn translucent.** They render like printed
   parts, so a magnet or screw is hard to tell from the model around it (prod
   chat 972a48f1-8caa-4412-aa22-cb7e03f76087).
-- **Eval grading ignores interference.** `gradeProject` grades any final model
-  that built geometry, so a model whose parts still share volume scores like
-  any other. Add the interference check to grading (prod chat
-  972a48f1-8caa-4412-aa22-cb7e03f76087).
 - **A `reference` tag on a top-level array is ignored.** `screws.reference =
   'M3'` on an array `main()` returns among its parts is dropped without a
   word when the array is flattened, and the hardware is exported. Check the

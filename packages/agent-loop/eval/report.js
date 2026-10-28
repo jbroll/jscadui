@@ -90,6 +90,7 @@ export function summarize(results) {
       outputTokens: meanOf(runs, (r) => r.metrics?.outputTokens),
       seconds: meanOf(runs, (r) => r.metrics?.seconds),
       geometryError: meanOf(runs, (r) => r.metrics?.geometryError),
+      interferingPairs: meanOf(scored, (r) => r.report?.interference?.total ?? 0),
       warnings: meanOf(runs, (r) => r.metrics?.warnings),
       docsCalls: meanOf(runs, (r) => r.metrics?.docsCalls),
       providerSeconds: meanOf(runs, (r) => r.metrics?.providerSeconds),
@@ -103,9 +104,9 @@ export function summarize(results) {
 const n2or = (x) => (x === null || x === undefined ? '-' : n2(x))
 
 export function formatSummary(summary, speed) {
-  const lines = ['fixture  runs  firstFail  checks  total  errors']
+  const lines = ['fixture  runs  firstFail  checks  total  errors  interfering']
   for (const s of summary) {
-    lines.push(`${s.fixture}  ${s.runs}  ${n2or(s.firstAttemptFailures)}  ${n2or(s.checkPassRate)}  ${n2or(s.total)}  ${s.errors}`)
+    lines.push(`${s.fixture}  ${s.runs}  ${n2or(s.firstAttemptFailures)}  ${n2or(s.checkPassRate)}  ${n2or(s.total)}  ${s.errors}  ${n2or(s.interferingPairs)}`)
   }
   lines.push('', 'fixture  rounds  failedCalls  inputTokens  outputTokens  seconds  geometryError  warnings  docsCalls')
   for (const s of summary) {
@@ -131,7 +132,7 @@ export function formatSummary(summary, speed) {
 export function formatComparison(a, b) {
   const lines = [
     `a: ${a.model} ${a.promptSha256?.slice(0, 8)}  b: ${b.model} ${b.promptSha256?.slice(0, 8)}`,
-    'fixture  firstFail a → b  checks a → b  total a → b',
+    'fixture  firstFail a → b  checks a → b  total a → b  interfering a → b',
   ]
   const names = [...new Set([...a.summary, ...b.summary].map((s) => s.fixture))]
   const cell = (s, key) => (s ? n2or(s[key]) : '-')
@@ -139,7 +140,7 @@ export function formatComparison(a, b) {
     const sa = a.summary.find((s) => s.fixture === name)
     const sb = b.summary.find((s) => s.fixture === name)
     lines.push(
-      `${name}  ${cell(sa, 'firstAttemptFailures')} → ${cell(sb, 'firstAttemptFailures')}  ${cell(sa, 'checkPassRate')} → ${cell(sb, 'checkPassRate')}  ${cell(sa, 'total')} → ${cell(sb, 'total')}`,
+      `${name}  ${cell(sa, 'firstAttemptFailures')} → ${cell(sb, 'firstAttemptFailures')}  ${cell(sa, 'checkPassRate')} → ${cell(sb, 'checkPassRate')}  ${cell(sa, 'total')} → ${cell(sb, 'total')}  ${cell(sa, 'interferingPairs')} → ${cell(sb, 'interferingPairs')}`,
     )
   }
   lines.push(

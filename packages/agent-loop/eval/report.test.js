@@ -22,12 +22,12 @@ describe('eval report', () => {
     expect(summary).toEqual([
       {
         fixture: 'a', runs: 2, firstAttemptFailures: 2, checkPassRate: 0.5, total: 4, errors: 1,
-        rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null, warnings: null, docsCalls: null,
+        rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null, warnings: null, docsCalls: null, interferingPairs: 0,
         providerSeconds: null, firstTokenSeconds: null, outputTokensPerSecond: null, reasoningTokens: null,
       },
       {
         fixture: 'b', runs: 1, firstAttemptFailures: 1, checkPassRate: 1, total: 7, errors: 0,
-        rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null, warnings: null, docsCalls: null,
+        rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null, warnings: null, docsCalls: null, interferingPairs: 0,
         providerSeconds: null, firstTokenSeconds: null, outputTokensPerSecond: null, reasoningTokens: null,
       },
     ])
@@ -96,6 +96,17 @@ describe('eval report', () => {
     const b = { model: 'm', promptSha256: 'bbbbbbbb22', summary: summarize([run('single-sphere', 0, 1, 7)]) }
     const text = formatComparison(a, b)
     expect(text).toContain('single-sphere  4.00 → -  1.00 → -')
+  })
+
+  it('means, prints and compares interfering pairs, 0 for a report without any', () => {
+    const withPairs = (n) => ({ ...run('a', 0, 1, 8), report: { ...run('a', 0, 1, 8).report, ...(n ? { interference: { pairs: [], total: n, volume: 1 } } : {}) } })
+    const summary = summarize([withPairs(3), withPairs(0)])
+    expect(summary[0].interferingPairs).toBe(1.5)
+    expect(formatSummary(summary)).toContain('fixture  runs  firstFail  checks  total  errors  interfering')
+    expect(formatSummary(summary)).toMatch(/^a {2}2 {2}.* {2}1\.50$/m)
+    const text = formatComparison({ model: 'm', summary }, { model: 'm', summary: summarize([withPairs(0)]) })
+    expect(text).toContain('interfering a → b')
+    expect(text).toContain('1.50 → 0.00')
   })
 
   it('means, prints and compares warnings and docsCalls', () => {

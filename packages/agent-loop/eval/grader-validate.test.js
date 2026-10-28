@@ -18,7 +18,7 @@ describe('validationRun', () => {
   it('holds gates, renders and a pending verdict', async () => {
     const run = await validationRun(kase('caboose', 'pass'), graded(), render)
     expect(run).toMatchObject({ fixture: 'caboose', run: 1, expected: 'pass', userMessages: ['we need a model of a toy caboose'], description: null, verdict: null, verdictPending: true })
-    expect(run.gates.map((g) => g.pass)).toEqual([true, true, true])
+    expect(run.gates.map((g) => g.pass)).toEqual([true, true, true, true, true])
     expect(run.render.facts).toEqual({ dimensions: [111, 41, 67], bodies: 1 })
     expect(run.render.views).toHaveLength(VIEWS.length)
   })

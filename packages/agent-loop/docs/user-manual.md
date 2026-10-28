@@ -1012,7 +1012,9 @@ a `providerError`. A stream cut off after the reply began is not retried and
 ends the run with `error: "<adapter>: stream terminated after the reply began (terminated)"`.
 
 The summary gives, per fixture, the mean `firstAttemptFailures`, the pass rate
-of its geometry checks, the mean total and the count of runs with an `error`.
+of its geometry checks, the mean total, the count of runs with an `error` and
+`interfering`, the mean number of interfering pairs (`interference.total`, 0 for
+a run without any). `--compare` shows it as `interfering a → b`.
 A `providerError` or `infraError` run has no answer to score, so those three
 means leave it out; they are `null` (printed `-`) when every run had one.
 Errors the model caused (a tool timeout from a model that never finishes, an
@@ -1130,6 +1132,15 @@ the geometry it produced (a style check on a fluent chain, for example).
 geometry; checks use it for `watertight` since `measure` alone doesn't report
 it. `check` reports `watertight: false` and `insideOut: true` for a
 negative-volume (inside-out) solid.
+
+Whenever `solid` is not `null`, grading appends two checks to the fixture's own,
+and they count like any other: `parts do not share volume` (fails when `solid`
+has `interference`) and `reference tags are valid` (fails when it has
+`tagErrors`). A project with no geometry gets neither. The grade report copies
+`interference` (`{ pairs, total, volume }`), `references`, `tagErrors` and
+`interferenceUnchecked` from `solid` when present, so the result file's
+per-run `report` records them. Complex fixtures get the same two as gates after
+`connected`, and the same fields.
 
 `followUps: [{ message }]` sends later user messages in order, each after the
 turn before it ends, whatever that turn built, through `buildMessages` as the

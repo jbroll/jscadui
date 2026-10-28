@@ -239,7 +239,7 @@ describe('regradeResults on a legacy writeModel run', () => {
       done,
     ]))
     const { report } = out.results[0]
-    expect(report.checkRate).toBe(0.75)
+    expect(report.checkRate).toBeCloseTo(5 / 6)
     expect(out.results[0].metrics.geometryError).toBeCloseTo(0)
   })
 

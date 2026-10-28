@@ -200,6 +200,11 @@ describe('forged executor replies', () => {
     expect(graded).toEqual({ measure: { volume: 8000, extra: null, when: {} }, solid: { watertight: true }, params: [] })
   })
 
+  it('keeps the interference fields of a solid', async () => {
+    const solid = { interference: { pairs: [{ a: 'x', b: 'y', volume: 1, size: [1, 1, 1] }], total: 1, volume: 1 }, references: [{ part: 'b', reason: 'M3', overlaps: [] }], tagErrors: ['e'], interferenceUnchecked: 1 }
+    expect((await forged('gradeProject', { ok: true, value: { measure: null, solid, params: [] } })).solid).toEqual(solid)
+  })
+
   it('passes a probe to the backend and keeps its answer, or null when it is not an object', async () => {
     const { client, server } = transportPair()
     const seen = []

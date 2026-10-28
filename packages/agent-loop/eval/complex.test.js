@@ -84,13 +84,23 @@ describe('harnessGates', () => {
       { name: 'builds', pass: true },
       { name: 'watertight', pass: true },
       { name: 'connected', pass: true, groups: 1 },
+      { name: 'parts do not share volume', pass: true },
+      { name: 'reference tags are valid', pass: true },
+    ])
+  })
+
+  it('fails parts do not share volume and reference tags are valid on a solid that says so', () => {
+    const solid = { watertight: true, interference: { pairs: [], total: 2, volume: 9 }, tagErrors: ['bad'] }
+    expect(harnessGates({ ...built(), solid }).slice(3)).toEqual([
+      { name: 'parts do not share volume', pass: false },
+      { name: 'reference tags are valid', pass: false },
     ])
   })
 
   it('fails connected past the pieces the request calls for', () => {
     const two = [unit, box([5, 5, 5], [6, 6, 6])]
-    expect(harnessGates(built(two)).at(-1)).toEqual({ name: 'connected', pass: false, groups: 2 })
-    expect(harnessGates(built(two), 2).at(-1)).toEqual({ name: 'connected', pass: true, groups: 2 })
+    expect(harnessGates(built(two))[2]).toEqual({ name: 'connected', pass: false, groups: 2 })
+    expect(harnessGates(built(two), 2)[2]).toEqual({ name: 'connected', pass: true, groups: 2 })
   })
 
   it('fails every gate for a project that did not build', () => {
@@ -100,26 +110,26 @@ describe('harnessGates', () => {
   it('fails connected on a capped list that would pass on its listed bodies', () => {
     const listed = Array.from({ length: 64 }, () => unit)
     const probe = { bodies: listed, bodyCount: 70, bodiesCapped: true }
-    expect(harnessGates(built(listed)).at(-1)).toEqual({ name: 'connected', pass: true, groups: 1 })
-    expect(harnessGates({ ...built(listed), probe }).at(-1)).toEqual({ name: 'connected', pass: false, groups: 1 })
+    expect(harnessGates(built(listed))[2]).toEqual({ name: 'connected', pass: true, groups: 1 })
+    expect(harnessGates({ ...built(listed), probe })[2]).toEqual({ name: 'connected', pass: false, groups: 1 })
   })
 
   it('reads the cap from a body count past the listed bodies', () => {
     const listed = [unit]
     const probe = { bodies: listed, bodyCount: 70 }
-    expect(harnessGates({ ...built(listed), probe }).at(-1)).toEqual({ name: 'connected', pass: false, groups: 1 })
+    expect(harnessGates({ ...built(listed), probe })[2]).toEqual({ name: 'connected', pass: false, groups: 1 })
   })
 
   it('ignores a forged body count on a capped probe', () => {
     const listed = [unit, box([5, 5, 5], [6, 6, 6])]
     const probe = { bodies: listed, bodyCount: 'many', bodiesCapped: true }
-    expect(harnessGates({ ...built(listed), probe }).at(-1)).toEqual({ name: 'connected', pass: false, groups: 2 })
+    expect(harnessGates({ ...built(listed), probe })[2]).toEqual({ name: 'connected', pass: false, groups: 2 })
   })
 })
 
 describe('complexGates', () => {
   it('puts the fixture own gates after the harness ones', () => {
-    expect(complexGates(fixture, built()).map((g) => g.name)).toEqual(['builds', 'watertight', 'connected', 'own'])
+    expect(complexGates(fixture, built()).map((g) => g.name)).toEqual(['builds', 'watertight', 'connected', 'parts do not share volume', 'reference tags are valid', 'own'])
   })
 
   it('grades nothing when the fixture gates cannot read a grade model code shaped', () => {
@@ -203,6 +213,15 @@ describe('scoring', () => {
 })
 
 describe('scoreComplex', () => {
+  it('records the interference fields from the solid on the report', async () => {
+    const interference = { pairs: [], total: 1, volume: 5 }
+    const solid = { watertight: true, interference, interferenceUnchecked: 2 }
+    const { report, fields } = await scoreComplex(fixture, 1, wrote, { ...built(), solid }, { maxTurns: 8 })
+    expect(report.interference).toEqual(interference)
+    expect(report.interferenceUnchecked).toBe(2)
+    expect(fields.gates.find((g) => g.name === 'parts do not share volume').pass).toBe(false)
+  })
+
   const mesh = { parts: [{ color: null, positions: new Float32Array(9) }] }
 
   it('renders a model that built and leaves its verdict pending', async () => {

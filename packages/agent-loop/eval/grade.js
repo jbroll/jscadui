@@ -207,6 +207,13 @@ export function geometryError(target, measure) {
   return maxError
 }
 
+// Parts that share volume, or a reference tag that is wrong, cost the model a check on every graded fixture.
+export const interferenceChecks = (solid) =>
+  solid ? [{ name: 'parts do not share volume', pass: !solid.interference }, { name: 'reference tags are valid', pass: !solid.tagErrors }] : []
+
+export const interferenceFields = (solid) =>
+  Object.fromEntries(['interference', 'references', 'tagErrors', 'interferenceUnchecked'].filter((k) => solid?.[k] !== undefined).map((k) => [k, solid[k]]))
+
 // `finalMeasure` and `context` describe the gradedModel's geometry. A fixture
 // that requires a write gets geometry 0 and checkRate 0 without one, and
 // `wrote: false` unless the provider ended the run, which is its fault.
@@ -219,7 +226,7 @@ export function gradeFixture(fixture, transcript, finalMeasure, context = {}, { 
   if (!unwritten) {
     const source = model ? Object.values(model.files).filter((f) => typeof f === 'string').join('\n') : ''
     const checksContext = { ...context, source }
-    const outcomes = fixture.checks(finalMeasure, checksContext).map((c) => (c.pass ? 1 : 0))
+    const outcomes = [...fixture.checks(finalMeasure, checksContext), ...interferenceChecks(context.solid)].map((c) => (c.pass ? 1 : 0))
     rate = outcomes.length === 0 ? 0 : outcomes.reduce((a, b) => a + b, 0) / outcomes.length
   }
   const geometry = rate === 1 ? 2 : rate >= 0.5 ? 1 : 0
@@ -229,6 +236,7 @@ export function gradeFixture(fixture, transcript, finalMeasure, context = {}, { 
     total: dimensions.discipline + dimensions.recovery + geometry + dimensions.conservation,
     firstAttemptFailures: faf,
     checkRate: rate,
+    ...interferenceFields(context.solid),
     ...(unwritten && !providerError ? { wrote: false } : {}),
   }
 }

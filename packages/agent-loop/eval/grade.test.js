@@ -569,3 +569,52 @@ describe('the turn cap with a follow-up', () => {
     expect(gradeFixture(fixture, capped, { volume: 6400 }, {}, { maxTurns: 2 }).dimensions.recovery).toBe(2)
   })
 })
+
+describe('interference in the grade', () => {
+  const transcript = [
+    { role: 'user', content: 'make it' },
+    toolMsg('t1', 'write', { path: 'main.js', content: 'x' }),
+    resultMsg('t1', built()),
+    toolMsg('t2', 'measure', {}),
+    resultMsg('t2', JSON.stringify({ ok: true, volume: 6400 })),
+  ]
+  const interference = { pairs: [{ a: 'lid', b: 'box', volume: 12, size: [2, 2, 3] }], total: 1, volume: 12 }
+  const grade = (solid) => gradeFixture(fixture, transcript, { volume: 6400 }, { solid })
+
+  it('fails parts do not share volume and records the fields when parts collide', () => {
+    const references = [{ part: 'bolt', reason: 'M3', allow: ['box'], overlaps: [{ part: 'box', volume: 3 }] }]
+    const report = grade({ interference, references, interferenceUnchecked: 4 })
+    expect(report.checkRate).toBeCloseTo(0.75)
+    expect(report.dimensions.geometry).toBe(1)
+    expect(report.interference).toEqual(interference)
+    expect(report.references).toEqual(references)
+    expect(report.interferenceUnchecked).toBe(4)
+    expect(report).not.toHaveProperty('tagErrors')
+  })
+
+  it('passes both checks on a clean solid and adds no fields', () => {
+    const report = grade({ watertight: true })
+    expect(report.checkRate).toBe(1)
+    expect(report.dimensions.geometry).toBe(2)
+    for (const key of ['interference', 'references', 'tagErrors', 'interferenceUnchecked']) expect(report).not.toHaveProperty(key)
+  })
+
+  it('fails reference tags are valid on tag errors', () => {
+    const report = grade({ tagErrors: ['part "x": allow "y" names no overlapping part'] })
+    expect(report.checkRate).toBeCloseTo(0.75)
+    expect(report.tagErrors).toHaveLength(1)
+  })
+
+  it('names the two automatic checks to the fixture checks count', () => {
+    const names = []
+    const spy = { ...fixture, checks: (m) => { names.push('own'); return fixture.checks(m) } }
+    expect(gradeFixture(spy, transcript, { volume: 6400 }, { solid: { interference } }).checkRate).toBeCloseTo(0.75)
+    expect(names).toEqual(['own'])
+  })
+
+  it('adds no checks when there is no solid', () => {
+    const report = grade(null)
+    expect(report.checkRate).toBe(1)
+    expect(report).not.toHaveProperty('interference')
+  })
+})

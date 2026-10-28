@@ -269,6 +269,13 @@ overlap on purpose. model-tools bounds the work (`MAX_INTERSECTIONS`,
 `INTERFERENCE_BUDGET_MS`) and reports what it skipped as
 `interferenceUnchecked`, a build warning.
 
+The eval scores it. `gradeFixture` and the complex gates add `parts do not
+share volume` and `reference tags are valid` to every graded model that has a
+`check` result, and record `interference`, `references`, `tagErrors` and
+`interferenceUnchecked` in the run's `report`. `gradeProject` grades a build
+that failed with `InterferenceError` or `PartTagError` too, since it keeps its
+geometry.
+
 The per-turn header (`buildMessages`) sends the project files and then the
 project's last build report, so each turn starts knowing whether the project
 builds and what it produces, including breakage from the user's own editor
