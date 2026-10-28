@@ -129,7 +129,7 @@ export const buildTools = (api = DEFAULT_API, { vision = false } = {}) => [
           items: { type: 'string' },
           description: 'Exactly two part selectors ("0", "1-3" or a part name) to measure the gap between; "all" works only in parts',
         },
-        overlaps: { type: 'boolean', description: 'List every pair of parts whose bounding boxes overlap, with per-axis gap and distance; pairs past 50 are counted but not listed. This is bounding boxes only; check gives the volume parts really share' },
+        overlaps: { type: 'boolean', description: 'List every pair of parts that share volume, with the shared mm³ and the size of the shared region, largest first; pairs a reference tag allows are marked allowedBy; pairs past 50 are counted but not listed, and unchecked counts box-overlapping pairs left unintersected' },
         anchors: { type: 'boolean', description: "Include each part's named anchor frames; the names work as part selectors here and as a view lookAt" },
         section: {
           type: 'string',

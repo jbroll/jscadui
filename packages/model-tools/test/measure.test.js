@@ -275,17 +275,39 @@ test('a section lists at most 12 loops, largest first, and says how many it left
   expect(section.loops[0].area).toBeGreaterThan(section.loops[11].area)
 })
 
-test('measureOverlaps lists every box-overlapping pair with its gap', () => {
-  const scene = [cube(0), cube(3), cube(10)]
-  const r = measureOverlaps(scene, 'array')
-  expect(r.totalPairs).toBe(1)
-  expect(r.capped).toBe(false)
-  expect(r.pairs).toEqual([{ a: '0', b: '1', gap: [-2, -5, -5], distance: 0 }])
+test('measureOverlaps lists a pair with its shared volume and region size', () => {
+  const r = measureOverlaps([cube(0), cube(3), cube(10)], 'array')
+  expect(r).toEqual({ pairs: [{ a: '0', b: '1', volume: 50, size: [2, 5, 5] }], total: 1, capped: false })
+})
+
+test('measureOverlaps skips parts whose boxes overlap but whose solids do not', () => {
+  const notch = booleans.subtract(cuboid({ size: [10, 10, 10] }), transforms.translate([3, 3, 0], cuboid({ size: [6, 6, 12] })))
+  const inNotch = transforms.translate([3.5, 3.5, 0], cuboid({ size: [3, 3, 3] }))
+  expect(measureOverlaps([notch, inNotch], 'array')).toEqual({ pairs: [], total: 0, capped: false })
+})
+
+test('measureOverlaps marks a pair a reference tag allows and lists largest first', () => {
+  const motor = Object.assign(cube(4), { reference: { reason: 'motor', allow: ['0'] } })
+  const r = measureOverlaps([cube(0), motor, cube(1)], 'array')
+  expect(r.pairs.map((p) => [p.a, p.b, p.volume])).toEqual([['0', '2', 100], ['1', '2', 50], ['0', '1', 25]])
+  expect(r.pairs.find((p) => p.a === '0' && p.b === '1')).toMatchObject({ allowedBy: '1' })
+  expect(r.pairs.find((p) => p.a === '0' && p.b === '2')).not.toHaveProperty('allowedBy')
+})
+
+test('measureOverlaps lists 50 pairs and counts the rest', () => {
+  const r = measureOverlaps(Array.from({ length: 12 }, () => cuboid({ size: [1, 1, 1] })), 'array')
+  expect(r.pairs).toHaveLength(50)
+  expect(r.total).toBe(66)
+  expect(r.capped).toBe(true)
+})
+
+test('measureOverlaps on a single geometry has no pairs', () => {
+  expect(measure(cube(0), { overlaps: true }).overlaps).toEqual({ pairs: [], total: 0, capped: false })
 })
 
 test('measure answers overlaps:true with the pair list', () => {
   const out = measure([cube(0), cube(3), cube(10)], { overlaps: true })
-  expect(out.overlaps.totalPairs).toBe(1)
+  expect(out.overlaps.total).toBe(1)
   expect(out.overlaps.pairs).toHaveLength(1)
 })
 

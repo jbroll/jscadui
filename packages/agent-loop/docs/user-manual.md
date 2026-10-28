@@ -451,8 +451,9 @@ must not share volume: move or resize one, or union them into one part.
 Purchased hardware is a reference part and is checked too (docs reference).`
 A `PartTagError` message joins `check`'s `tagErrors` with `; `. The `check`
 tool description names `interference`, `references` and `tagErrors`; the
-`measure` `overlaps` description says it compares bounding boxes only and that
-`check` gives the shared volume; the prompt says in one line that items in
+`measure` `overlaps` description says it lists every pair of parts that share
+volume, with the shared mm³ and the region size, allowed reference overlaps
+marked; the prompt says in one line that items in
 `main()`'s array are separate parts that must not share volume and points at
 `docs reference`.
 

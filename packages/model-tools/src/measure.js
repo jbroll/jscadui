@@ -4,6 +4,7 @@ import { axisRelation, symmetryAxis } from './axis.js'
 import { INSIDE_OUT_NOTE, isInsideOut } from './check.js'
 import { isIndexSelector, matchPartName, partRefForms } from './partRefs.js'
 import { sectionOutline } from './section.js'
+import { sharedPairs } from './interference.js'
 
 export const measureGeom = (geom, geomType) => {
   if (geomType === 'array') return measureArray(geom)
@@ -151,25 +152,20 @@ export const measureBetween = (geom, geomType, [a, b]) => {
 
 const OVERLAP_LIMIT = 50
 
-// Every index pair whose bounding boxes overlap, with the same gap/distance
-// shape as measureBetween. Bounding boxes only: cheap triage, not proof of
-// shared volume; follow up with between or section for an exact answer.
+// Pairs that really share volume, from the same intersections `check` runs.
+// Pairs a reference tag allows are listed too, marked with the reference index.
 export const measureOverlaps = (geom, geomType) => {
-  const items = itemsOf(geom, geomType)
-  const boxes = items.map((_, i) => measureSelection(items, String(i)).boundingBox)
-  const pairs = []
-  let totalPairs = 0
-  for (let a = 0; a < items.length; a++) {
-    for (let b = a + 1; b < items.length; b++) {
-      const gap = [0, 1, 2].map((k) => roundMicron(Math.max(boxes[b][0][k] - boxes[a][1][k], boxes[a][0][k] - boxes[b][1][k])))
-      if (!gap.every((g) => g < 0)) continue
-      totalPairs++
-      if (pairs.length === OVERLAP_LIMIT) continue
-      const between = measureBetween(geom, geomType, [String(a), String(b)])
-      pairs.push({ a: String(a), b: String(b), gap: between.gap, distance: between.distance })
-    }
-  }
-  return { pairs, totalPairs, capped: totalPairs > pairs.length }
+  if (geomType !== 'array') return { pairs: [], total: 0, capped: false }
+  const { shared, unchecked } = sharedPairs(geom)
+  const sorted = shared.toSorted((x, y) => y.volume - x.volume)
+  const pairs = sorted.slice(0, OVERLAP_LIMIT).map(({ a, b, volume, size, allowedBy }) => ({
+    a: String(a),
+    b: String(b),
+    volume,
+    size,
+    ...(allowedBy.length ? { allowedBy: String(allowedBy[0]) } : {}),
+  }))
+  return { pairs, total: sorted.length, capped: sorted.length > pairs.length, ...(unchecked ? { unchecked } : {}) }
 }
 
 const PARTS_ERROR =
@@ -243,6 +239,6 @@ export const measure = (geometry, options = {}) => {
   if (wantAnchors) out.anchors = measureAnchors(wrapped, geomType)
   if (section !== undefined) out.section = sectionOutline(wrapped, geomType, normalizeSection(section))
   if (overlaps === true) out.overlaps = measureOverlaps(wrapped, geomType)
-  else if (overlaps !== undefined && overlaps !== false) throw new Error('overlaps takes no value; pass overlaps: true to list box-overlapping part pairs')
+  else if (overlaps !== undefined && overlaps !== false) throw new Error('overlaps takes no value; pass overlaps: true to list the part pairs that share volume')
   return out
 }

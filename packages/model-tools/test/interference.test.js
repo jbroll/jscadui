@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import jscad from '@jscad/modeling'
 import { check, INTERFERENCE_BUDGET_MS, INTERFERENCE_EPSILON, MAX_INTERSECTIONS } from '../index.js'
-import { interference } from '../src/interference.js'
+import { interference, sharedPairs } from '../src/interference.js'
 
 const { booleans, primitives } = jscad
 
@@ -32,6 +32,24 @@ test('volumes are rounded to 0.0001 mm³', () => {
   const volumes = [...r.interference.pairs.map((p) => p.volume), ...r.references[0].overlaps.map((o) => o.volume)]
   expect(volumes.length).toBeGreaterThan(0)
   for (const v of volumes) expect(Math.round(v * 1e4) / 1e4).toBe(v)
+})
+
+test('interference.volume sums every non-allowed pair, past the 20 listed', () => {
+  const r = check(Array.from({ length: 22 }, () => cube(0)))
+  expect(r.interference.volume).toBe(231 * 1000)
+})
+
+test('interference.volume leaves out allowed pairs', () => {
+  const r = check([cube(0), cube(5), cube(7, { reference: { reason: 'x', allow: ['0'] } })])
+  expect(r.interference.volume).toBe(500 + 800)
+})
+
+test('sharedPairs reports allowed and unallowed pairs, and none for boxes that overlap alone', () => {
+  const notch = booleans.subtract(cuboid({ size: [10, 10, 10] }), primitives.cuboid({ size: [6, 6, 12], center: [3, 3, 0] }))
+  const inNotch = cuboid({ size: [3, 3, 3], center: [3.5, 3.5, 0] })
+  expect(sharedPairs([notch, inNotch]).shared).toEqual([])
+  const { shared } = sharedPairs([cube(0), cube(5, { reference: { reason: 'x', allow: ['0'] } })])
+  expect(shared).toEqual([{ a: 0, b: 1, volume: 500, size: [5, 10, 10], allowedBy: [1] }])
 })
 
 test('cubes that touch at a face share nothing', () => {

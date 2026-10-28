@@ -47,10 +47,10 @@ there are open edges and `intersectionSamples` likewise, and
 
 For an array, `check` also intersects the solids whose bounding boxes overlap
 and reports shared volume (above `INTERFERENCE_EPSILON`, 0.001 mm³) as
-`interference: { pairs, total }`: each pair is `{ a, b, volume, size }`
+`interference: { pairs, total, volume }`: each pair is `{ a, b, volume, size }`
 (`a` and `b` index strings, `volume` in mm³ and `size` the shared region's
 bounding-box dimensions, both to 0.0001), largest first, at most 20; `total`
-counts all. Candidates are intersected in
+counts all and `volume` sums all of them. Candidates are intersected in
 order of bounding-box overlap volume, largest first. At most
 `MAX_INTERSECTIONS` (300) are intersected, and none is started once
 `INTERFERENCE_BUDGET_MS` (5000 ms) has passed since the first: one plain-jscad
@@ -67,3 +67,12 @@ where `overlaps` holds the allowed pairs as `{ part, volume }`, largest
 first. A malformed tag (no reason,
 `allow` not a list, an unresolvable selector, a part allowing itself) adds a
 `part N: ...` message to `tagErrors`.
+
+`measure(geometry, { overlaps: true })` uses the same intersections and
+returns `overlaps: { pairs, total, capped, unchecked? }`. Each pair is
+`{ a, b, volume, size }`, largest volume first, and includes pairs a
+reference tag allows, marked `allowedBy` with the reference part's index.
+At most 50 pairs are listed; `total` counts all and `capped` says some were
+left out. `unchecked` counts box-overlapping pairs not intersected (the cap,
+the budget or a throwing boolean) and is absent when zero. A single geometry
+returns `{ pairs: [], total: 0, capped: false }`.

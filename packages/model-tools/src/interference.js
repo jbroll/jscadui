@@ -50,7 +50,9 @@ const readTag = (tag, items, index) => {
   return { reason, allow, allowed }
 }
 
-export const interference = (items, { now = () => performance.now() } = {}) => {
+// Every pair of solids sharing more than INTERFERENCE_EPSILON, allowed or not.
+// `allowedBy` lists the reference parts whose tag allows the pair.
+export const sharedPairs = (items, { now = () => performance.now() } = {}) => {
   const tagErrors = []
   const tags = new Map()
   items.forEach((item, index) => {
@@ -63,8 +65,7 @@ export const interference = (items, { now = () => performance.now() } = {}) => {
 
   const parts = items.map((item) => (isGeom3(item) && !item.previewOnly ? solid(item) : null))
   const boxes = parts.map((g) => (g ? measurements.measureBoundingBox(g) : null))
-  const overlapsOf = new Map([...tags.keys()].map((i) => [i, []]))
-  const found = []
+  const shared = []
   let unchecked = 0
 
   const candidates = []
@@ -85,21 +86,34 @@ export const interference = (items, { now = () => performance.now() } = {}) => {
     }
     // A boolean can reject a part (Manifold throws on a non-manifold import);
     // that pair goes unchecked rather than failing the whole check.
-    let shared, volume
+    let common, volume
     try {
-      shared = intersect(parts[a], parts[b])
-      volume = measurements.measureVolume(shared)
+      common = intersect(parts[a], parts[b])
+      volume = measurements.measureVolume(common)
     } catch {
       unchecked++
       return
     }
     if (!(volume > INTERFERENCE_EPSILON)) return
-    const allowedBy = [a, b].filter((i) => tags.get(i)?.allowed.has(i === a ? b : a))
-    if (allowedBy.length === 0) {
-      found.push({ a: String(a), b: String(b), volume: round4(volume), size: measurements.measureDimensions(shared).map(round4) })
-    }
-    for (const i of allowedBy) overlapsOf.get(i).push({ part: String(i === a ? b : a), volume: round4(volume) })
+    shared.push({
+      a,
+      b,
+      volume: round4(volume),
+      size: measurements.measureDimensions(common).map(round4),
+      allowedBy: [a, b].filter((i) => tags.get(i)?.allowed.has(i === a ? b : a)),
+    })
   })
+  return { shared, tags, tagErrors, unchecked }
+}
+
+export const interference = (items, options) => {
+  const { shared, tags, tagErrors, unchecked } = sharedPairs(items, options)
+  const overlapsOf = new Map([...tags.keys()].map((i) => [i, []]))
+  const found = []
+  for (const { a, b, volume, size, allowedBy } of shared) {
+    if (allowedBy.length === 0) found.push({ a: String(a), b: String(b), volume, size })
+    for (const i of allowedBy) overlapsOf.get(i).push({ part: String(i === a ? b : a), volume })
+  }
   for (const overlaps of overlapsOf.values()) overlaps.sort((x, y) => y.volume - x.volume)
 
   found.sort((x, y) => y.volume - x.volume)
@@ -110,7 +124,7 @@ export const interference = (items, { now = () => performance.now() } = {}) => {
     overlaps: overlapsOf.get(index),
   }))
   return {
-    ...(found.length ? { interference: { pairs: found.slice(0, MAX_PAIRS), total: found.length } } : {}),
+    ...(found.length ? { interference: { pairs: found.slice(0, MAX_PAIRS), total: found.length, volume: round4(found.reduce((sum, p) => sum + p.volume, 0)) } } : {}),
     ...(references.length ? { references } : {}),
     ...(tagErrors.length ? { tagErrors } : {}),
     ...(unchecked ? { interferenceUnchecked: unchecked } : {}),

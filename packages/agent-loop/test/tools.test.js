@@ -91,7 +91,8 @@ describe('agent tools', () => {
     const { overlaps } = TOOLS.find((t) => t.name === 'measure').inputSchema.properties
     expect(overlaps.type).toBe('boolean')
     expect(overlaps.description).toMatch(/overlap/)
-    expect(overlaps.description).toMatch(/bounding boxes only/)
+    expect(overlaps.description).toMatch(/share volume/)
+    expect(overlaps.description).not.toMatch(/bounding boxes/)
   })
 
   it('names interference and references in the check description', () => {

@@ -174,7 +174,7 @@ with `module.exports = { main }`. The result is the build report
   warnings, console, params: [{ name, type, default, min?, max?, step?, values? }],
   geometry?: { parts, boundingBox, dimensions, volume, watertight, manifold,
                selfIntersecting },
-  interference?: { pairs: [{ a, b, volume, size }], total },
+  interference?: { pairs: [{ a, b, volume, size }], total, volume },
   references?: [{ part, reason, allow?, overlaps: [{ part, volume }] }] }
 ```
 
@@ -227,9 +227,11 @@ Each top-level item of the array `main()` returns is a separate part, and two
 parts that share more than 0.001 mm³ fail the build with `InterferenceError`.
 A combined solid is one part, made with `union`. Prod chat
 972a48f1-8caa-4412-aa22-cb7e03f76087 built 19 parts, many buried in each
-other, and every build answered `warnings: []`; `measure`'s `overlaps`
-compares bounding boxes, and the base plate's box held every other part, so
-it listed 59 pairs and the model ignored them.
+other, and every build answered `warnings: []`. `measure`'s `overlaps` then
+compared bounding boxes, and the base plate's box held every other part, so
+it listed 59 pairs and the model ignored them. It now lists the pairs that
+share volume, from the same intersections `check` runs (`sharedPairs` in
+`model-tools/src/interference.js`), so `measure` and `check` give one answer.
 
 - No tolerance for intended overlap. A printed part cannot share space with
   another, so a press fit modeled as overlap is an error: the pocket is sized
