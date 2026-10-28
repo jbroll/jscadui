@@ -260,10 +260,12 @@ read back (`params.lid.height`), and hidden names. `reference`,
 with `InterferenceError`, there is no allowance for press fits, the two tag
 forms (`part.reference = 'M3 screw'` and `{ reason, allow }`), that `allow`
 exempts only overlaps between the reference part and the parts it names, that
-the tag is set last on the object `main()` returns (one on a nested object or
-on an object transformed after the tag is set is lost), `PartTagError` for a
-malformed tag, and that every build report lists the allowed overlaps under
-`references`. `jf.cylinder`'s `outer` has
+an `allow` entry naming no part that shares volume with the reference part is
+a `PartTagError`, that pieces meant as one printed part (such as colored
+pieces) are unioned into one solid, that the tag is set last on the object
+`main()` returns (one on a nested object or on an object transformed after the
+tag is set is lost), `PartTagError` for a malformed tag, and that every build
+report lists the allowed overlaps under `references`. `jf.cylinder`'s `outer` has
 no default in the index, since fluent reads it only with `inner` or `wall`,
 and a lone `outer` warns. A namespace or class answers
 with one line per member, `cylinder({ center = [0,0,0], height = 2, radius =
@@ -438,7 +440,7 @@ volume (`interference`), the report is `ok: false` with `error.name`
 `PartTagError` or `InterferenceError` (tag errors win), and it still carries
 `geometry`, `params`, `warnings` and `console`. `InterferenceError` names the
 largest pair and counts the other overlapping pairs; the report also carries
-`interference: { pairs, total }`. `references` from `check` ride on passing and
+`interference: { pairs, total, volume }`. `references` from `check` ride on passing and
 failing reports alike. `interferenceUnchecked > 0` adds a `check` warning
 that many overlapping pairs were not checked for shared volume. `summarizeRun`
 calls `check(items, { interference: false })`, so a scratch `run` never fails
@@ -1508,7 +1510,7 @@ Checks a run's outcome against a reviewed label set:
 result file's name (not a path), `run` the run number. A run's outcome is
 `success` only when its verdict is `success` and every gate passed (the same
 test as geometry 2, `eval/complex.js`); a passing verdict with a failed gate
-is a `failure` outcome. A run labeled `success` whose model interferes now counts
+is a `failure` outcome. A run labeled `success` whose model interferes counts
 as a disagreement after a regrade. For each label it finds the matching file and run
 among the given result files and prints the run's verdict, its failed gates
 (if any), and whether the outcome agrees with `expected`, or why it has no

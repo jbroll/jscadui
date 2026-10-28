@@ -751,7 +751,9 @@ from the 2026-10-01 review.
   assistant text plus mentions and reasoning; tool calls and results live
   only in the turn. A resumed conversation never shows what the tools did.
 - **`union` drops input colors.** A multi-colored single object loses its colors
-  when unioned (prod chat 972a48f1-8caa-4412-aa22-cb7e03f76087).
+  when unioned (prod chat 972a48f1-8caa-4412-aa22-cb7e03f76087). Raise its
+  priority: `InterferenceError` and `docs reference` tell the agent to union
+  colored pieces that share volume, so every such fix now comes out uncolored.
 - **Reference parts are not drawn translucent.** They render like printed
   parts, so a magnet or screw is hard to tell from the model around it (prod
   chat 972a48f1-8caa-4412-aa22-cb7e03f76087).

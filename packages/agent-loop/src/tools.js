@@ -141,7 +141,7 @@ export const buildTools = (api = DEFAULT_API, { vision = false } = {}) => [
   {
     name: 'check',
     description:
-      'Check the current model: watertight, manifold, inside out, self-intersecting, open and non-manifold edge counts, where a few open edges are, and size in mm, for each part of an array too, numbered by index as measure and view take them; the build report already gives watertight, manifold and self-intersecting for the whole. Also reports interference (pairs of parts sharing volume, with the shared mm³), references (reference parts and the overlaps they are allowed) and tagErrors (malformed reference tags). With a bed, also whether it fits. Pass a bed only when the user names a printer.',
+      'Check the current model: watertight, manifold, inside out, self-intersecting, open and non-manifold edge counts, where a few open edges are, and size in mm, for each part of an array too, numbered by index as measure and view take them; the build report already gives watertight, manifold and self-intersecting for the whole. Also reports interference (pairs of parts sharing volume, with the shared mm³), references (reference parts and the overlaps they are allowed) and tagErrors (malformed reference tags, and allow entries naming parts the reference part does not overlap). With a bed, also whether it fits. Pass a bed only when the user names a printer.',
     inputSchema: {
       type: 'object',
       properties: {
