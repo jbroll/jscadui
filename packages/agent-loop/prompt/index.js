@@ -23,6 +23,7 @@ import modelSpecSkill from './skills/model-spec.md?raw'
 import systematicDebuggingSkill from './skills/systematic-debugging.md?raw'
 import fitClearanceSkill from './skills/fit-clearance.md?raw'
 import printabilityDesignSkill from './skills/printability-design.md?raw'
+import boxLidSkill from './skills/box-lid.md?raw'
 
 export const PROSE = prose
 
@@ -44,6 +45,7 @@ export const SKILLS = {
   'systematic-debugging': systematicDebuggingSkill,
   'fit-clearance': fitClearanceSkill,
   'printability-design': printabilityDesignSkill,
+  'box-lid': boxLidSkill,
 }
 
 export const EXAMPLES = {
