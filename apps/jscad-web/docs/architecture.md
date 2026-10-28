@@ -1201,9 +1201,12 @@ A write the static syntax check refuses never reaches the frame, so `save`
 hands its failure report to `recordReport`; that report becomes the last build
 and `measure` answers `NoGeometryError` instead of the earlier geometry.
 
-`measure`, `check` and `export` run only on a build that succeeded. Before
-any build, or after a failed one, they answer agent-loop's `noGeometryError`,
-which names the failed build's error, as the eval does. `measure` and `check`
+`measure`, `check` and `export` run only on a build whose report has
+`geometry` (`noGeometry` in `src/projectBuild.js`): one that succeeded, or one
+that failed with `InterferenceError` or `PartTagError`, whose report keeps the
+geometry so the chat can measure and view the parts that overlap. Before any
+build, or after any other failure, they answer agent-loop's
+`noGeometryError`, which names the failed build's error, as the eval does. `measure` and `check`
 results carry `ok: true` and `units: "mm"` (`withUnits`).
 
 A failed build keeps the last good render on screen: a load draws only what

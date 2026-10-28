@@ -173,11 +173,15 @@ with `module.exports = { main }`. The result is the build report
 { ok, entry, error?: { name, message, file, line, column },
   warnings, console, params: [{ name, type, default, min?, max?, step?, values? }],
   geometry?: { parts, boundingBox, dimensions, volume, watertight, manifold,
-               selfIntersecting } }
+               selfIntersecting },
+  interference?: { pairs: [{ a, b, volume, size }], total },
+  references?: [{ part, reason, allow?, overlaps: [{ part, volume }] }] }
 ```
 
-`geometry` comes only with a build that succeeds, from model-tools' `measure`
-and `check` on what `main()` returned, rounded to 1e-4 mm. A `write` or
+`geometry` comes with a build that succeeds, and with one that fails only
+because parts overlap or a reference tag is malformed (see Part interference),
+from model-tools' `measure` and `check` on what `main()` returned, rounded to
+1e-4 mm. A `write` or
 `edit` answers the report headed by `saved`, the file written
 (`writeReport`); when the build fails it adds `note: "main.js is saved; the
 build of main.js failed"`, since models read a bare `ok: false` as a lost
@@ -196,7 +200,7 @@ finds `file`, `line` and `column` (1-based) in a Babel error's `loc`, the
 whose `loc` a wrapper dropped, or the
 first `<base><path>:<line>:<column>` frame of a stack. `measure`, `check` and
 `export` work on the last build and fail with `NoGeometryError`
-(`noGeometryError`) when it failed.
+(`noGeometryError`) when it failed without geometry.
 `execute` is a scratch runner: the snippet runs beside the project's files as
 `__run__.js` (`RUN_FILE`) and is never saved, and neither the project nor its build
 changes. A project module the snippet requires hands back its `main` wrapped
@@ -216,6 +220,46 @@ runs the snippet's load and its `main()` inside one build context, where
 `measure*` calls (fluent's methods included) answer numbers as they do in a
 build's `main()`, and evaluates the tree nodes `main()` returns before
 `summarizeRun` sees them; the eval's eager `@jscad/modeling` needs neither.
+
+### Part interference
+
+Each top-level item of the array `main()` returns is a separate part, and two
+parts that share more than 0.001 mm³ fail the build with `InterferenceError`.
+A combined solid is one part, made with `union`. Prod chat
+972a48f1-8caa-4412-aa22-cb7e03f76087 built 19 parts, many buried in each
+other, and every build answered `warnings: []`; `measure`'s `overlaps`
+compares bounding boxes, and the base plate's box held every other part, so
+it listed 59 pairs and the model ignored them.
+
+- No tolerance for intended overlap. A printed part cannot share space with
+  another, so a press fit modeled as overlap is an error: the pocket is sized
+  to the part.
+- Purchased hardware (a motor, a bearing, a screw) is a reference part:
+  `part.reference = 'reason'` or `{ reason, allow }`. It is shown and checked,
+  never exported. A reference part still collides like any other, since
+  checking that the hardware fits is why it is modeled: a motor that does not
+  fit its mount fails the build.
+- Only a pair that includes a reference part can be allowed. A reference part
+  can stand for something that passes through printed parts (a film path
+  through a gate); two printed parts can never share space once printed, so no
+  tag exempts them. Every build report lists each allowed pair with its shared
+  volume under `references`, so each exemption is seen again on every build.
+- `previewOnly` ghosts (OpenSCAD `%`) are not parts: not checked, not
+  exported.
+- The tag must be set last, on the object `main()` returns. The app's tree
+  evaluator builds fresh solids, so the worker copies only a returned node's
+  tag; one on a nested object or on an object transformed afterwards is lost.
+
+`assembleReport` reads `check`'s `tagErrors` (`PartTagError`, which wins) and
+`interference`. Both failures keep `geometry` and `params`, and the geometry
+gate (`noGeometry` in the app's `projectBuild.js`, `onBuild` in the eval
+backend) opens on a report with `geometry` rather than on `ok`, so `measure`,
+`check`, `view` and `export` still work on a model that interferes: the model
+needs them to find and fix the overlap. `summarizeRun` passes `{ interference:
+false }`, so `execute` pays nothing: a scratch run probes pieces, which may
+overlap on purpose. model-tools bounds the work (`MAX_INTERSECTIONS`,
+`INTERFERENCE_BUDGET_MS`) and reports what it skipped as
+`interferenceUnchecked`, a build warning.
 
 The per-turn header (`buildMessages`) sends the project files and then the
 project's last build report, so each turn starts knowing whether the project

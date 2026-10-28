@@ -445,6 +445,17 @@ calls `check(items, { interference: false })`, so a scratch `run` never fails
 on overlap. The eval backend keeps the geometry of such a failed build, so
 `measure`, `check`, `view` and `gradeProject` still read it.
 
+An `InterferenceError` message reads, to 0.1 mm: `parts 0 and 1 share 273.7
+mm³ (a 29.4 x 44.6 x 14.5 mm region); 4 more pairs overlap. Separate parts
+must not share volume: move or resize one, or union them into one part.
+Purchased hardware is a reference part and is checked too (docs reference).`
+A `PartTagError` message joins `check`'s `tagErrors` with `; `. The `check`
+tool description names `interference`, `references` and `tagErrors`; the
+`measure` `overlaps` description says it compares bounding boxes only and that
+`check` gives the shared volume; the prompt says in one line that items in
+`main()`'s array are separate parts that must not share volume and points at
+`docs reference`.
+
 ```js
 reportError(error, { api, index, files })
 ```

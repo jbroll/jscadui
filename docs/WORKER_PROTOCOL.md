@@ -217,6 +217,13 @@ grid calls it once per cell, which posts `jscadProgress` (`params: []`). The
 stream hook also offers `progress()`, which posts the same message. The frame
 relays `jscadProgress` only while one of those three requests is pending.
 
+A tree node `main()` returns with an own `reference` property marks a
+reference part. The worker copies that `reference` onto each solid the node
+evaluates to, in plain, streamed and scratch runs alike, as a non-enumerable
+property so jscad's `transform` and `colorize` do not carry it onto another
+part built from the same memoized solid. `jscadMeasure` and `jscadCheck` read
+it; `jscadExportData` leaves the part out.
+
 With `useGpuNormals` set on the manifold package, each mesh entity arrives
 indexed (`vertices`, `indices`) and carries no `normals`.
 
