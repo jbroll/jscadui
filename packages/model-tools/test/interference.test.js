@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import jscad from '@jscad/modeling'
-import { check, INTERFERENCE_EPSILON, MAX_INTERSECTIONS } from '../index.js'
+import { check, INTERFERENCE_BUDGET_MS, INTERFERENCE_EPSILON, MAX_INTERSECTIONS } from '../index.js'
+import { interference } from '../src/interference.js'
 
 const { booleans, primitives } = jscad
 
@@ -14,6 +15,7 @@ const withFrames = (geometry, frames) =>
 test('constants', () => {
   expect(INTERFERENCE_EPSILON).toBe(0.001)
   expect(MAX_INTERSECTIONS).toBe(300)
+  expect(INTERFERENCE_BUDGET_MS).toBe(5000)
 })
 
 test('two overlapping cubes are interference', () => {
@@ -102,6 +104,16 @@ test('a pair whose intersect throws is counted unchecked and the other pairs are
   const r = check([cube(0), cube(3), broken])
   expect(r.interferenceUnchecked).toBe(2)
   expect(r.interference.pairs).toEqual([expect.objectContaining({ a: '0', b: '1' })])
+})
+
+test('once the time budget is spent the remaining pairs are unchecked, largest box overlap checked first', () => {
+  const intersect = vi.spyOn(booleans, 'intersect')
+  const now = () => (intersect.mock.calls.length > 0 ? INTERFERENCE_BUDGET_MS + 1 : 0)
+  // Box overlaps: parts 0 and 2 share 900 mm³, 1 and 2 share 200, 0 and 1 share 100.
+  const r = interference([cube(0), cube(9), cube(1)], { now })
+  expect(intersect).toHaveBeenCalledTimes(1)
+  expect(r.interferenceUnchecked).toBe(2)
+  expect(r.interference.pairs).toEqual([expect.objectContaining({ a: '0', b: '2' })])
 })
 
 test('interference: false skips the work', () => {

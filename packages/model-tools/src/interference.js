@@ -5,6 +5,8 @@ const { booleans, geometries, measurements } = jscad
 
 export const INTERFERENCE_EPSILON = 0.001
 export const MAX_INTERSECTIONS = 300
+// One plain-jscad intersection of two 8192-polygon spheres takes about 2.3 s.
+export const INTERFERENCE_BUDGET_MS = 5000
 const MAX_PAIRS = 20
 
 const round4 = (n) => Math.round(n * 1e4) / 1e4 + 0
@@ -20,6 +22,8 @@ const intersect = (a, b) => {
 }
 
 const boxesOverlap = ([aLo, aHi], [bLo, bHi]) => [0, 1, 2].every((k) => aLo[k] < bHi[k] && bLo[k] < aHi[k])
+const boxOverlapVolume = ([aLo, aHi], [bLo, bHi]) =>
+  [0, 1, 2].reduce((v, k) => v * (Math.min(aHi[k], bHi[k]) - Math.max(aLo[k], bLo[k])), 1)
 
 // Returns { reason, allow? (as written), allowed: Set<number> } or { error }.
 const readTag = (tag, items, index) => {
@@ -46,7 +50,7 @@ const readTag = (tag, items, index) => {
   return { reason, allow, allowed }
 }
 
-export const interference = (items) => {
+export const interference = (items, { now = () => performance.now() } = {}) => {
   const tagErrors = []
   const tags = new Map()
   items.forEach((item, index) => {
@@ -61,35 +65,42 @@ export const interference = (items) => {
   const boxes = parts.map((g) => (g ? measurements.measureBoundingBox(g) : null))
   const overlapsOf = new Map([...tags.keys()].map((i) => [i, []]))
   const found = []
-  let candidates = 0
   let unchecked = 0
 
+  const candidates = []
   for (let a = 0; a < parts.length; a++) {
     if (!parts[a]) continue
     for (let b = a + 1; b < parts.length; b++) {
-      if (!parts[b] || !boxesOverlap(boxes[a], boxes[b])) continue
-      if (++candidates > MAX_INTERSECTIONS) {
-        unchecked++
-        continue
-      }
-      // A boolean can reject a part (Manifold throws on a non-manifold import);
-      // that pair goes unchecked rather than failing the whole check.
-      let shared, volume
-      try {
-        shared = intersect(parts[a], parts[b])
-        volume = measurements.measureVolume(shared)
-      } catch {
-        unchecked++
-        continue
-      }
-      if (!(volume > INTERFERENCE_EPSILON)) continue
-      const allowedBy = [a, b].filter((i) => tags.get(i)?.allowed.has(i === a ? b : a))
-      if (allowedBy.length === 0) {
-        found.push({ a: String(a), b: String(b), volume, size: measurements.measureDimensions(shared).map(round4) })
-      }
-      for (const i of allowedBy) overlapsOf.get(i).push({ part: String(i === a ? b : a), volume })
+      if (parts[b] && boxesOverlap(boxes[a], boxes[b])) candidates.push({ a, b, boxOverlap: boxOverlapVolume(boxes[a], boxes[b]) })
     }
   }
+  // The likely offenders first, so the cap and the budget leave out the small ones.
+  candidates.sort((x, y) => y.boxOverlap - x.boxOverlap)
+
+  const start = now()
+  candidates.forEach(({ a, b }, n) => {
+    if (n >= MAX_INTERSECTIONS || now() - start >= INTERFERENCE_BUDGET_MS) {
+      unchecked++
+      return
+    }
+    // A boolean can reject a part (Manifold throws on a non-manifold import);
+    // that pair goes unchecked rather than failing the whole check.
+    let shared, volume
+    try {
+      shared = intersect(parts[a], parts[b])
+      volume = measurements.measureVolume(shared)
+    } catch {
+      unchecked++
+      return
+    }
+    if (!(volume > INTERFERENCE_EPSILON)) return
+    const allowedBy = [a, b].filter((i) => tags.get(i)?.allowed.has(i === a ? b : a))
+    if (allowedBy.length === 0) {
+      found.push({ a: String(a), b: String(b), volume, size: measurements.measureDimensions(shared).map(round4) })
+    }
+    for (const i of allowedBy) overlapsOf.get(i).push({ part: String(i === a ? b : a), volume })
+  })
+  for (const overlaps of overlapsOf.values()) overlaps.sort((x, y) => y.volume - x.volume)
 
   found.sort((x, y) => y.volume - x.volume)
   const references = [...tags].map(([index, { reason, allow }]) => ({

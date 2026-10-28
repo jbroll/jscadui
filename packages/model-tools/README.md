@@ -47,16 +47,20 @@ there are open edges and `intersectionSamples` likewise, and
 For an array, `check` also intersects the solids whose bounding boxes overlap
 and reports shared volume (above `INTERFERENCE_EPSILON`, 0.001 mm³) as
 `interference: { pairs, total }`: each pair is `{ a, b, volume, size }`,
-largest first, at most 20; `total` counts all. At most `MAX_INTERSECTIONS`
-(300) candidate pairs are intersected; `interferenceUnchecked` counts the
-rest, and also each pair whose intersection throws (Manifold rejects a
-non-manifold imported mesh). Pass `interference: false` to skip this. Items with `previewOnly` are
+largest first, at most 20; `total` counts all. Candidates are intersected in
+order of bounding-box overlap volume, largest first. At most
+`MAX_INTERSECTIONS` (300) are intersected, and none is started once
+`INTERFERENCE_BUDGET_MS` (5000 ms) has passed since the first: one plain-jscad
+intersection of two 8192-polygon spheres takes about 2.3 s.
+`interferenceUnchecked` counts the candidates left out by either limit, and
+each pair whose intersection throws (Manifold rejects a non-manifold imported
+mesh). Pass `interference: false` to skip this. Items with `previewOnly` are
 not parts and are skipped.
 
 An item tagged `reference = 'reason'` or `reference = { reason, allow? }` is a
 stand-in for something outside the printed part. It still collides with other
 parts unless `allow` lists them (selectors as in `measure`'s `parts`). `check`
 lists each tagged item in `references` as `{ part, reason, allow?, overlaps }`,
-where `overlaps` holds the allowed shared volumes. A malformed tag (no reason,
+where `overlaps` holds the allowed shared volumes, largest first. A malformed tag (no reason,
 `allow` not a list, an unresolvable selector, a part allowing itself) adds a
 `part N: ...` message to `tagErrors`.
