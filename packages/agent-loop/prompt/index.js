@@ -26,6 +26,7 @@ import printabilityDesignSkill from './skills/printability-design.md?raw'
 import boxLidSkill from './skills/box-lid.md?raw'
 import snapFitSkill from './skills/snap-fit.md?raw'
 import bossInsertThreadSkill from './skills/boss-insert-thread.md?raw'
+import gearsMeshingSkill from './skills/gears-meshing.md?raw'
 
 export const PROSE = prose
 
@@ -50,6 +51,7 @@ export const SKILLS = {
   'box-lid': boxLidSkill,
   'snap-fit': snapFitSkill,
   'boss-insert-thread': bossInsertThreadSkill,
+  'gears-meshing': gearsMeshingSkill,
 }
 
 export const EXAMPLES = {
