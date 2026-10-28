@@ -28,6 +28,7 @@ import snapFitSkill from './skills/snap-fit.md?raw'
 import bossInsertThreadSkill from './skills/boss-insert-thread.md?raw'
 import gearsMeshingSkill from './skills/gears-meshing.md?raw'
 import pipHingeSkill from './skills/pip-hinge.md?raw'
+import dovetailSliderSkill from './skills/dovetail-slider.md?raw'
 
 export const PROSE = prose
 
@@ -54,6 +55,7 @@ export const SKILLS = {
   'boss-insert-thread': bossInsertThreadSkill,
   'gears-meshing': gearsMeshingSkill,
   'pip-hinge': pipHingeSkill,
+  'dovetail-slider': dovetailSliderSkill,
 }
 
 export const EXAMPLES = {
