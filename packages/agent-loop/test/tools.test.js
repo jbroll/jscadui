@@ -91,6 +91,13 @@ describe('agent tools', () => {
     const { overlaps } = TOOLS.find((t) => t.name === 'measure').inputSchema.properties
     expect(overlaps.type).toBe('boolean')
     expect(overlaps.description).toMatch(/overlap/)
+    expect(overlaps.description).toMatch(/bounding boxes only/)
+  })
+
+  it('names interference and references in the check description', () => {
+    const { description } = TOOLS.find((t) => t.name === 'check')
+    expect(description).toMatch(/interference/)
+    expect(description).toMatch(/references/)
   })
 
   it('gives every argument a JSON type', () => {

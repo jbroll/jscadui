@@ -412,7 +412,17 @@ const h = params.lid.height // 8, or the value the user set
 An underscore-prefixed name (params._foo) is hidden from the UI.
 The build report lists the parameters main() defined.`
 
-const TAPER_QUERY = /^(?:[\w$]+\.)?(cone|taper|frustum)$/i
+const REFERENCE_QUERY = /^(?:reference|interference|overlaps?)$/i
+export const REFERENCE_ANSWER = `reference: parts of main()'s array must not share volume.
+Each item of the array is a separate part. If two share volume the build fails with InterferenceError, though measure, check and view still work on the geometry. There is no allowance for press fits: size the pocket to the part.
+Tag purchased hardware (a magnet, a screw, a PCB) as a reference part. It is shown and checked like any part, and never exported:
+part.reference = 'M3 screw'
+part.reference = { reason: 'M3 screw', allow: ['gate'] }
+allow takes the part selectors measure takes (index, "1-3" range, anchor part name) and only exempts overlaps between the reference part and those parts. Overlaps between two printed parts cannot be allowed.
+Set the tag last, on the object main() returns. A tag set earlier is lost when the app evaluates the model. A malformed tag fails the build with PartTagError.
+check lists reference parts and every overlap they are allowed under references.`
+
+const TAPER_QUERY =/^(?:[\w$]+\.)?(cone|taper|frustum)$/i
 const TAPER_TARGET = { fluent: 'jf.cylinder', modeling: 'primitives.cylinderElliptic' }
 
 const taperAnswer = (byName, api) => `${TAPER[api][0].toUpperCase()}${TAPER[api].slice(1)}.\n\n${render(byName.get(TAPER_TARGET[api]), byName)}`
@@ -444,6 +454,7 @@ const lookupOne = (index, q, api) => {
   if (TAPER_QUERY.test(q)) return { ok: true, text: cap(taperAnswer(byName, api)) }
   if (TEXT_QUERY.test(q)) return { ok: true, text: cap(textAnswer(byName, api)) }
   if (PARAMS_QUERY.test(q)) return { ok: true, text: PARAMS_ANSWER }
+  if (REFERENCE_QUERY.test(q)) return { ok: true, text: REFERENCE_ANSWER }
   const family = partsFamily(all, q)
   if (family.length) return { ok: true, text: cap(family.map(renderPart).join('\n\n')) }
   const ownPackage = API_PACKAGE[api]

@@ -79,6 +79,8 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
   sections, gaps between parts, each part's checks or printability, use
   `measure`/`check`; they work on the last build, so fix a failed build
   first.
+- Items in `main()`'s array are separate parts and must not share volume;
+  tag purchased hardware as a reference part (`docs reference`).
 - Try an idea or inspect values with `execute`: a scratch snippet that is never
   saved and leaves the project and its build alone.
 - Look up an unfamiliar function's options and defaults with `docs` before

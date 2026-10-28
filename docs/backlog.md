@@ -750,3 +750,12 @@ from the 2026-10-01 review.
 - **Persisted tool trail (jscad-web chat).** The transcript stores user and
   assistant text plus mentions and reasoning; tool calls and results live
   only in the turn. A resumed conversation never shows what the tools did.
+- **`union` drops input colors.** A multi-colored single object loses its colors
+  when unioned (prod chat 972a48f1-8caa-4412-aa22-cb7e03f76087).
+- **Reference parts are not drawn translucent.** They render like printed
+  parts, so a magnet or screw is hard to tell from the model around it (prod
+  chat 972a48f1-8caa-4412-aa22-cb7e03f76087).
+- **Eval grading ignores interference.** `gradeProject` grades any final model
+  that built geometry, so a model whose parts still share volume scores like
+  any other. Add the interference check to grading (prod chat
+  972a48f1-8caa-4412-aa22-cb7e03f76087).

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { docsTool, lookupDocs, MAX_ANSWER } from '../src/docs.js'
+import { docsTool, lookupDocs, MAX_ANSWER, REFERENCE_ANSWER } from '../src/docs.js'
 import { editDistance } from '../src/editDistance.js'
 import { TAPER } from '../src/hints.js'
 import { createEvalBackend } from '../eval/backend.js'
@@ -461,6 +461,21 @@ describe('docs answers on parameters', () => {
     const types = /^Types: (.*)\.$/m.exec(fluent('params'))[1].split(', ')
     expect(types.length).toBeGreaterThan(5)
     for (const type of types) expect(extractDefinition({ type, default: 0 }).type).toBe(type)
+  })
+})
+
+describe('docs answers on reference parts', () => {
+  it.each(['reference', 'interference', 'overlap', 'overlaps', 'Reference'])('%s answers with REFERENCE_ANSWER, in either API', (query) => {
+    for (const answer of [fluent(query), modeling(query)]) expect(answer).toBe(REFERENCE_ANSWER)
+  })
+
+  it('states the tag forms, that it is set last, and the failure', () => {
+    expect(REFERENCE_ANSWER).toContain("part.reference = 'M3 screw'")
+    expect(REFERENCE_ANSWER).toContain('part.reference = { reason:')
+    expect(REFERENCE_ANSWER).toContain('allow:')
+    expect(REFERENCE_ANSWER).toContain('InterferenceError')
+    expect(REFERENCE_ANSWER).toMatch(/last/)
+    expect(REFERENCE_ANSWER).toMatch(/never exported/)
   })
 })
 

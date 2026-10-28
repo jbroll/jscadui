@@ -129,7 +129,7 @@ export const buildTools = (api = DEFAULT_API, { vision = false } = {}) => [
           items: { type: 'string' },
           description: 'Exactly two part selectors ("0", "1-3" or a part name) to measure the gap between; "all" works only in parts',
         },
-        overlaps: { type: 'boolean', description: 'List every pair of parts whose bounding boxes overlap, with per-axis gap and distance; pairs past 50 are counted but not listed' },
+        overlaps: { type: 'boolean', description: 'List every pair of parts whose bounding boxes overlap, with per-axis gap and distance; pairs past 50 are counted but not listed. This is bounding boxes only; check gives the volume parts really share' },
         anchors: { type: 'boolean', description: "Include each part's named anchor frames; the names work as part selectors here and as a view lookAt" },
         section: {
           type: 'string',
@@ -141,7 +141,7 @@ export const buildTools = (api = DEFAULT_API, { vision = false } = {}) => [
   {
     name: 'check',
     description:
-      'Check the current model: watertight, manifold, inside out, self-intersecting, open and non-manifold edge counts, where a few open edges are, and size in mm, for each part of an array too, numbered by index as measure and view take them; the build report already gives watertight, manifold and self-intersecting for the whole. With a bed, also whether it fits. Pass a bed only when the user names a printer.',
+      'Check the current model: watertight, manifold, inside out, self-intersecting, open and non-manifold edge counts, where a few open edges are, and size in mm, for each part of an array too, numbered by index as measure and view take them; the build report already gives watertight, manifold and self-intersecting for the whole. Also reports interference (pairs of parts sharing volume, with the shared mm³), references (reference parts and the overlaps they are allowed) and tagErrors (malformed reference tags). With a bed, also whether it fits. Pass a bed only when the user names a printer.',
     inputSchema: {
       type: 'object',
       properties: {
