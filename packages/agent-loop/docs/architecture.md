@@ -226,7 +226,9 @@ build's `main()`, and evaluates the tree nodes `main()` returns before
 Each top-level item of the array `main()` returns is a separate part, and two
 parts that share more than 0.001 mm³ fail the build with `InterferenceError`.
 Two causes: assembly parts must fit, and one printed part must be one
-solid, so colored pieces that share volume are unioned. Prod chat
+solid. The modeling engine has no multi-color solid and printing is one color
+for now, so each part has one color. Parts may touch face to face, so a detail
+in another color is its own part, subtracted from the part around it. Prod chat
 972a48f1-8caa-4412-aa22-cb7e03f76087 built 19 parts, many buried in each
 other, and every build answered `warnings: []`. `measure`'s `overlaps` then
 compared bounding boxes, and the base plate's box held every other part, so

@@ -217,7 +217,7 @@ describe('part interference in the build report', () => {
   const pair = { a: '0', b: '1', volume: 273.66, size: [29.4179, 44.5922, 14.5] }
   const build = (checked) => assembleReport({ entry: 'main.js', console: ['c'], warnings: [{ w: 1 }], params: [{ name: 'n', type: 'slider', initial: 5 }], measure: () => measured, check: () => ({ watertight: true, ...checked }) })
   const base = 'parts 0 and 1 share 273.7 mm³ (a 29.4 x 44.6 x 14.5 mm region)'
-  const advice = 'Each item main() returns is a separate part. Assembly parts that share volume collide: move or resize one. Pieces meant as one printed part, such as colored pieces, are not one sliceable solid: union them. Purchased hardware is a reference part and is checked too (docs reference).'
+  const advice = 'Each item main() returns is a separate part in one color; parts may touch but not share volume. Assembly parts that share volume collide: move or resize one. A detail in another color is its own part: subtract it from the part around it so the two touch. Pieces of one color that print as one part are one solid: union them, then color the result. Purchased hardware is a reference part and is checked too (docs reference).'
 
   it('interference fails the build and keeps the geometry', async () => {
     const interference = { pairs: [pair, pair, pair, pair, pair], total: 5 }

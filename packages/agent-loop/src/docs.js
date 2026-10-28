@@ -414,11 +414,12 @@ The build report lists the parameters main() defined.`
 
 const REFERENCE_QUERY = /^(?:reference|interference|overlaps?)$/i
 export const REFERENCE_ANSWER = `reference: parts of main()'s array must not share volume.
-Each item of the array is a separate part. If two share volume the build fails with InterferenceError, though measure, check and view still work on the geometry. There is no allowance for press fits: size the pocket to the part.
+Each item of the array is a separate part in one color; parts may touch but not share volume. If two share volume the build fails with InterferenceError, though measure, check and view still work on the geometry. There is no allowance for press fits: size the pocket to the part.
 Tag purchased hardware (a magnet, a screw, a PCB) as a reference part. It is shown and checked like any part, and never exported:
 part.reference = 'M3 screw'
 part.reference = { reason: 'M3 screw', allow: ['gate'] }
-allow takes the part selectors measure takes (index, "1-3" range, anchor part name) and only exempts overlaps between the reference part and those parts. Overlaps between two printed parts cannot be allowed. An allow entry that names no part sharing volume with the reference part is a PartTagError: remove it. Pieces meant as one printed part, such as colored pieces, must be one solid: union them.
+allow takes the part selectors measure takes (index, "1-3" range, anchor part name) and only exempts overlaps between the reference part and those parts. Overlaps between two printed parts cannot be allowed. An allow entry that names no part sharing volume with the reference part is a PartTagError: remove it.
+A detail in another color is its own part: subtract it from the part around it so the two touch. Pieces of one color that print as one part are one solid: union them, then color the result.
 Set the tag last, on the object main() returns. A tag on a nested object, or on an object transformed after the tag is set, is lost. A malformed tag fails the build with PartTagError.
 Every build report, and check, lists each reference part and each overlap it is allowed, with its shared volume, under references.`
 

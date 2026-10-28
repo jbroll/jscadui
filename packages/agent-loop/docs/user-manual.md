@@ -261,8 +261,9 @@ with `InterferenceError`, there is no allowance for press fits, the two tag
 forms (`part.reference = 'M3 screw'` and `{ reason, allow }`), that `allow`
 exempts only overlaps between the reference part and the parts it names, that
 an `allow` entry naming no part that shares volume with the reference part is
-a `PartTagError`, that pieces meant as one printed part (such as colored
-pieces) are unioned into one solid, that the tag is set last on the object
+a `PartTagError`, that each part has one color and parts may touch, that a
+detail in another color is its own part subtracted from the part around it,
+that pieces of one color are unioned and then colored, that the tag is set last on the object
 `main()` returns (one on a nested object or on an object transformed after the
 tag is set is lost), `PartTagError` for a malformed tag, and that every build
 report lists the allowed overlaps under `references`. `jf.cylinder`'s `outer` has
@@ -449,10 +450,12 @@ on overlap. The eval backend keeps the geometry of such a failed build, so
 
 An `InterferenceError` message reads, to 0.1 mm: `parts 0 and 1 share 273.7
 mm³ (a 29.4 x 44.6 x 14.5 mm region); 4 more pairs overlap. Each item
-main() returns is a separate part. Assembly parts that share volume collide:
-move or resize one. Pieces meant as one printed part, such as colored pieces,
-are not one sliceable solid: union them. Purchased hardware is a reference part
-and is checked too (docs reference).`
+main() returns is a separate part in one color; parts may touch but not share
+volume. Assembly parts that share volume collide: move or resize one. A detail
+in another color is its own part: subtract it from the part around it so the
+two touch. Pieces of one color that print as one part are one solid: union
+them, then color the result. Purchased hardware is a reference part and is
+checked too (docs reference).`
 A `PartTagError` message joins `check`'s `tagErrors` with `; `. An `allow`
 selector that names no part sharing volume with the reference part is a tag
 error (`part 2: allow 1 shares no volume with it; remove it from allow`), unless
