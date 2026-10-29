@@ -116,6 +116,19 @@ describe('fetch routes', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('refuses a name that re-resolves private between the check and the connection', async () => {
+    // The global fetch, which the old route fell back to, would happily return a
+    // page — only the connect-time dispatcher lookup can catch the rebind.
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockImplementation(async () => htmlResponse('<title>internal</title><p>secret</p>'))
+    let resolutions = 0
+    const flippingDns = async () => [{ address: resolutions++ === 0 ? '93.184.216.34' : '10.0.0.1' }]
+    const res = await post(fetchApp([], { fetchFn: undefined, dnsLookup: flippingDns }), { url: 'https://rebind.test/page' })
+    expect(res.status).toBe(400)
+    expect(res.body.name).toBe('BlockedHostError')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('fetches a public page, strips tags, decodes entities and returns the title', async () => {
     fetchMock.mockImplementation(async () =>
       htmlResponse(

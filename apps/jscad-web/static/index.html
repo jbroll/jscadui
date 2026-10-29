@@ -2,6 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="script-src 'self'; frame-src https://jscad-run.rkroll.com http://localhost:* http://127.0.0.1:*; connect-src 'self' https://jscad.rkroll.com https://rowboat.rkroll.com https://models.dev https://api.anthropic.com https://api.openai.com https://opencode.ai https://api.meta.ai https://mcp.exa.ai https://search.parallel.ai https://mcp.firecrawl.dev https://agent.tinyfish.ai"
+    >
     <link rel="icon" type="image/png" href="./favicon.png">
     <meta name="theme-color" content="#fff">
     <link rel="manifest" href="./jscadui.manifest">
@@ -162,21 +166,7 @@
     </div>
     <div id="dropModal">drop jscad script to execute it</div>
 
-    <script>
-      // load visible preferences immediately to prevent flash of content
-      if (localStorage.getItem('engine.theme') === 'dark') {
-        document.body.classList.add('dark')
-      }
-      if (localStorage.getItem('welcome.dismissed')) {
-        document.getElementById('welcome').remove()
-      }
-      if (localStorage.getItem('editor.closed') === 'true' || window.innerWidth < 768) {
-        document.getElementById('editor').classList.add('closed')
-      } else if (localStorage.getItem('editor.width')) {
-        const editorWidth = localStorage.getItem('editor.width')
-        document.getElementById('editor').style.width = `${editorWidth}px`
-      }
-    </script>
+    <script src="./preload.js"></script>
     <script type="module" src="./main.js"></script>
   </body>
 </html>

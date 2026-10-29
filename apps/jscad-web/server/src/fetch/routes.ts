@@ -1,5 +1,7 @@
+import type { LookupFunction } from 'node:net';
 import type { Express, Request, Response } from 'express';
-import { RATE_PER_MIN, createLimiter, isTrustedRequest } from '../relay/policy.js';
+import { Agent, fetch as undiciFetch } from 'undici';
+import { RATE_PER_MIN, createLimiter, isTrustedRequest, publicOnlyLookup } from '../relay/policy.js';
 import { fetchPage } from './fetchPage.js';
 
 // Nothing about the operator's session leaves this module's closure: the page
@@ -18,7 +20,15 @@ export interface FetchRouteOptions {
 
 export function mountFetchRoutes(app: Express, options: FetchRouteOptions): void {
   const logger = options.logger ?? ((entry) => console.log(JSON.stringify(entry)));
-  const { fetchFn, dnsLookup, timeoutMs } = options;
+  const { dnsLookup, timeoutMs } = options;
+  // The origin check in fetchPage resolves the name first; the connection then
+  // resolves it again. This dispatcher makes the address the socket actually
+  // connects to the checked one, so a DNS answer that flips public→private
+  // between the two cannot reach the server's own network.
+  const dispatcher = new Agent({ connect: { lookup: publicOnlyLookup(dnsLookup) as unknown as LookupFunction } });
+  const publicOnlyFetch = ((url: string, init?: Parameters<typeof undiciFetch>[1]) =>
+    undiciFetch(url, { ...init, dispatcher })) as typeof fetch;
+  const fetchFn = options.fetchFn ?? publicOnlyFetch;
   const limiter = createLimiter({ ratePerMin: RATE_PER_MIN, burst: 10 });
   const allowed = new Set(options.trustedOrigins);
 

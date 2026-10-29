@@ -225,3 +225,40 @@ is the wire kind for the default hook and `inference:<id>` for a free turn. An
 inference config that cannot be read logs
 `{relay: 'inference-config-error', message}`. Deploy smoke
 (`e2e/smoke-deploy.mjs`) POSTs from a fake origin and expects `403`.
+
+<!-- Task 1 security-header block: keep contiguous when editing this file. -->
+
+## Browser security headers (deploy-owned)
+
+`static/index.html` carries the app origin's policy as a
+`<meta http-equiv="Content-Security-Policy">`:
+
+- `script-src 'self'` — the inline preload that restores theme/welcome/editor
+  width now lives in `static/preload.js`, so no `'unsafe-inline'` is needed.
+- `frame-src https://jscad-run.rkroll.com` (plus `http://localhost:*` /
+  `http://127.0.0.1:*` for the dev run frame) — the compute frame is the only
+  embed.
+- `connect-src 'self' https://jscad.rkroll.com https://rowboat.rkroll.com
+  https://models.dev https://api.anthropic.com https://api.openai.com
+  https://opencode.ai https://api.meta.ai https://mcp.exa.ai
+  https://search.parallel.ai https://mcp.firecrawl.dev
+  https://agent.tinyfish.ai` — the relay, auth/sync, the models.dev vision
+  catalog, the provider APIs the browser-local loop calls, and the search MCP
+  endpoints the browser calls directly. Add a host here when a new
+  browser-side provider/catalog appears; a missing host makes that feature
+  fail closed with a CSP error, not a network error.
+
+Apache (outside this repo — there is no `deploy.sh` here) must send the same
+policy as a response header, plus:
+
+```
+Cross-Origin-Opener-Policy: same-origin
+```
+
+Do not add `frame-ancestors` to the app-origin policy: it changes which pages
+may embed the app. The run host keeps its own
+`frame-ancestors https://jscad.rkroll.com` (see `serve.js`), which is what
+allows the app's `/frame/` embed.
+
+<!-- End Task 1 security-header block. -->
+
