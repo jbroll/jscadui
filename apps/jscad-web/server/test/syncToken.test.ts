@@ -54,4 +54,26 @@ describe('sync token', () => {
     expect(res.body.token.split('.')).toHaveLength(3)
     expect(res.body.syncBase).toBe('http://rowboat.test/db/db_test_tenant/api/sync')
   })
+
+  it('keeps a logged-in session working when the client forges a leading X-Forwarded-For entry', async () => {
+    // Apache appends the real peer to X-Forwarded-For, so a client can only
+    // forge the leading entries. Express resolves req.ip to the appended
+    // address and pinForwardedFor rewrites the header better-auth reads.
+    server = await createServer(testConfig())
+    const now = new Date()
+    server.db
+      .prepare('INSERT INTO user (id, name, email, emailVerified, image, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run('u1', 'Sync', 'sync@test.com', 0, null, now.toISOString(), now.toISOString())
+    server.db
+      .prepare('INSERT INTO session (id, expiresAt, token, createdAt, updatedAt, ipAddress, userAgent, userId) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('s1', new Date(Date.now() + 3600e3).toISOString(), 'tok123', now.toISOString(), now.toISOString(), null, null, 'u1')
+    const signature = createHmac('sha256', AUTH_SECRET).update('tok123').digest('base64')
+    const cookie = `better-auth.session_token=${encodeURIComponent(`tok123.${signature}`)}`
+    const res = await request(server.app)
+      .get('/api/sync-token')
+      .set('Cookie', cookie)
+      .set('X-Forwarded-For', '9.9.9.9, 8.8.8.8')
+    expect(res.status).toBe(200)
+    expect(res.body.token.split('.')).toHaveLength(3)
+  })
 })

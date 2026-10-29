@@ -5,6 +5,7 @@ import { remoteGroupBackend } from '@jbroll/rowboat-auth';
 import { createIdentity, type Identity } from '@jbroll/rowboat-auth-betterauth';
 import Database from 'better-sqlite3';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
+import { pinForwardedFor } from './http/forwarded.js';
 import { mountRelayRoutes } from './relay/routes.js';
 import { relayJson, relayJsonError } from './relay/body.js';
 import { mountSearchRoutes } from './search/routes.js';
@@ -72,13 +73,9 @@ export async function createServer(config: ServerConfig): Promise<AppServer> {
   // Apache is the only hop in front of this app. Express then takes the address
   // Apache appended, not the leftmost X-Forwarded-For entry a client can forge.
   app.set('trust proxy', 'loopback');
-  // better-auth's own IP read (getIp in better-auth/utils/get-request-ip) takes
-  // the FIRST X-Forwarded-For entry, not Express's trust-proxy-aware req.ip, so
-  // a forged leading entry would key its rate limiter. resolveAuthor itself
-  // reads only the session cookie, so the header is the auth IP surface: rewrite
-  // it to req.ip — the address Apache appended — before auth mounts.
+  // Pin better-auth's first-entry X-Forwarded-For read to the trusted req.ip.
   app.use((req, _res, next) => {
-    if (req.ip) req.headers['x-forwarded-for'] = req.ip;
+    pinForwardedFor(req);
     next();
   });
   app.use(corsMiddleware(config.trustedOrigins));

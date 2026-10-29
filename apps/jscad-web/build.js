@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url'
 import liveServer from 'live-server'
 import { buildParts } from '../../packages/parts/bin/build.js'
 import {serve, serveFrame} from './serve.js'
-import { fillFrameHtml } from './src_build/frameHtml.js'
+import { fillFrameHtml, fillHtmlOrigins } from './src_build/frameHtml.js'
 import { genExamplesManifest } from './src_build/genExamplesManifest.js'
 import { hashAssetGraph } from './src_build/hashAssets.js'
 import { relayOrigin } from './src_build/relayOrigin.js'
@@ -43,11 +43,6 @@ const injectAboutInfo = (content) => {
     .replace('<ul id="about-dependencies"></ul>', `<ul id="about-dependencies">\n        ${dependencies}\n      </ul>`)
 }
 
-const htmlFilter = {
-  filter: injectAboutInfo,
-  include: ['index.html']
-}
-
 // *************** read parameters **********************
 const { dev, port = Number(process.env.JSCAD_WEB_PORT) || 5120, serve:serveBuild=false, skipDocs:skipDocsArg=false } = parseArgs()
 // CI has no sibling OpenJSCAD.org checkout to generate docs from, so its build
@@ -59,6 +54,13 @@ const skipDocs = skipDocsArg || process.env.JSCAD_SKIP_DOCS === '1'
 // nothing inside a sandboxed frame).
 const appOrigin = process.env.FRAME_APP_ORIGIN || (dev ? `http://localhost:${port}` : 'https://jscad.rkroll.com')
 const runOrigin = process.env.FRAME_RUN_ORIGIN || (dev ? `http://localhost:${port + 1}` : 'https://jscad-run.rkroll.com')
+const relay = relayOrigin({ dev, appOrigin })
+// The app shell CSP names the same build-derived origins: no dev-only localhost
+// reaches a production page, and a launcher build follows its own app origin.
+const htmlFilter = {
+  filter: (content) => fillHtmlOrigins(injectAboutInfo(content), { appOrigin, runOrigin, relayOrigin: relay, dev }),
+  include: ['index.html']
+}
 const frameHtmlFilter = {
   filter: (content) => fillFrameHtml(content, { appOrigin, runOrigin, dev }),
   include: ['frame/index.html'],
