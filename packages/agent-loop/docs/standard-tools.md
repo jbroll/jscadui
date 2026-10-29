@@ -109,6 +109,13 @@ Verdict 2026-10-13: no split; prompt at ~2.1k words (~4.5k tokens by
 `estimateTokens`) per style, under the 5,000-token sheet budget and well
 inside the 24k+24k context/project budgets. Budgets unchanged.
 
+Update 2026-10-29: split shipped. `src/skills.js` loads bodies on demand
+(`skillTool`, `skillIndex`, `SKILL_BUDGET` 2000 chars) behind a `skill`
+tool; `prompt/skills/` holds 5 starter skills plus 9 printability skills
+(`fit-clearance` first), each under 250 words
+(`test/skills-content.test.js`). The index (id + description) stays in
+context; full bodies load on relevance.
+
 ### 7. MCP client
 
 MCP won the transport war for external tools (JSON-RPC Tools /
@@ -142,6 +149,7 @@ tool for, kept as extensions.
 | `question` | `question` | renamed from `ask_user` |
 | `websearch` | `websearch` | renamed from `web_search` |
 | `execute` | `execute` | renamed from `run` |
+| `skill` | `skill` | identical |
 | `delete` | — | extension: OpenCode removes files with `bash rm` or `patch` |
 | `measure` | — | extension: CAD geometry, no OpenCode analog |
 | `check` | — | extension: CAD geometry, no OpenCode analog |
@@ -152,8 +160,8 @@ tool for, kept as extensions.
 
 OpenCode tools we deliberately leave out: `shell` (no shell in the browser
 or eval sandbox, `execute` covers scratch code), `patch` (our `edit` and
-`write` own file changes), `skill` and `subagent`/`task` (single-turn loop,
-no loader; deferred until a fixture proves the need).
+`write` own file changes) and `subagent`/`task` (single-turn loop;
+deferred until a fixture proves the need).
 
 ## Suggested order
 

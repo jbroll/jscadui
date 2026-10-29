@@ -163,6 +163,18 @@ answered after `toolTimeoutMs` (120,000 ms by default) rejects the turn with
 since they wait on the user, and end only with an answer or an abort through
 `signal`.
 
+### Printability skills
+
+`prompt/skills/` holds 9 design-for-printing skills the loop loads through
+the `skill` tool, on top of the 5 starter skills: `fit-clearance` (ladders,
+compensation, coupon-first — load before any mating parts),
+`printability-design`, `box-lid`, `snap-fit`, `boss-insert-thread`,
+`gears-meshing`, `pip-hinge`, `dovetail-slider`, `living-hinge`. Each states
+its numbers and a small test coupon first; printer operation (bed, temps,
+flow, slicer tuning) is explicitly out. Bodies stay under 250 words and
+`SKILL_BUDGET` (2000 chars) so nothing truncates on load
+(`test/skills-content.test.js`).
+
 ## Turn status
 
 ```js
@@ -402,7 +414,7 @@ The app and the eval answer tool calls through the same functions, each over
 its own way of running the model.
 
 ```js
-dispatchTool(name, input, { list, read, search, write, edit, deleteFile, run, measure, check, exportModel, view, docs, askUser })
+dispatchTool(name, input, { list, read, search, write, edit, deleteFile, run, measure, check, exportModel, view, docs, skill, askUser })
 ```
 
 Calls the handler for `name` and returns what it answers. Most exposed names
@@ -410,8 +422,8 @@ are the handler's `deps` key too; these differ: `glob` uses `list`, `grep`
 uses `search`, `delete` uses `deleteFile`, `execute` uses `run` (called as
 `run(args.source)`), `export` uses `exportModel`, and `question` uses
 `askUser`. The rest call their own key: `read(args)`, `write(args)`,
-`edit(args)`, `measure(args)`, `check(args)`, `view(args)`, `docs(args.query)`
-and `websearch(args)`, with `input` defaulting to `{}`. A name
+`edit(args)`, `measure(args)`, `check(args)`, `view(args)`, `docs(args.query)`,
+`skill(args)` and `websearch(args)`, with `input` defaulting to `{}`. A name
 outside that list answers `toolError('UnknownToolError', 'unknown tool
 <name>')`, and a shell name (`bash`, `sh`, `shell`, `terminal`,
 `run_command` and the like) adds that there is no shell and which tools change

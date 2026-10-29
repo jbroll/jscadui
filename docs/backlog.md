@@ -144,7 +144,7 @@ Deferred from the jscad-web inference reframe reviews (`feat/jscad-inference-rel
 
 ## Chat tools follow-ups (2026-10-17 e2e)
 
-Found by `e2e/ai-chat-tools.spec.js` (plan `docs/superpowers/plans/2026-10-17-chat-tools-e2e.md`); tests pin current behavior, fixes owned here.
+Found by `e2e/ai-chat-tools.spec.js`; tests pin current behavior, fixes owned here.
 
 - **Session-custody Tavily key never reaches the search handler.**
   `main.js:991` builds a second `createSearchStores` instance while
