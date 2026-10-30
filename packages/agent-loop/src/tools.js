@@ -9,7 +9,7 @@ const DOCS_DESCRIPTION = {
 }
 
 const BUILDS =
-  'builds the project and returns the build report: saved (the file written, kept even when the build fails), ok, entry, error with its file, line and column, warnings, console output, params and, when it builds, the geometry (parts, boundingBox, dimensions in mm, volume in mm³, watertight, manifold, selfIntersecting).'
+  'builds the project and returns the build report: saved (the file written, kept even when the build fails), ok, entry, error with its file, line and column, warnings, console output, params and, when it builds, the geometry (parts, boundingBox, dimensions in mm, volume in mm³, watertight, manifold, selfIntersecting), and a note when the entry does not require the file written.'
 
 // Vision-only: only a model that reads images may be offered `view`, so the
 // gated catalog adds this entry; `dispatchTool` serves it regardless, so a

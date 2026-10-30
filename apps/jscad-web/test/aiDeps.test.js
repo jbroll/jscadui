@@ -77,7 +77,7 @@ describe('list and read', () => {
 
 describe('write and edit', () => {
   it('write puts the file in the project, shows it in the editor and answers the build report', async () => {
-    const project = fakeProject({ 'main.js': 'old' })
+    const project = fakeProject({ 'main.js': "require('./parts/gear')" })
     const { deps, tools: t } = tools({ project })
     expect(await t.write({ path: './parts/gear.js', content: 'gear' })).toEqual({
       saved: 'parts/gear.js',
@@ -86,10 +86,16 @@ describe('write and edit', () => {
       tests: { ok: true, passed: 0, failed: 0, assertsByPart: {}, uncovered: [0] },
       coverageNote: 'no test files in test/\ntests: 0 passed, 0 failed; 0/1 parts have a passing assert; uncovered parts: [0]',
     })
-    expect(project.files()).toEqual({ 'main.js': 'old', 'parts/gear.js': 'gear' })
-    expect(deps.showFile).toHaveBeenCalledWith('parts/gear.js', 'gear', { 'main.js': 'old', 'parts/gear.js': 'gear' })
+    expect(project.files()).toEqual({ 'main.js': "require('./parts/gear')", 'parts/gear.js': 'gear' })
+    expect(deps.showFile).toHaveBeenCalledWith('parts/gear.js', 'gear', { 'main.js': "require('./parts/gear')", 'parts/gear.js': 'gear' })
     expect(deps.build).toHaveBeenCalledTimes(1)
     expect(deps.writeProjectFile.mock.invocationCallOrder[0]).toBeLessThan(deps.build.mock.invocationCallOrder[0])
+  })
+
+  it('notes a written part file the entry does not require', async () => {
+    const { tools: t } = tools({ project: fakeProject({ 'main.js': 'old' }) })
+    const report = await t.write({ path: 'reel.js', content: 'reel' })
+    expect(report.note).toBe('reel.js is not required from main.js; the build and the viewer still show the previous model')
   })
 
   it('edit replaces one exact occurrence and builds', async () => {

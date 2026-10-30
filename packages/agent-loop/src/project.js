@@ -326,6 +326,25 @@ export const resolveRequire = (files, file, spec) => {
   return [base, `${base}.js`, `${base}/index.js`].find((path) => typeof files[path] === 'string')
 }
 
+// The project files `entry` requires or imports, directly or through others.
+export const requireClosure = (files, entry) => {
+  const seen = new Set([entry])
+  const queue = [entry]
+  while (queue.length > 0) {
+    const file = queue.shift()
+    const text = files[file]
+    if (typeof text !== 'string') continue
+    for (const [, , spec] of text.matchAll(RELATIVE_SPEC)) {
+      const found = resolveRequire(files, file, spec)
+      if (found && !seen.has(found)) {
+        seen.add(found)
+        queue.push(found)
+      }
+    }
+  }
+  return seen
+}
+
 const stem = (path) => path.slice(path.lastIndexOf('/') + 1).replace(/\.[cm]?[jt]s$/, '')
 
 const specFrom = (file, target) => {

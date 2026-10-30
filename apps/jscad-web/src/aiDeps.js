@@ -131,7 +131,7 @@ export const createProjectTools = ({
       const { tests, coverageNote } = summarizeTestRun(run, gated.geometry?.parts)
       return { ...gated, ok: gated.ok && tests.ok, build: gated, tests, coverageNote }
     }
-    const report = mergeStatic(writeReport(path, await build()), diagnostics)
+    const report = mergeStatic(writeReport(path, await build(), files), diagnostics)
     // Docs, notes and the test files themselves skip tests; every other `.js`
     // write runs the full `test/` suite after the build. The geometry builder
     // (main.js buildProject into the frame's jscadScript) executes the entry

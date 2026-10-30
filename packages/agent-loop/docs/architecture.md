@@ -185,7 +185,13 @@ from model-tools' `measure` and `check` on what `main()` returned, rounded to
 `edit` answers the report headed by `saved`, the file written
 (`writeReport`); when the build fails it adds `note: "main.js is saved; the
 build of main.js failed"`, since models read a bare `ok: false` as a lost
-write and rewrote the file from scratch. A `delete` answers the same report
+write and rewrote the file from scratch. When the build succeeds but the
+entry never reaches the saved model file through `require`/`import`
+(`requireClosure`, a static scan of relative specs resolved the way the
+loader resolves them), it adds `note: "reel.js is not required from main.js;
+the build and the viewer still show the previous model"`, so a part file
+written before the entry requires it does not read as a change that built.
+Test and notes files, non-JS files and the entry itself never get it. A `delete` answers the same report
 headed by `deleted` (`deleteReport`), the file removed; the deletion is stored
 too, so a reload keeps the file deleted. A project with no
 entry file builds nothing and fails nothing: `{ ok: true, entry: null, note: "no entry yet

@@ -1,4 +1,4 @@
-import { assembleReport, DEFAULT_API, noEntryReport, noGeometryError, noMainError, notGeometryError, PROJECT_BASE, projectPath, RELATIVE_SPEC, reportError, resolveEntry, resolveRequire } from '@jscadui/agent-loop'
+import { assembleReport, DEFAULT_API, noEntryReport, noGeometryError, noMainError, notGeometryError, PROJECT_BASE, projectPath, reportError, requireClosure, resolveEntry } from '@jscadui/agent-loop'
 
 const textFile = (files, path) => {
   if (!path) return null
@@ -20,25 +20,6 @@ const EXPORTS_MAIN = [
 ]
 
 const exportsMain = (text) => EXPORTS_MAIN.some((pattern) => pattern.test(text))
-
-// The project files `entry` requires or imports, directly or through others.
-const requireClosure = (files, entry) => {
-  const seen = new Set([entry])
-  const queue = [entry]
-  while (queue.length > 0) {
-    const file = queue.shift()
-    const text = files[file]
-    if (typeof text !== 'string') continue
-    for (const [, , spec] of text.matchAll(RELATIVE_SPEC)) {
-      const found = resolveRequire(files, file, spec)
-      if (found && !seen.has(found)) {
-        seen.add(found)
-        queue.push(found)
-      }
-    }
-  }
-  return seen
-}
 
 /**
  * The file a project build runs: agent-loop's resolveEntry, else the entry the

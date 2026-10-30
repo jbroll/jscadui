@@ -186,6 +186,40 @@ describe('writeReport', () => {
   it('says a helper written before any entry is saved', () => {
     expect(writeReport('layout.js', noEntryReport())).toMatchObject({ saved: 'layout.js', ok: true, entry: null, note: `saved; ${NO_ENTRY_NOTE}` })
   })
+
+  describe('a saved file the entry never loads', () => {
+    const built = buildReport({ entry: 'main.js' })
+    const cube = 'const { cuboid } = require("@jscad/modeling").primitives\nconst main = () => cuboid()\nmodule.exports = { main }\n'
+    const reel = 'module.exports = { reel: () => null }\n'
+    const unloaded = 'reel.js is not required from main.js; the build and the viewer still show the previous model'
+
+    it('notes a new part file main.js does not require', () => {
+      expect(writeReport('reel.js', built, { 'main.js': cube, 'reel.js': reel }).note).toBe(unloaded)
+    })
+
+    it('drops the note once main.js requires it', () => {
+      const files = { 'main.js': `const { reel } = require('./reel')\n${cube}`, 'reel.js': reel }
+      expect(writeReport('reel.js', built, files)).not.toHaveProperty('note')
+    })
+
+    it('counts a file reached through another part file', () => {
+      const files = {
+        'main.js': `import { gate } from './parts/gate.js'\n${cube}`,
+        'parts/gate.js': "const { hinge } = require('../lib/hinge')\nmodule.exports = { gate: () => hinge }\n",
+        'lib/hinge.js': 'module.exports = { hinge: 1 }\n',
+      }
+      expect(writeReport('lib/hinge.js', built, files)).not.toHaveProperty('note')
+    })
+
+    it('never notes the entry, a non-JS file, a test file or a failed build', () => {
+      const files = { 'main.js': cube, 'reel.js': reel, 'notes/plan.md': '', 'test/reel.test.js': "require('../reel')\n" }
+      expect(writeReport('main.js', built, files)).not.toHaveProperty('note')
+      expect(writeReport('notes/plan.md', built, files)).not.toHaveProperty('note')
+      expect(writeReport('test/reel.test.js', built, files)).not.toHaveProperty('note')
+      const failed = buildReport({ entry: 'main.js', error: { name: 'TypeError', message: 'x' } })
+      expect(writeReport('reel.js', failed, files).note).toBe('reel.js is saved; the build of main.js failed')
+    })
+  })
 })
 
 describe('noGeometryError', () => {

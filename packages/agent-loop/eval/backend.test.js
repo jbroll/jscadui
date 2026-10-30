@@ -211,6 +211,15 @@ module.exports = { main }`
     expect(res.error.message).toContain('const main (params) => {}')
   })
 
+  it('notes a part file the entry does not require, until it does', async () => {
+    const backend = createEvalBackend()
+    await writeMain(CUBE, backend)
+    const unrequired = await call(backend, 'write', { path: 'reel.js', content: 'module.exports = { reel: 1 }' })
+    expect(unrequired.note).toBe('reel.js is not required from main.js; the build and the viewer still show the previous model')
+    await writeMain(`const { reel } = require('./reel')\n${CUBE}`, backend)
+    expect(await call(backend, 'write', { path: 'reel.js', content: 'module.exports = { reel: 2 }' })).not.toHaveProperty('note')
+  })
+
   it('names the helper file a syntax error is in', async () => {
     const backend = createEvalBackend()
     await backend.reset({ 'helper.js': 'module.exports = {\n  size: 20\n  x: 1 }' })

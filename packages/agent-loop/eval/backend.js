@@ -376,7 +376,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
     }
     const report = await build()
     if (!report) return toolError('ResetError', 'the run was reset before the build finished')
-    const merged = writeReport(next.path, mergeStatic(report, diagnostics))
+    const merged = writeReport(next.path, mergeStatic(report, diagnostics), next.files)
     // The app's save answers the same shape: docs, notes and the test files
     // themselves skip tests, every other `.js` write runs the full suite.
     // A red build stays saved — the run still answers, with ok false.

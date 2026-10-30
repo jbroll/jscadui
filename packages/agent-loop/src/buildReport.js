@@ -7,6 +7,8 @@
 // `measured` and `checked` are @jscadui/model-tools measure() and check()
 // results for the geometry main() returned.
 
+import { isCodePath, requireClosure } from './project.js'
+
 const round = (value) => (typeof value === 'number' && Number.isFinite(value) ? Math.round(value * 1e4) / 1e4 + 0 : value)
 const roundAll = (value) => (Array.isArray(value) ? value.map(roundAll) : round(value))
 
@@ -128,11 +130,14 @@ export const NO_ENTRY_NOTE ='no entry yet (main.js, index.js or package.json mai
 export const noEntryReport = () => ({ ok: true, entry: null, note: NO_ENTRY_NOTE, warnings: [], console: [], params: [] })
 
 // What a write or edit answers: its build report, headed by the file saved,
-// so a failed build never reads as a lost write.
-export const writeReport = (path, report) => {
+// so a failed build never reads as a lost write. With the project `files`, a
+// saved model file the entry never reaches says the build ignored it.
+export const writeReport = (path, report, files) => {
   let note
   if (report.ok && report.entry === null) note = `saved; ${report.note}`
   else if (!report.ok && typeof report.entry === 'string') note = `${path} is saved; the build of ${report.entry} failed`
+  else if (report.ok && files && isCodePath(path) && !requireClosure(files, report.entry).has(path))
+    note = `${path} is not required from ${report.entry}; the build and the viewer still show the previous model`
   return { saved: path, ...report, ...(note ? { note } : {}) }
 }
 
