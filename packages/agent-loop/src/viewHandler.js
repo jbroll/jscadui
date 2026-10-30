@@ -16,7 +16,8 @@
 // never a guess. Anchors ride jscad-engine solids only, so on a manifold build
 // every name misses; indexes and coords always work.
 
-import { boundingBox } from '@jscadui/format-common'
+// The package's main is index.d.ts, which only a bundler resolves; plain node (run-eval) needs the file.
+import { boundingBox } from '@jscadui/format-common/index.js'
 import { isIndexSelector } from '@jscadui/model-tools/src/partRefs.js'
 import { checkPartIndex, resolveLookAt } from './viewParts.js'
 import { normalizeViewRequest, PRESET_DIRS } from './viewSpec.js'
