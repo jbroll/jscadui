@@ -156,16 +156,27 @@ The hook owns both routes; it never proxies the catalog and never returns keys
 or prices.
 
 - `GET /api/relay/jscad-web/v1/models` returns
-  `[{id, kind, model, available}]` (`id` is the model slug). `available` is false once the month's
-  budget is spent, and the client lists it disabled with
-  `(monthly limit reached)`.
+  `[{id, kind, model, available}]` (`id` is the model slug). `available` reflects
+  the **month's** budget only, since it is one flag for every caller: it is false
+  once `monthlyUsd` is spent, and the client lists the row disabled with
+  `(monthly limit reached)`. A caller whose IP group has spent its
+  `perIpDailyUsd` still sees `available: true` and learns from the `402` with
+  `scope: 'day'` on the turn itself.
 - `POST /api/relay/jscad-web/<id>/<path>` serves one option: `<id>` is the first
   path segment and the remainder must equal the option's derived `path` exactly
   (`404` otherwise, with no upstream request, so the injected key is never sent
-  to find out). The budgets are checked (`402` with
+  to find out). Unknown ids never fall back: agent-loop picks a free option's
+  protocol from its model id, so a typo goes down `v1/chat/completions`, but this
+  hook refuses the unmatched id (or the wrong path) with `404` before any
+  upstream call, so a typo cannot burn budget. The budgets are checked (`402` with
   `{error: {code: 'inference_quota_exhausted', scope, message}}`, `scope` of
   `month` or `day`), and a third request in flight from one IP group is `429`
-  with `Retry-After: 2`. The body is rewritten: `model` is pinned to the
+  with `Retry-After: 2`. Across every group the server holds at most 50 free
+  turns (`RelayRouteOptions.maxInFlight`); over that is a `429` with
+  `Retry-After: 5`, logged as `{relay: 'inference_busy', inFlight}`, so a client
+  holding many `/64`s cannot multiply the per-group bound. A turn refused before
+  any upstream call (allowlist read failure, allowlist/DNS refusal) is still
+  logged with `costUsd: 0`. The body is rewritten: `model` is pinned to the
   option's, `stream` is `true`, `max_tokens` (chat completions) or
   `max_output_tokens` (responses) is the smaller of the client's and `maxTokens`,
   and chat completions ask for `stream_options.include_usage`. The client's
@@ -177,10 +188,13 @@ or prices.
 Spend is one JSON file, default `./data/relay-spend.json`, override with
 `RELAY_SPEND_PATH`: the month's total and each IP group's spend for the current
 UTC day, so a restart does not hand out the budget again. The group is the
-whole IPv4 address or the `/64` of an IPv6 address, since one household or
-phone can use a whole `/64`. A turn is charged from the stream's `usage` (or
-estimated from bytes when it carried none) at the option's prices, and is
-written atomically (temp file + rename). A corrupt or unreadable file (including a
+whole IPv4 address (including both spellings of an IPv4-mapped address,
+`::ffff:a.b.c.d` and `::ffff:aabb:ccdd`) or the `/64` of an IPv6 address, since
+one household or phone can use a whole `/64`. A turn is charged from the
+stream's `usage`, or estimated from bytes when it carried none at the option's
+prices; a non-2xx upstream response is charged the same estimate exactly once,
+so an error body does not run free. Spend is written atomically (temp file +
+rename). A corrupt or unreadable file (including a
 non-numeric per-IP amount) never resets the meter: the relay logs
 `{relay: 'meter-unavailable', message}` once at startup, the free models
 answer `503` and the catalog marks them unavailable, and keyed providers and

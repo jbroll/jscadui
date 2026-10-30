@@ -78,12 +78,19 @@ export const costUsd = (usage: Usage, prices: { inputUsdPerMTok: number; outputU
   (usage.inputTokens * prices.inputUsdPerMTok + usage.outputTokens * prices.outputUsdPerMTok) / 1e6
 
 /**
- * The IPv4 form of an IPv4-mapped address, so `::ffff:a.b.c.d` shares a bucket
- * with the plain `a.b.c.d`; null for any other address.
+ * The IPv4 form of an IPv4-mapped address, so `::ffff:a.b.c.d` and its hex
+ * spelling `::ffff:aabb:ccdd` share a bucket with the plain `a.b.c.d`; null
+ * for any other address.
  */
 const mappedV4 = (host: string): string | null => {
-  const match = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(host)
-  return match ? match[1] : null
+  const match = /^::ffff:(.+)$/i.exec(host)
+  if (!match) return null
+  if (match[1].includes('.')) return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(match[1]) ? match[1] : null
+  const hex = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(match[1])
+  if (!hex) return null
+  const high = parseInt(hex[1], 16)
+  const low = parseInt(hex[2], 16)
+  return `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`
 }
 
 /**

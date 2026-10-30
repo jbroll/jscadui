@@ -11,7 +11,9 @@ import { writeOrClose } from '../pipe.js'
 // base is `<root>/api/relay/jscad-web/<id>` and the rest is the option's path.
 const CATALOG_PATH = 'v1/models'
 // Two turns per IP group may be in flight; a third is refused, and agent-loop
-// retries the 429, which suits a concurrency bound.
+// retries the 429, which suits a concurrency bound. The routes' operator-wide
+// ceiling (`ctx.maxInFlight`, default 50) stops a holder of many /64s from
+// multiplying that bound.
 const MAX_IN_FLIGHT = 2
 
 /**
@@ -117,6 +119,14 @@ export const jscadHook = {
       return
     }
     const group = ipGroup(ip)
+    const totalInFlight = ctx.inFlightTotal()
+    if (totalInFlight >= ctx.maxInFlight) {
+      // The ceiling is the operator's, not the caller's: make it visible.
+      ctx.logger({ relay: 'inference_busy', inFlight: totalInFlight })
+      res.setHeader('Retry-After', '5')
+      res.status(429).json({ error: 'relay busy: too many inference requests in flight' })
+      return
+    }
     if ((ctx.inFlight.get(group) ?? 0) >= MAX_IN_FLIGHT) {
       res.setHeader('Retry-After', '2')
       res.status(429).json({ error: 'too many in flight' })
@@ -158,6 +168,7 @@ export const jscadHook = {
     } catch (err) {
       ctx.logger({ relay: 'allowlist-error', message: err instanceof Error ? err.message : String(err) })
       res.status(500).json({ error: 'relay: allowlist unavailable' })
+      tee.finish(500, { error: 'relay: allowlist unavailable', inference: option.id, costUsd: 0 })
       release()
       return
     }
@@ -168,6 +179,8 @@ export const jscadHook = {
     } catch (err) {
       if (!(err instanceof RelayRefusal)) throw err
       res.status(err.status).json({ error: err.message })
+      // Nothing reached the provider, so the turn is free but still recorded.
+      tee.finish(err.status, { error: err.message, inference: option.id, costUsd: 0 })
       release()
       return
     }

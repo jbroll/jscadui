@@ -23,6 +23,8 @@ export const JSCAD_WEB_KIND = 'jscad-web'
  * @property {() => import('../inference.js').InferenceConfig} readInference
  * @property {import('../meter.js').Meter | null} meter
  * @property {Map<string, number>} inFlight
+ * @property {() => number} inFlightTotal
+ * @property {number} maxInFlight
  */
 
 /**

@@ -52,6 +52,12 @@ describe('IP grouping', () => {
     expect(ipGroup('2001:db8:1:2::1')).toBe(ipGroup('2001:db8:1:2:aaaa:bbbb:cccc:dddd'))
     expect(ipGroup('2001:db8:1:2::1')).not.toBe(ipGroup('2001:db8:1:3::1'))
   })
+
+  it('keys the hex spelling of an IPv4-mapped address by the plain address', () => {
+    expect(ipGroup('::ffff:0a00:0101')).toBe('10.0.1.1')
+    expect(ipGroup('::ffff:0a00:0101')).toBe(ipGroup('10.0.1.1'))
+    expect(ipGroup('::ffff:0a00:0001')).toBe('10.0.0.1')
+  })
 })
 
 describe('meter budgets', () => {
@@ -59,6 +65,13 @@ describe('meter budgets', () => {
     const meter = meterAt(() => NOW)
     meter.charge('1.2.3.4', 5)
     expect(meter.check('1.2.3.4', budgets)).toEqual({ ok: false, scope: 'month' })
+  })
+
+  it('keeps available month-only when the caller has spent its day', () => {
+    const meter = meterAt(() => NOW)
+    meter.charge('1.2.3.4', 0.2)
+    expect(meter.available(budgets)).toBe(true)
+    expect(meter.check('1.2.3.4', budgets)).toEqual({ ok: false, scope: 'day' })
   })
 
   it('refuses a spent IP group with scope day, sharing the /64', () => {

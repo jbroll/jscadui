@@ -12,6 +12,7 @@ import {
   loadInferenceFile,
   parseInferenceConfig,
 } from '../src/relay/inference.js'
+import { estimateTokens } from '../src/relay/meter.js'
 import { MESSAGES_MODELS as AGENT_LOOP_MESSAGES, RESPONSES_MODELS as AGENT_LOOP_RESPONSES } from '../../../../packages/agent-loop/src/providers.js'
 import { tempDir } from './tempDir.js'
 
@@ -65,6 +66,8 @@ const buildApp = ({
   spendRaw,
   dnsLookup = async () => [{ address: '93.184.216.34' }],
   onClose,
+  maxInFlight,
+  trustProxy = false,
 }: {
   config?: string
   logs?: unknown[]
@@ -74,6 +77,10 @@ const buildApp = ({
   dnsLookup?: (host: string) => Promise<Array<{ address: string }>>
   /** Fires when the response closes, so a test can await the server seeing a client leave. */
   onClose?: () => void
+  /** Lowers the operator-wide in-flight ceiling so a test needs few groups. */
+  maxInFlight?: number
+  /** Lets a test pick the IP group through X-Forwarded-For, as Apache does in production. */
+  trustProxy?: boolean
 } = {}) => {
   const dir = tmp()
   const allowlistPath = join(dir, 'providers.json')
@@ -84,6 +91,7 @@ const buildApp = ({
   if (spend !== undefined) writeFileSync(spendPath, JSON.stringify(spend))
   if (spendRaw !== undefined) writeFileSync(spendPath, spendRaw)
   const app = express()
+  if (trustProxy) app.set('trust proxy', true)
   // index.ts parses the body before mounting the relay.
   app.use(express.json())
   if (onClose) app.use((_req, res, next) => { res.on('close', onClose); next() })
@@ -96,11 +104,12 @@ const buildApp = ({
     fetchFn: fetchMock,
     dnsLookup,
     now: () => NOW,
+    maxInFlight,
     // Every mount gets a temp log dir, even the cases that ignore the log, so a
     // served turn can never write into the repo's ./data.
     chatLogDir: logDir ?? join(dir, 'chat-logs'),
   })
-  return { app, dir, inferencePath, spendPath }
+  return { app, dir, inferencePath, spendPath, allowlistPath }
 }
 
 const records = (dir: string): Record<string, unknown>[] =>
@@ -365,6 +374,68 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     expect(rec.costUsd).toBeCloseTo(expected, 12)
   })
 
+  it('charges the byte estimate once when the upstream answers non-2xx without usage', async () => {
+    // 1200 bytes of valid JSON, so the 500 reaches supertest as a parsed body.
+    const upstreamBody = `{"error":"${'x'.repeat(1188)}"}`
+    expect(Buffer.byteLength(upstreamBody)).toBe(1200)
+    fetchMock.mockImplementation(
+      async () =>
+        ({
+          ok: false,
+          status: 500,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          body: new Response(upstreamBody).body,
+        }) as unknown as Response,
+    )
+    const logDir = tmp()
+    // Input is free, so the charge is exactly the response-byte estimate.
+    const config = inferenceJson({ providers: [provider({ models: [modelEntry({ inputUsdPerMTok: 0, outputUsdPerMTok: 1 })] })] })
+    const { app, spendPath } = buildApp({ config, logDir })
+    const res = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })
+    expect(res.status).toBe(500)
+    await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
+    const expected = estimateTokens(1200) / 1e6
+    expect(records(logDir)[0]).toMatchObject({ status: 500, inference: 'deepseek-v4.1-flash' })
+    expect(records(logDir)[0].costUsd).toBeCloseTo(expected, 12)
+    expect(JSON.parse(readFileSync(spendPath, 'utf8')).monthSpent).toBeCloseTo(expected, 12)
+  })
+
+  it('records an allowlist read failure with costUsd 0 instead of returning silently', async () => {
+    const logDir = tmp()
+    const { app, allowlistPath } = buildApp({ config: inferenceJson(), logDir })
+    writeFileSync(allowlistPath, '{')
+    const res = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })
+    expect(res.status).toBe(500)
+    await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
+    expect(records(logDir)[0]).toMatchObject({
+      inference: 'deepseek-v4.1-flash',
+      status: 500,
+      error: 'relay: allowlist unavailable',
+      costUsd: 0,
+    })
+  })
+
+  it('records a DNS refusal with costUsd 0 and never calls upstream', async () => {
+    const logDir = tmp()
+    const { app } = buildApp({
+      config: inferenceJson(),
+      logDir,
+      dnsLookup: async () => {
+        throw new Error('ENOTFOUND')
+      },
+    })
+    const res = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })
+    expect(res.status).toBe(502)
+    expect(fetchMock).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
+    expect(records(logDir)[0]).toMatchObject({
+      inference: 'deepseek-v4.1-flash',
+      status: 502,
+      error: 'upstream unreachable',
+      costUsd: 0,
+    })
+  })
+
   it('charges the IP group so an over-budget second turn is refused with the 402 body', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n'))
     const { app } = buildApp({ config: inferenceJson({ perIpDailyUsd: 0.00001 }) })
@@ -423,6 +494,35 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
 
     for (const resolve of pending) resolve(sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
     await Promise.allSettled(held)
+  })
+
+  it('refuses a turn over the operator-wide in-flight ceiling and logs inference_busy', async () => {
+    const pending: Array<(r: Response) => void> = []
+    fetchMock.mockImplementation(() => new Promise<Response>((resolve) => pending.push(resolve)))
+    const logs: unknown[] = []
+    const { app } = buildApp({ config: inferenceJson(), logs, maxInFlight: 2, trustProxy: true })
+    const held = [
+      post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').set('X-Forwarded-For', '198.51.100.1').send({ messages: [] }),
+      post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').set('X-Forwarded-For', '198.51.100.2').send({ messages: [] }),
+    ]
+    for (const t of held) void t.then(() => {}, () => {})
+    await vi.waitFor(() => expect(pending).toHaveLength(2))
+
+    // A third group is under its own two-turn cap but over the server-wide one.
+    const third = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').set('X-Forwarded-For', '198.51.100.3').send({ messages: [] })
+    expect(third.status).toBe(429)
+    expect(third.headers['retry-after']).toBe('5')
+    expect(logs).toContainEqual({ relay: 'inference_busy', inFlight: 2 })
+
+    for (const resolve of pending) resolve(sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
+    await Promise.allSettled(held)
+  })
+
+  it('404s a typo of a responses model on the chat-completions fallback path, without upstream', async () => {
+    const { app } = buildApp({ config: inferenceJson() })
+    const res = await post(app, 'muse-spark-1.3-contributo', 'v1/chat/completions').send({})
+    expect(res.status).toBe(404)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('aborts the upstream request when the page closes, and still charges the estimate', async () => {
