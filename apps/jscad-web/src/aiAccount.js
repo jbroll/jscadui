@@ -190,11 +190,16 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   // `jscad-web` kind; the model menu lists the catalog. The summary reads the
   // option label like every other `kind · model` line.
   let inferenceOptions = []
+  // Optional human label per option id and upstream model. The relay's catalog
+  // may omit it (the model slug is the identity), so the summary falls back to
+  // the slug rather than rendering an empty name.
+  const labelById = new Map()
   const freeActive = () => state.free === true && state.kind === 'jscad-web'
 
   const refreshSummary = () => {
     if (freeActive()) {
-      summary.textContent = `jscad-web · ${state.model || state.inference}`
+      const label = labelById.get(state.inference) ?? labelById.get(state.model)
+      summary.textContent = `jscad-web · ${label || state.model || state.inference}`
       return
     }
     summary.textContent = state.model ? `${state.kind} · ${state.model}` : `${state.kind} · no model set`
@@ -506,14 +511,23 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   // clears first, replacing one list with another) and the init refresh
   // (which merges into whatever a later gear load replaces).
   const applyFreeCatalog = (catalog) => {
+    // A usable row names both the route id and the upstream model. An optional
+    // label (or `name`) is carried through to the summary; it is never required,
+    // because the relay's catalog may list the model slug alone.
     const items = Array.isArray(catalog)
-      ? catalog.filter((opt) => opt && typeof opt.id === 'string' && typeof opt.model === 'string')
+      ? catalog.filter((opt) => opt && typeof opt.id === 'string' && opt.id.trim() && typeof opt.model === 'string' && opt.model.trim())
       : []
     if (items.length === 0) return false
     inferenceOptions = items
+    labelById.clear()
     for (const o of items) {
-      // Keyed by both the option id and the upstream model: the selection
-      // names the option id, and a future caller may ask by either.
+      const label = (typeof o.label === 'string' && o.label.trim()) || (typeof o.name === 'string' && o.name.trim()) || ''
+      if (label) {
+        // Keyed by both the option id and the upstream model: the selection
+        // names the option id, and a future caller may ask by either.
+        labelById.set(o.id, label)
+        if (o.model !== o.id) labelById.set(o.model, label)
+      }
       if (o.id) modelCapabilities.set(o.id, o.capabilities ?? null)
       if (o.model && o.model !== o.id) modelCapabilities.set(o.model, o.capabilities ?? null)
     }

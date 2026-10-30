@@ -501,8 +501,8 @@ describe('free provider', () => {
   })
 
   // Inits the account and resolves once the init catalog load has been applied.
-  const initAndLoadCatalog = async () => {
-    const base = inferenceFetch(INFERENCE)
+  const initAndLoadCatalog = async (catalog = INFERENCE) => {
+    const base = inferenceFetch(catalog)
     let catalogRead
     globalThis.fetch = vi.fn(async (url, init) => {
       const res = await base(url, init)
@@ -520,6 +520,18 @@ describe('free provider', () => {
     await Promise.resolve()
     return account
   }
+
+  it('shows the catalog label in the summary before the gear opens', async () => {
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'jscad-web', model: 'muse-spark-1.3', inference: 'beam', free: true }))
+    await initAndLoadCatalog([{ id: 'beam', kind: 'meta', model: 'muse-spark-1.3', label: 'Beam (free)', available: true }])
+    expect(document.querySelector('.ai-summary').textContent).toBe('jscad-web · Beam (free)')
+  })
+
+  it('falls back to the model slug when a catalog item carries no label', async () => {
+    localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'jscad-web', model: 'muse-spark-1.3', inference: 'muse-spark-1.3', free: true }))
+    await initAndLoadCatalog([{ id: 'muse-spark-1.3', kind: 'meta', model: 'muse-spark-1.3', available: true }])
+    expect(document.querySelector('.ai-summary').textContent).toBe('jscad-web · muse-spark-1.3')
+  })
 
   it('keeps a stored own-key model when the init catalog loads', async () => {
     localStorage.setItem('jscad-ai.selection', JSON.stringify({ kind: 'openai', model: 'stub-model' }))
@@ -587,6 +599,25 @@ describe('free provider', () => {
     const muse = rows.find((o) => o.value === 'muse-spark-1.3')
     expect(muse.disabled).toBe(true)
     expect(muse.textContent).toBe('muse-spark-1.3 (monthly limit reached)')
+  })
+
+  // Both malformed shapes fail the same way: the old menu stays usable and
+  // the status line says why the refresh produced nothing.
+  const expectOldMenuKept = async (badCatalog) => {
+    await openGear(inferenceFetch(INFERENCE))
+    await selectFree()
+    globalThis.fetch = inferenceFetch(badCatalog)
+    document.querySelector('.ai-gear').click()
+    await vi.waitFor(() => expect(document.querySelector('.ai-model-status').textContent).toMatch(/No free models listed/))
+    expect([...document.querySelectorAll('.ai-model-select option')].map((o) => o.value)).toEqual(['deepseek-v4.1-flash', 'muse-spark-1.3'])
+  }
+
+  it('rejects a catalog row with no model and keeps the previous menu', async () => {
+    await expectOldMenuKept([{ id: 'x' }])
+  })
+
+  it('rejects a catalog row with an empty id and keeps the previous menu', async () => {
+    await expectOldMenuKept([{ id: '', model: 'ghost' }])
   })
 
   it('persists a free selection and returns the sentinel-key config', async () => {
