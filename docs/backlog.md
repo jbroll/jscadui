@@ -84,97 +84,27 @@ From the 2026-10-01 code review, each item checked against `main`
 (`2ec5b5a8`) by reading the code. None was tried in a browser. Paths are
 under `apps/jscad-web` unless given in full.
 
-- **The relay rate limit keys on a spoofable address.** `server/src/index.ts:69`
-  sets `trust proxy` to `true`, so `req.ip` is the leftmost `X-Forwarded-For`
-  entry, which the Apache proxy block (deploy.sh `modules/apache/build.sh:116-124`)
-  passes through from the client. A curl client with a forged `Origin` bypasses
-  the 60/min limit. Landed: `trust proxy` `'loopback'` plus idle-bucket
-  eviction (`createLimiter`, `relay/policy.js`), so the relay keys on the
-  address Apache appended and the map no longer grows without bound.
-  Remaining: point better-auth's IP header at the same value.
-  A deploy decision — `deploy.sh` is not in this repo.
-- **No CSP or COOP on the app origin.** The deploy's header block (deploy.sh
-  `modules/apache/build.sh:229-248`) sets neither, and `static/index.html`
-  has no CSP meta. Device-mode API keys sit in `localStorage` as plain JSON
-  (`packages/key-store/src/keys.js:60`), so any future script injection on
-  the app origin reads them. Add `Cross-Origin-Opener-Policy: same-origin`
-  and a CSP: `script-src 'self'`, `frame-src` the run host, `connect-src`
-  self, rowboat and the provider hosts. A deploy decision — `deploy.sh` is not
+- **No CSP or COOP headers on the app origin.** The deploy's header block (deploy.sh
+  `modules/apache/build.sh:229-248`) sets neither. The app now carries its own
+  CSP meta (`static/index.html`, origins filled by `build.js`), so what remains
+  is the deploy side: add `Cross-Origin-Opener-Policy: same-origin` and the
+  matching header CSP alongside the meta. A deploy decision — `deploy.sh` is not
   in this repo.
-- **The server's `/api/fetch` checks the address before it connects, not the
-  one it connects to.** `fetchPage` resolves the name in
-  `assertPublicUpstream`, then `fetch` resolves it again, so a DNS answer that
-  flips from public to private between the two reaches the server's own
-  network. The local launcher, which exposes the user's machine, already
-  connects through `publicOnlyLookup` on an undici `Agent`
-  (`scripts/local/fetchApi.js`). The server route (`server/src/fetch/routes.ts`)
-  needs the same `dispatcher`, which needs `undici` in `server/package.json`
-  and its lockfile: the deploy runs `npm install` there, and `undici` only
-  resolves locally through the root install.
 
-## Free jscad-web models follow-ups
-
-Deferred from the jscad-web inference reframe reviews (`feat/jscad-inference-relay`,
-2026-10-16). Paths under `apps/jscad-web` unless given in full. Live since
-2026-10-16 with `deepseek-flash` + `muse` in `/etc/jscad-relay/jscad-inference.json`.
-
-- **e2e parity test is `fixme`d.** `e2e/ai-chat.spec.js` `answers each tool
-  call as the eval backend does` fails on `main` too: `PARITY_ROUNDS` (36)
-  exceeds the loop's `DEFAULT_MAX_ROUNDS` (32), and the app's default project
-  adds a file the eval backend lacks. Follow-up owns the coverage decision
-  (trim `PARITY_ROUNDS`, raise the cap, or seed the eval project).
-- **Free drawer summary shows the raw option id** until the gear dialog is
-  opened (the inference catalog is fetched only on open). Fetch at init or persist
-  the label (`src/aiAccount.js`).
-- **Weak inference-option validation.** Filter on more than `id` + `model` so a
-  label-less option cannot render a bare model id
-  (`src/aiAccount.js`).
-- **Meter hardening.** Pin the non-2xx estimate-charge path with
-  a test; handle hex-form IPv4-mapped addresses in `ipGroup`
-  (`server/src/relay/meter.ts`).
-- **No global in-flight cap on the free hook**; a client holding several
-  IPv6 /64s multiplies the overshoot bound. Operator-visible ceiling only.
-- **`available` reflects the month budget only**; daily-capped users learn
-  on POST. UX polish.
-- **Unknown model ids fall through to `v1/chat/completions`**; a typo'd
-  responses model 4xxs and burns estimate. Note in `server/RELAY.md`.
-- **Pre-upstream failures (allowlist/dns) write no log record** on the
-  free hook; add `tee.finish` with `costUsd: 0` if the loop should see
-  them.
-
-## Chat tools follow-ups (2026-10-17 e2e)
+## Chat tools follow-ups (2026-10-17 e2e, 2026-10-30 parity)
 
 Found by `e2e/ai-chat-tools.spec.js`; tests pin current behavior, fixes owned here.
+The 2026-10-17 batch (shared search stores, `question` timeout exemption, local
+search relay, fluent `.scad` frame test, `.scad` array wrap, undo e2e) landed on
+`feat/relay-free-chat-fixes`; the parity test is un-skipped at 30 tool rounds.
 
-- **Session-custody Tavily key never reaches the search handler.**
-  `main.js:991` builds a second `createSearchStores` instance while
-  `aiAccount.js:61` owns the dialog's; `session` custody lives in per-instance
-  memory (`packages/key-store/src/keys.js`), so a session-mode Tavily key is
-  invisible to `aiSearch.js:91`'s relay fallback and the fallback is silently
-  unreachable. The e2e test uses `device` custody. Decide: share one store
-  instance or document that Tavily needs device/synced custody.
-- **The loop's 120 s tool timeout caps an unanswered `question`.**
-  `runTurnLocal` passes no `toolTimeoutMs` (`src/aiChat.js`), so a user
-  thinking for over two minutes gets a `ToolTimeoutError` that ends the turn;
-  a late answer resolves into an abandoned promise. Either pass a longer
-  timeout for question-bearing turns or document the cap.
-- **The local launcher has no search relay.** `scripts/jscad.mjs` serves
-  `/api/fs`, `/api/relay` and `/api/fetch` but not `/api/search`
-  (`server/src/search/` is the server's), so locally, and in every synthetic
-  batch, `websearch` has only the browser-direct pool: no Tavily fallback and
-  no working Tavily pin.
-- **No runtime test of `.scad` parts under fluent in the frame.** The frame
-  worker registers the fluent wrapper for `.scad` requires
-  (`src_frame/bundle.frame-worker.js`), but only the eval backend's path is
-  tested. An e2e run in CI of a fluent project that chains `.translate` on a
-  part from `Mini/mini.scad` would cover it.
-- **Multi-part `.scad` results stay plain Arrays under fluent.** A `.scad`
-  module that returns several parts gives an Array, so fluent code that
-  chains on it throws. Wrap it as `jf.geom3Array`/`jf.geom2Array` when the
-  items share a dimension (`packages/agent-loop/src/scadFluent.js`).
-- **No e2e test of the chat undo.** Unit tests stub `restoreTurn`; an e2e test
-  should click `.chat-undo` through the real `main.js` wiring (discard
-  confirm, `restoreVersion`, `switchProject`, `refreshHeader`).
+- **Frame-vs-eval engine drift kept out of parity.** Three rounds expose it, not
+  owned here: the frame reports a fluent `jf.*` unknown-option warning once and
+  without `file`/`line` where the eval names every call site; the app's jscad
+  engine uses deferred tree nodes, so NaN options fast-fail and a negative
+  slider clamps, where the eval's plain engine throws its own messages. If
+  parity must include these, the eval needs to run the same tree engine.
+  The negative-slider clamp now has no assertion anywhere.
 
 ## Chat review follow-ups (2026-10-19)
 

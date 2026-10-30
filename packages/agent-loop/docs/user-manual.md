@@ -25,8 +25,9 @@ serve before model code sees it
 
 Under `'fluent'`, a project file that requires a `.scad` file gets a copy of
 its exports whose modules and functions return fluent shapes: a 3D result is a
-`jf.FluentGeom3`, a 2D one a `jf.FluentGeom2`, and a list is mapped item by
-item, so `require('BOSL2/ball_bearings.scad').ball_bearing('608').translate([0, 0, 5])`
+`jf.FluentGeom3`, a 2D one a `jf.FluentGeom2`, a same-dimension list is a
+`jf.FluentGeom3Array`/`jf.FluentGeom2Array`, and any other list is mapped item
+by item, so `require('BOSL2/ball_bearings.scad').ball_bearing('608').translate([0, 0, 5])`
 chains. Other results (a number, `undefined`), variables, `main`, `fn`, `vars`
 and `$meta` are unchanged. Under `'modeling'` the exports are the plain
 transpiled ones, and a `.scad` file that requires another gets them plain in
