@@ -828,7 +828,12 @@ tools, the runtime or the build report, where a basic request could break.
 `nema17-mount` and `bearing-holder-608` check that the model requires a
 catalog part; both run in the default suite now that the parts catalog has
 admitted entries (`packages/parts/docs/user-manual.md`, "Admission").
-`profiles` stays opt-in too. `EVAL_FIXTURES` runs the union of
+`profiles` stays opt-in too, as does `cadence` (`film-holder`,
+`jeep-scale-model`): large multi-part requests from prod logs, judged by the
+cadence metrics rather than their score. Run them with the assembly fixtures,
+`EVAL_FIXTURES=cadence,sliding-lid-box,hinge,stacking-trays,pi-enclosure,drawer,spur-gears`,
+when a change targets how early and how often the model builds.
+`EVAL_FIXTURES` runs the union of
 whatever it names, fixture names and group names both, e.g. `EVAL_FIXTURES=profiles`
 runs every fixture in that group, `EVAL_FIXTURES=gear,fluent-chain` runs one named
 fixture plus one grouped fixture, and `EVAL_FIXTURES=all` runs every fixture
