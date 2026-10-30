@@ -88,14 +88,14 @@ sci artifact JOB packages/parts/thumbs/nopscadlib/nut.png
 against live models on the CI host, one process per model in `ci/eval.conf`'s
 `EVAL_MODELS` × API style in `EVAL_APIS` (`fluent modeling`) pair. Every pair
 is its own lane, all running concurrently, so at most (models × APIs) ×
-`EVAL_CONCURRENCY` conversations run at once (32 with the shipped conf: 2
-models × 2 APIs × 8. Each sandbox is capped at 2G but typically uses far
+`EVAL_CONCURRENCY` conversations run at once (40 with the shipped conf: 4
+models × 2 APIs × 5. Each sandbox is capped at 2G but typically uses far
 less; the host has 43G available). A job must finish inside the CI host's
 `CI_JOB_TIMEOUT`, set to 7200 (2 hours) in `/etc/ci-server/env.sh` because
 `EVAL_FIXTURES=all` runs past an hour. Each model and style writes its own result file, named with both. The
 default suite, the ungrouped fixtures plus the `harder` group, is 14
 fixtures under fluent and 13 under modeling (`fluent-chain` is fluent-only),
-so at 3 runs and 2 models a job is (14 + 13) × 3 × 2 = 162 conversations;
+so at 3 runs and 4 models a job is (14 + 13) × 3 × 4 = 324 conversations;
 running every model × API pair
 concurrently instead of one model's styles after another roughly halves the
 wall time per model. Edit the conf file in the working tree before pushing —

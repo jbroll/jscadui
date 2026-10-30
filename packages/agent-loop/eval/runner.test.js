@@ -623,7 +623,8 @@ describe('modelMaxTurns', () => {
 describe('modelVision', () => {
   it('reads the vision flag from models.json', () => {
     expect(modelVision('muse-spark-1.3-contributor')).toBe(true)
-    expect(modelVision('deepseek-v4.1-flash')).toBe(false)
+    expect(modelVision('deepseek-v4.1-flash')).toBe(true)
+    expect(modelVision('no-such-model')).toBe(false)
   })
 
   it('is false for a model with no entry', () => {

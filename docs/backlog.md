@@ -91,6 +91,22 @@ under `apps/jscad-web` unless given in full.
   matching header CSP alongside the meta. A deploy decision — `deploy.sh` is not
   in this repo.
 
+## Free jscad-web models follow-ups
+
+- **Free muse option is dead.** On 2026-10-30 the prod catalog
+  (`/api/relay/jscad-web/v1/models`) listed `muse-spark-1.3-contributor-free`
+  on opencode-go as `available: true`, while opencode-go answered it with
+  "Upstream request failed: Model is unavailable." `muse-spark-1.3-contributor`
+  answers on opencode-go; repoint the entry in
+  `/etc/jscad-relay/jscad-inference.json` or drop it. `longcat-2.5-preview-free`
+  (prod chats 2026-10-19) is gone from opencode-go too.
+- **Muse misreads a flat-colour image.** A 32 px solid green PNG came back
+  "white" or "gray" from `muse-spark-1.3-contributor` on both meta and
+  opencode-go (three tries, 2026-10-30), while deepseek, kimi, qwen, minimax,
+  gemini, gpt and claude all said green. Check with a real `view` render before
+  trusting muse's `view` use; the responses adapter sends `input_image` with a
+  data URL (`packages/agent-loop/src/responses.js`).
+
 ## Chat tools follow-ups (2026-10-17 e2e, 2026-10-30 parity)
 
 Found by `e2e/ai-chat-tools.spec.js`; tests pin current behavior, fixes owned here.

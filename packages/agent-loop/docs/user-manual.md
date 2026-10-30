@@ -916,6 +916,8 @@ files judges it.
 A conversation's turn cap (provider calls for each user message) is `EVAL_MAX_TURNS` when set, else
 `maxTurns` from the model's entry in `eval/models.json`
 (`{ "<model id>": { "maxTurns": 8 } }`), else the fixture's own `maxTurns`.
+An entry's `"vision": true` offers that model the `view` tool, as the app does
+for a model that reads images; set it to match what the prod catalog serves.
 The cap a model gets is a budget for fixing its own mistakes across turns, so
 set it per model rather than tuning it to one-shot answers. Each result records
 its effective cap as `maxTurns`; the result file's top-level `maxTurns` is the
