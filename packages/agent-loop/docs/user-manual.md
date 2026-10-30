@@ -770,8 +770,9 @@ the project is a directory on disk, the app also writes the file there and
 adds its `path` (`main.stl` for `main.js`); the eval writes nothing and
 answers no `path`. `read` of a binary project file
 fails with `BinaryFileError`.
-`view` fails with `UnavailableError`, and any other name, `eval`,
-`writeModel` and `params` included, with `UnknownToolError`.
+`view` fails with `UnavailableError` in the in-process backend; `run-eval`
+renders it for vision models (see [Turn cap](#turn-cap)). Any other name, `eval`,
+`writeModel` and `params` included, fails with `UnknownToolError`.
 
 Build reports and `execute` results carry
 `warnings: [{ fn, option, suggestions, hint, file, line }]` like the app's, worded for the
@@ -923,6 +924,14 @@ A conversation's turn cap (provider calls for each user message) is `EVAL_MAX_TU
 (`{ "<model id>": { "maxTurns": 8 } }`), else the fixture's own `maxTurns`.
 An entry's `"vision": true` offers that model the `view` tool, as the app does
 for a model that reads images; set it to match what the prod catalog serves.
+`run-eval` renders a vision model's `view` calls from the conversation's last
+build and answers `{ ok: true, shots }` with the same presets, aims, sizes and
+errors as the app (`NoGeometryError` before anything built, `ArgumentsError`,
+`PartNotFoundError`), so a vision lane needs Playwright's chromium as a complex
+pass does, and exits before any provider call when it does not start. The
+result file and the live log keep each view's camera stub
+(`{ ok, cameras }`), never the images. The in-process `runSuite` (keyless
+baseline, unit tests) has no renderer and answers `UnavailableError`.
 The cap a model gets is a budget for fixing its own mistakes across turns, so
 set it per model rather than tuning it to one-shot answers. Each result records
 its effective cap as `maxTurns`; the result file's top-level `maxTurns` is the

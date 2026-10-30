@@ -25,42 +25,17 @@
 import { boundingBox } from '@jscadui/format-common'
 import * as ThreeNS from 'three'
 import { CommonToThree } from '@jscadui/format-threejs'
-import { DEFAULT_VIEW_SIZE, VIEW_PRESETS } from '@jscadui/agent-loop/src/viewSpec.js'
+import { DEFAULT_VIEW_SIZE } from '@jscadui/agent-loop/src/viewSpec.js'
 
 // Half the analysed extent times 1.06, as the eval framed its views: a 3%
 // margin on each side, so a silhouette never sits on the frame edge.
 const MARGIN = 1.06
-
-// The eval's `side` view is raised off the pure elevation (0.25, -1, 0.35) so a
-// bare silhouette is not read as a flat slab. The front/back/left/right presets
-// extend that convention: each is a cardinal view with the same slight tilt and
-// +Z up, and `top`/`bottom` reuse the eval's near-vertical tilt with +Y up.
-const PRESET_VECTORS = {
-  front: { dir: [0.25, -1, 0.35], up: [0, 0, 1] },
-  back: { dir: [-0.25, 1, 0.35], up: [0, 0, 1] },
-  right: { dir: [1, 0.25, 0.35], up: [0, 0, 1] },
-  left: { dir: [-1, -0.25, 0.35], up: [0, 0, 1] },
-  // `side` names the eval's raised lateral view, which is the same framing as
-  // `front`: one direction, two names, so models asking either word get it.
-  side: { dir: [0.25, -1, 0.35], up: [0, 0, 1] },
-  top: { dir: [0.15, -0.35, 1], up: [0, 1, 0] },
-  bottom: { dir: [0.15, -0.35, -1], up: [0, 1, 0] },
-  'iso-front': { dir: [1, -1, 0.7], up: [0, 0, 1] },
-  'iso-back': { dir: [-1, 1, 0.7], up: [0, 0, 1] },
-}
 
 // The three.js namespace a render uses: an explicitly injected one wins (unit
 // tests), then the viewer's ambient global, then this module's own bundled
 // copy — so a view renders under either render engine, with no dependency on
 // which bundles the page happened to load as globals.
 export const resolveThree = (envTHREE) => envTHREE ?? globalThis.THREE ?? ThreeNS
-
-/**
- * The direction and up vectors for every preset, keyed by the names
- * `VIEW_PRESETS` defines (Task 1) so the two cannot drift.
- * @type {Record<string, {dir: [number, number, number], up: [number, number, number]}>}
- */
-export const PRESET_DIRS = Object.fromEntries(VIEW_PRESETS.map((preset) => [preset, PRESET_VECTORS[preset]]))
 
 // Named errors, as the request spec and part resolver do, so a caller can match
 // on the name and the message reads `Name: detail`.

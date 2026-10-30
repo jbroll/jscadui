@@ -13,6 +13,7 @@ const PIECE_CHARS = 128
 const MAX_TRIANGLES = Math.floor(MAX_MESH_BYTES / TRIANGLE_BYTES)
 export const MAX_MESH_PAGES = Math.ceil((MAX_TRIANGLES * (TRIANGLE_CHARS + PIECE_CHARS)) / (MESH_PAGE_CHARS - 2 * PIECE_CHARS - TRIANGLE_CHARS)) + 1
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/
+export const NO_TRIANGLES = 'the model has no triangles'
 
 const colorOf = (color) =>
   Array.isArray(color) && color.length >= 3 && color.slice(0, 3).every((c) => typeof c === 'number' && Number.isFinite(c))
@@ -116,7 +117,7 @@ export const collectMesh = async (fetchPage) => {
   if (!isRecord(first) || !Number.isInteger(first.pages) || !Number.isInteger(first.bytes)) return { error: 'the mesh reply was malformed' }
   if (first.bytes > MAX_MESH_BYTES) return { error: `the mesh is ${first.bytes} bytes, over the ${MAX_MESH_BYTES}-byte limit` }
   if (first.pages > MAX_MESH_PAGES) return { error: `the mesh came in ${first.pages} pages, over the ${MAX_MESH_PAGES}-page limit` }
-  if (first.pages < 1) return { error: 'the model has no triangles' }
+  if (first.pages < 1) return { error: NO_TRIANGLES }
   const parts = []
   let bytes = 0
   for (let index = 0; index < first.pages; index += 1) {

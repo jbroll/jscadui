@@ -1,14 +1,12 @@
-// The `view` tool's app-side pipeline: normalize the request, resolve look-ats
-// and render off-screen, then hand the loop raw shots. The renderer is
-// injected, so this suite runs in the node env and never touches WebGL; the
-// live render itself is covered by the e2e spec.
+// The renderer is injected, so this suite never touches WebGL; the app's live
+// render is covered by its e2e spec, the eval's by eval/render.test.js.
 //
 // A part-name aim resolves through the build's auto-attached anchors, injected
-// as `measure({anchors: true})` frames (test/aiViewProvenance.test.js pins that
-// against the real model).
+// as `measure({anchors: true})` frames (apps/jscad-web/test/aiViewProvenance.test.js
+// pins that against the real model).
 import { describe, expect, it, vi } from 'vitest'
-import { PRESET_DIRS } from '../src/aiViewRender.js'
-import { createViewHandler } from '../src/aiView.js'
+import { PRESET_DIRS } from './viewSpec.js'
+import { createViewHandler } from './viewHandler.js'
 
 const camera = (x) => ({ position: [x, 0, 0], target: [0, 0, 0], fov: 0.6, aspect: 4 / 3 })
 

@@ -4,9 +4,28 @@
 // contract. A violation throws a named ArgumentsError for the caller to turn
 // into a tool error; nothing here renders or reads geometry.
 
-// The presets a camera spec may name. Directions and up vectors live with the
-// renderer, which owns the framing math.
-export const VIEW_PRESETS = ['front', 'back', 'left', 'right', 'side', 'top', 'bottom', 'iso-front', 'iso-back']
+/**
+ * The direction (target to camera) and up vector of every preset a camera spec
+ * may name, shared by the app's renderer and the eval's. `side` is the eval
+ * describer's raised lateral view, lifted off the pure elevation so a bare
+ * silhouette is not read as a flat slab; it frames the same as `front`.
+ * front/back/left/right carry the same tilt with +Z up, and top/bottom the
+ * describer's near-vertical tilt with +Y up.
+ * @type {Record<string, {dir: [number, number, number], up: [number, number, number]}>}
+ */
+export const PRESET_DIRS = {
+  front: { dir: [0.25, -1, 0.35], up: [0, 0, 1] },
+  back: { dir: [-0.25, 1, 0.35], up: [0, 0, 1] },
+  left: { dir: [-1, -0.25, 0.35], up: [0, 0, 1] },
+  right: { dir: [1, 0.25, 0.35], up: [0, 0, 1] },
+  side: { dir: [0.25, -1, 0.35], up: [0, 0, 1] },
+  top: { dir: [0.15, -0.35, 1], up: [0, 1, 0] },
+  bottom: { dir: [0.15, -0.35, -1], up: [0, 1, 0] },
+  'iso-front': { dir: [1, -1, 0.7], up: [0, 0, 1] },
+  'iso-back': { dir: [-1, 1, 0.7], up: [0, 0, 1] },
+}
+
+export const VIEW_PRESETS = Object.keys(PRESET_DIRS)
 
 // A call carries 1-4 camera specs; more would cost more tokens than they return.
 export const MAX_VIEWS = 4

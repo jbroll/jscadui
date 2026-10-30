@@ -4,7 +4,7 @@
 // or a hierarchical part name turned into that part's anchor-frame origin. The
 // caller injects the build's frames (a `Map<string, [x, y, z]>` from
 // `measure({anchors: true})`), its part count and the measured index centers,
-// so this module never touches geometry, the worker or the app.
+// so this module never touches geometry, the worker, the app or the eval.
 //
 // A part name resolves through auto-attached anchors (see the view design's
 // Provenance section); the name-to-index mapping through proxyState.types was
@@ -14,8 +14,7 @@
 
 import { isIndexSelector, matchPartName, partRefForms } from '@jscadui/model-tools/src/partRefs.js'
 
-// Named errors, as the view request spec's violations are
-// (packages/agent-loop/src/viewSpec.js). The name is repeated in the message so
+// Named errors, as the view request spec's violations are (viewSpec.js). The name is repeated in the message so
 // a tool result reads `PartNotFoundError: ...` and message-matching callers see
 // the name too.
 const named = (name, detail) => Object.assign(new Error(`${name}: ${detail}`), { name })

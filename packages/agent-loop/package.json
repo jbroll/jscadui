@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@jscadui/format-common": "*",
+    "@jscadui/model-tools": "*",
     "@lezer/javascript": "^1.4.7"
   },
   "devDependencies": {
@@ -35,7 +36,6 @@
     "@jscad/io": "*",
     "@jscadui/format-jscad": "*",
     "@jscadui/jscad-text": "*",
-    "@jscadui/model-tools": "*",
     "@jscadui/openscad": "*",
     "@jscadui/openscad-runtime": "*",
     "@jscadui/params-core": "*",

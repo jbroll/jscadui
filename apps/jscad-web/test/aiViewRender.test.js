@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { VIEW_PRESETS } from '@jscadui/agent-loop/src/viewSpec.js'
+import { PRESET_DIRS, VIEW_PRESETS } from '@jscadui/agent-loop/src/viewSpec.js'
 
-import { frameCamera, PRESET_DIRS, resolveThree } from '../src/aiViewRender.js'
+import { frameCamera, resolveThree } from '../src/aiViewRender.js'
 
 // A 64-unit cube centred on the origin, in the shape @jscadui/format-common's
 // boundingBox hands back (min/max as {x, y, z}).

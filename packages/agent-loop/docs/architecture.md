@@ -532,6 +532,22 @@ its own colour; an uncoloured part gets one from a fixed eight-colour palette
 by its index among the uncoloured parts, cycling, instead of a single grey
 that reads as one piece.
 
+The same page renders a vision model's `view` calls during the conversation
+(`eval/view.js`). The handler is the app's, `src/viewHandler.js`, with
+`src/viewParts.js` for part aims and the preset directions in
+`src/viewSpec.js`, so the presets, aims and errors cannot drift between the
+app and the eval. Only the inputs differ: the triangles come from the
+conversation's live executor (`mesh()` in `eval/sandboxed-backend.js`, paged
+and capped as for grading), part aims from its `measure`, and the shots from
+`renderShots` in `eval/render.js`, which returns PNG data URLs at the asked
+size and writes nothing. The eval's camera stays orthographic: a shot with a
+target is centred on it and opens until the whole box fits, so its framing
+differs from the app's perspective camera. `run-eval` starts chromium for a
+vision lane as for a complex pass, and both share the one page, one call at a
+time. The loop sends the images to the provider; the result's transcript and
+the live log keep only the `{ ok, cameras }` stub, so a successful view counts
+as an ok call in `failedCalls` and recovery.
+
 ### The describer
 
 `eval/describer/describe.py` runs Moondream 3.1 9B A2B (the 10.5 GB fp8
@@ -738,7 +754,8 @@ nothing.
 
 ## Browser session generator
 
-The headless eval cannot reach the app's `view` tool or its `execute` path, so
+The headless eval renders `view` and runs `execute` with its own renderer and
+backend, never the app's, so
 `synth/` drives the real app in headless chromium with a simulated user and
 writes the sessions as relay logs that `read-log` and `chat-review` read as
 they read real ones. It tests the whole harness (prompt, examples, tools, tool

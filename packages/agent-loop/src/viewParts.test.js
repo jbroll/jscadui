@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveLookAt } from '../src/aiViewParts.js'
+import { resolveLookAt } from './viewParts.js'
 
 // The origins a build's auto-attached anchors would report, keyed by part path;
 // the resolver only ever reads a name's frame origin from the map.

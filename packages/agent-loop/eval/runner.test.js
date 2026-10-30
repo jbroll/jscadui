@@ -655,6 +655,33 @@ describe('runSuite vision', () => {
     expect(seen[0]).not.toContain('view')
     expect(seen[1]).toContain('view')
   })
+
+  it('routes view to the view handler, counts it ok, and keeps image data out of the result and the log', async () => {
+    const camera = { position: [1, 2, 3], target: [0, 0, 0], up: [0, 0, 1] }
+    const shots = { ok: true, shots: [{ image: { dataUrl: `data:image/png;base64,${'A'.repeat(64)}`, mime: 'image/png' }, camera }] }
+    const sent = []
+    const provider = {
+      rounds: [toolRound('v1', 'view', { preset: 'top' }), endRound],
+      async *send(messages) {
+        sent.push(messages.at(-1))
+        for (const event of this.rounds.shift()) yield event
+      },
+    }
+    const logged = []
+    const fixture = { name: 'x', prompt: 'p', requires: [], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const [result] = await runSuite([fixture], {
+      provider,
+      backend: createEvalBackend(),
+      vision: true,
+      view: async () => shots,
+      onToolResult: (_name, output) => logged.push(output),
+    })
+    expect(sent[1].images).toEqual([shots.shots[0].image])
+    expect(result.metrics.failedCalls).toBe(0)
+    expect(JSON.stringify(result.transcript)).not.toContain('base64')
+    expect(result.transcript.find((m) => m.role === 'tool').content).toBe(JSON.stringify({ ok: true, cameras: [camera] }))
+    expect(logged).toEqual([JSON.stringify({ ok: true, cameras: [camera] })])
+  })
 })
 
 describe('runSuite turn cap', () => {

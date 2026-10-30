@@ -323,6 +323,36 @@ describe('createSandboxedBackend', () => {
       backend.close()
     }
   }, 30_000)
+
+  it("sends the conversation's last build as triangles, and none before anything built", async () => {
+    const backend = createSandboxedBackend({ start: startChild })
+    try {
+      await backend.reset({})
+      expect(await backend.mesh()).toEqual({ error: 'the model has no triangles' })
+      await backend.requestTool('write', { path: 'main.js', content: CUBE })
+      const { parts } = await backend.mesh()
+      expect(parts).toHaveLength(1)
+      expect(parts[0].positions.length).toBe(12 * 9)
+    } finally {
+      backend.close()
+    }
+  }, 30_000)
+})
+
+describe('a vision run', () => {
+  it("renders the view call from the conversation's build and grades it as a successful call", async () => {
+    const renderShots = vi.fn(async (_parts, plan) => plan.shots.map(() => ({ pngDataUrl: 'data:image/png;base64,AAAA', camera: { position: [1, 0, 0] } })))
+    const result = await runJob(
+      { fixture, run: 1, runs: 1, maxTurns: fixture.maxTurns, vision: true },
+      { provider: scripted([write(CUBE), tool('view', { preset: 'top' }), done()]), api: 'fluent', startExecutor: startChild, renderShots },
+      () => {},
+    )
+    expect(renderShots).toHaveBeenCalledTimes(1)
+    expect(renderShots.mock.calls[0][0][0].positions.length).toBe(12 * 9)
+    expect(toolResults(result)[1]).toEqual({ ok: true, cameras: [{ position: [1, 0, 0] }] })
+    expect(result.metrics.failedCalls).toBe(0)
+    expect(JSON.stringify(result.transcript)).not.toContain('base64')
+  }, 30_000)
 })
 
 // Model code that answers its own grade with a well-formed but nonsense measure.

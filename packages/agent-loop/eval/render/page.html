@@ -76,15 +76,22 @@
       }
 
       // Orthographic, framed to the bounding box's corners in view space with a 3% margin on each side.
-      window.renderView = (dir, up) => {
+      // Without a target the frame centres on the box's projection; with one it stays centred on the
+      // target and opens until every corner fits. A non-square frame widens its longer axis.
+      window.renderShot = (dir, up, target, w, h) => {
         const T = window.THREE
+        const size = renderer.getSize(new T.Vector2())
+        if (size.x !== w || size.y !== h) renderer.setSize(w, h, false)
+        const aspect = w / h
         const center = box.getCenter(new T.Vector3())
+        const aim = target ? new T.Vector3(...target) : center
         const d = new T.Vector3(...dir).normalize()
         const radius = box.getSize(new T.Vector3()).length()
-        const camera = new T.OrthographicCamera(-1, 1, 1, -1, 0.1, radius * 10)
+        const reach = radius + aim.distanceTo(center)
+        const camera = new T.OrthographicCamera(-1, 1, 1, -1, 0.1, reach * 10)
         camera.up.set(...up)
-        camera.position.copy(center).addScaledVector(d, radius * 3)
-        camera.lookAt(center)
+        camera.position.copy(aim).addScaledVector(d, reach * 3)
+        camera.lookAt(aim)
         camera.updateMatrixWorld()
         const inverse = camera.matrixWorldInverse
         let [x0, x1, y0, y1] = [Infinity, -Infinity, Infinity, -Infinity]
@@ -99,16 +106,28 @@
             }
           }
         }
-        const half = (Math.max(x1 - x0, y1 - y0) / 2) * 1.06
-        const cx = (x0 + x1) / 2
-        const cy = (y0 + y1) / 2
-        Object.assign(camera, { left: cx - half, right: cx + half, top: cy + half, bottom: cy - half })
+        const [cx, cy] = target ? [0, 0] : [(x0 + x1) / 2, (y0 + y1) / 2]
+        const spanX = target ? 2 * Math.max(Math.abs(x0), Math.abs(x1)) : x1 - x0
+        const spanY = target ? 2 * Math.max(Math.abs(y0), Math.abs(y1)) : y1 - y0
+        const halfY = (Math.max(spanY, spanX / aspect) / 2) * 1.06
+        const halfX = halfY * aspect
+        Object.assign(camera, { left: cx - halfX, right: cx + halfX, top: cy + halfY, bottom: cy - halfY })
         camera.updateProjectionMatrix()
         const right = new T.Vector3().crossVectors(d, camera.up).normalize()
         key.position.copy(center).addScaledVector(d, radius).addScaledVector(right, radius * 0.6).addScaledVector(camera.up, radius)
         key.target.position.copy(center)
         renderer.render(scene, camera)
+        return {
+          position: camera.position.toArray(),
+          target: aim.toArray(),
+          up: [...up],
+          aspect,
+          width: halfX * 2,
+          height: halfY * 2,
+        }
       }
+
+      window.renderView = (dir, up) => window.renderShot(dir, up, null, 768, 768)
     </script>
   </body>
 </html>

@@ -127,6 +127,35 @@ describe.skipIf(!hasChromium)('createRenderer', () => {
     }
   }, 60_000)
 
+  it('renders view shots at the asked size as PNG data URLs, then grades at 768 again', async () => {
+    const renderer = await createRenderer()
+    try {
+      const parts = await partsOf([colors.colorize([0.78, 0.14, 0.13], primitives.cuboid({ size: [80, 30, 28] }))])
+      const dir = tempDir('render-test-')
+      const before = await renderer.render(parts, dir)
+      const shots = await renderer.renderShots(parts, {
+        shots: [
+          { dir: [1, -1, 0.7], up: [0, 0, 1] },
+          { dir: [0.15, -0.35, 1], up: [0, 1, 0], target: [40, 0, 0] },
+        ],
+        size: { w: 320, h: 200 },
+      })
+      expect(shots).toHaveLength(2)
+      for (const shot of shots) {
+        expect(shot.pngDataUrl).toMatch(/^data:image\/png;base64,/)
+        const png = Buffer.from(shot.pngDataUrl.slice('data:image/png;base64,'.length), 'base64')
+        expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([320, 200])
+        expect(redPixels(png)).toBeGreaterThan(320 * 200 * 0.02)
+        expect(shot.camera.aspect).toBeCloseTo(1.6)
+      }
+      expect(shots[1].camera.target).toEqual([40, 0, 0])
+      const after = await renderer.render(parts, dir)
+      expect(after.map((v) => v.sha256)).toEqual(before.map((v) => v.sha256))
+    } finally {
+      await renderer.close()
+    }
+  }, 60_000)
+
   it('gives uncoloured parts different palette colours by their index among them', async () => {
     const renderer = await createRenderer()
     try {

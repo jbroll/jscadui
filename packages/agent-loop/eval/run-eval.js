@@ -20,6 +20,7 @@ import { NO_GRADE } from './executor-protocol.js'
 import { CALL_TIMEOUT_MS, createSandboxedBackend, gradeInFreshExecutor, READY_TIMEOUT_MS } from './sandboxed-backend.js'
 import { concurrencyCap, killExecutors, sandboxFrom, sandboxProblem, startExecutor } from './sandbox.js'
 import { formatRetry, formatRunHeader, formatText, formatToolCall, formatToolResult } from './verbose.js'
+import { createEvalView, viewStub, withoutImages } from './view.js'
 
 const FIXTURES = new URL('./fixtures/', import.meta.url)
 const MODELS = JSON.parse(readFileSync(new URL('./models.json', import.meta.url), 'utf8'))
@@ -209,6 +210,8 @@ export async function runConversation(
     now,
     maxTurns = fixture.maxTurns,
     vision,
+    // The `view` handler (eval/view.js); without one the backend's own `view` refuses the call.
+    view,
     toolTimeoutMs,
     gradeTimeoutMs,
     signal,
@@ -270,8 +273,8 @@ export async function runConversation(
           vision,
           requestTool: async (name, input) => {
             onToolCall?.(name, input)
-            const result = await backend.requestTool(name, input)
-            onToolResult?.(name, result)
+            const result = view && name === 'view' ? await view(input) : await backend.requestTool(name, input)
+            onToolResult?.(name, viewStub(result))
             return result
           },
           onText: (text) => onText?.(text),
@@ -331,7 +334,7 @@ export async function runConversation(
     report,
     turns: transcript.length,
     stopReasons: cappedProvider.stopReasons(),
-    transcript: transcript.filter((m) => m.role !== 'system'),
+    transcript: transcript.filter((m) => m.role !== 'system').map(withoutImages),
     metrics: {
       rounds: cappedProvider.rounds(),
       toolCalls,
@@ -367,7 +370,7 @@ export const RUN_TIMEOUT_MS = 20 * 60_000
 // conversation from the first reset; grading still follows.
 export async function runJob(
   { fixture, run, runs, maxTurns, vision },
-  { provider, api, startExecutor: start, runTimeoutMs = RUN_TIMEOUT_MS, maxRestarts, callTimeoutMs, runToolTimeoutMs, render },
+  { provider, api, startExecutor: start, runTimeoutMs = RUN_TIMEOUT_MS, maxRestarts, callTimeoutMs, runToolTimeoutMs, render, renderShots },
   onLog,
 ) {
   let pending = ''
@@ -376,6 +379,7 @@ export async function runJob(
     pending = ''
   }
   const backend = createSandboxedBackend({ start, maxRestarts, callTimeoutMs, runToolTimeoutMs })
+  const view = vision && renderShots ? createEvalView({ mesh: backend.mesh, requestTool: backend.requestTool, renderShots }) : undefined
   // Past a call's own limit the backend still needs to kill, restart and reseed.
   const toolTimeoutMs = (callTimeoutMs ?? CALL_TIMEOUT_MS) + READY_TIMEOUT_MS + 30_000
   try {
@@ -386,6 +390,7 @@ export async function runJob(
       api,
       maxTurns,
       vision,
+      view,
       toolTimeoutMs,
       runTimeoutMs,
       render,
@@ -685,7 +690,8 @@ const main = async (argv, env) => {
   mkdirSync(resultsDir, { recursive: true })
   const suite = complexPass ? 'complex' : undefined
   const filePath = join(resultsDir, resultFileName(EVAL_MODEL, api, promptSha256, new Date(), suite))
-  const renders = complexPass ? await startRenders(filePath) : null
+  // Vision lanes render their `view` calls; complex passes render the describer's views.
+  const renders = complexPass || vision ? await startRenders(filePath) : null
   console.log(
     `run-eval: writing ${filePath}  (api ${api}, ${fixtures.length * runs} conversations, ${concurrency} at a time, maxTurns ${maxTurns ?? 'per fixture'})`,
   )
@@ -728,7 +734,7 @@ const main = async (argv, env) => {
   const runSandboxedJob = (job, onJobLog) =>
     runJob(
       job,
-      { provider: createProvider(providerConfig), api, runTimeoutMs, startExecutor: () => startExecutor({ api, sandbox, lifetimeS: conversationLifetimeS(runTimeoutMs) }), render: renders?.render },
+      { provider: createProvider(providerConfig), api, runTimeoutMs, startExecutor: () => startExecutor({ api, sandbox, lifetimeS: conversationLifetimeS(runTimeoutMs) }), render: renders?.render, renderShots: renders?.renderShots },
       onJobLog,
     )
 

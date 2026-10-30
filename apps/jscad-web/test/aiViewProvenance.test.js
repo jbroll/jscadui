@@ -13,8 +13,8 @@ import { createRequire } from 'node:module'
 import { measure } from '@jscadui/model-tools/src/measure.js'
 import { createParamsProxy, createProxyState } from '@jscadui/params-core'
 import { createBuildContext, createEvaluator, createModelTree, memoFromSpecials, withBuildContext } from '@jscadui/model-tree'
-import { resolveLookAt } from '../src/aiViewParts.js'
-import { createViewHandler, buildAnchorFrames } from '../src/aiView.js'
+import { resolveLookAt } from '@jscadui/agent-loop/src/viewParts.js'
+import { createViewHandler, buildAnchorFrames } from '@jscadui/agent-loop/src/viewHandler.js'
 
 expect.extend({
   toEqualCoordsOf(received, expected, precision = 6) {

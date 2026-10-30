@@ -1,11 +1,10 @@
-// The `view` tool's app-side pipeline: validate the request, turn its aims
-// into the renderer's shot plan, render off-screen and hand the agent loop raw
-// shots. Everything that touches the app — the live mesh, the renderer and the
-// build's anchors — is injected, so this module never imports the app and the
-// unit suite drives it without WebGL or a worker.
+// The `view` tool's pipeline, shared by the app and the eval: validate the
+// request, turn its aims into the renderer's shot plan, render off-screen and
+// hand the agent loop raw shots. The mesh, the renderer and the build's
+// anchors are injected, so this module never imports the app or a browser.
 //
-// The live viewer is deliberately absent: the handler neither reads nor writes
-// the user's camera, so a view call can never move what they are looking at.
+// The app's live viewer is deliberately absent: the handler neither reads nor
+// writes the user's camera, so a view call can never move what they are looking at.
 //
 // A bad view fails the whole call: the plan is built for every shot before the
 // renderer runs, so one bad aim means no renders at all.
@@ -18,10 +17,9 @@
 // every name misses; indexes and coords always work.
 
 import { boundingBox } from '@jscadui/format-common'
-import { normalizeViewRequest } from '@jscadui/agent-loop/src/viewSpec.js'
 import { isIndexSelector } from '@jscadui/model-tools/src/partRefs.js'
-import { checkPartIndex, resolveLookAt } from './aiViewParts.js'
-import { PRESET_DIRS } from './aiViewRender.js'
+import { checkPartIndex, resolveLookAt } from './viewParts.js'
+import { normalizeViewRequest, PRESET_DIRS } from './viewSpec.js'
 
 // Named errors, as the request spec and part resolver do, so a caller can match
 // on the name and the message reads `Name: detail`.
@@ -93,25 +91,27 @@ const noGeometryError = async (noGeometry) => {
 }
 
 /**
- * Builds the `view` tool handler for the app.
+ * Builds the `view` tool handler.
  *
  * The returned handler takes the tool's raw arguments and resolves to
  * `{ok: true, shots}`, each shot `{image: {dataUrl, mime}, camera}` in the loop's
  * shape; it rejects with a named Error on a bad call, an empty model or a part
  * the build lacks (`PartNotFoundError`/`AmbiguousPartError`).
  * @param {{
- *   getMesh: () => Array<object> | undefined,
+ *   getMesh: () => Array<object> | undefined | Promise<Array<object> | undefined>,
  *   noGeometry: () => Promise<object | null>,
  *   render: (mesh: Array<object>, plan: object, env?: object) => Promise<Array<{pngDataUrl: string, camera: object}>>,
  *   measure?: (options: {anchors?: true, parts?: string[]}) => Promise<object>,
  *   env?: () => object,
- * }} deps
+ *   center?: (mesh: Array<object>) => [number, number, number],
+ * }} deps `center` gives the model centre a position aim looks at; the
+ *   default reads the app's mesh entities' `vertices`.
  * @returns {(input: unknown) => Promise<{ok: true, shots: Array<object>}>}
  */
-export const createViewHandler = ({ getMesh, noGeometry, render, measure, env }) => async (input) => {
+export const createViewHandler = ({ getMesh, noGeometry, render, measure, env, center = modelCenter }) => async (input) => {
   const { views, size } = normalizeViewRequest(input)
 
-  const mesh = getMesh()
+  const mesh = await getMesh()
   if (!Array.isArray(mesh) || mesh.length === 0) throw await noGeometryError(noGeometry)
 
   const parts = await partContext(views, measure)
@@ -135,7 +135,7 @@ export const createViewHandler = ({ getMesh, noGeometry, render, measure, env })
     } else {
       // A position aim looks from the requested point (plus its offset) at its
       // lookAt, else the model centre; the renderer owns the distance, so the model auto-fits.
-      const target = view.target ? resolveLookAt(view.target, parts) : modelCenter(mesh)
+      const target = view.target ? resolveLookAt(view.target, parts) : center(mesh)
       shots.push({ dir: unit(sub(add(view.position, view.offset), target)), up: [0, 0, 1], target })
     }
   }

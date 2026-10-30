@@ -48,7 +48,7 @@ import { updatePipelineStats, countGeometry, createProgressHandler } from './src
 import { capGeometry, DEFAULT_CAPS } from './src/caps.js'
 import { createProjectTools } from './src/aiDeps.js'
 import { installHarnessHook } from './src/harnessHook.js'
-import { createViewHandler } from './src/aiView.js'
+import { createViewHandler } from '@jscadui/agent-loop/src/viewHandler.js'
 import { renderViews } from './src/aiViewRender.js'
 import { createProjectBuilds, projectEntry } from './src/projectBuild.js'
 import { createExport } from './src/aiExport.js'

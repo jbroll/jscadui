@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { basename, dirname, join, relative } from 'node:path'
 import { chromium } from '@playwright/test'
+import { DEFAULT_VIEW_SIZE } from '../src/viewSpec.js'
 import { VIEWS } from './views.js'
 
 export const RENDER_SIZE = 768
@@ -30,11 +31,13 @@ export const createRenderer = async ({ launch = (options) => chromium.launch(opt
     })
     await page.setContent(PAGE)
     await page.addScriptTag({ content: THREE })
-    const renderNow = async (parts, dir) => {
-      await page.evaluate(
+    const draw = (parts) =>
+      page.evaluate(
         (payload) => window.drawModel(payload),
         parts.map(({ color, positions }) => ({ color, data: toBase64(positions) })),
       )
+    const renderNow = async (parts, dir) => {
+      await draw(parts)
       mkdirSync(dir, { recursive: true })
       const views = []
       for (const view of VIEWS) {
@@ -46,13 +49,32 @@ export const createRenderer = async ({ launch = (options) => chromium.launch(opt
       }
       return views
     }
+    // The `view` tool's renderer contract (src/viewHandler.js): one PNG data URL and camera per shot, nothing on disk.
+    const shootNow = async (parts, { shots, size = DEFAULT_VIEW_SIZE }) => {
+      await draw(parts)
+      const results = []
+      for (const { dir, up, target } of shots) {
+        const camera = await page.evaluate((shot) => window.renderShot(shot.dir, shot.up, shot.target, shot.w, shot.h), {
+          dir,
+          up,
+          target: target ?? null,
+          w: size.w,
+          h: size.h,
+        })
+        const png = await page.locator('#c').screenshot()
+        results.push({ pngDataUrl: `data:image/png;base64,${png.toString('base64')}`, camera })
+      }
+      return results
+    }
     let queue = Promise.resolve()
+    const queued = (job) => {
+      const next = queue.then(job)
+      queue = next.catch(() => {})
+      return next
+    }
     return {
-      render: (parts, dir) => {
-        const next = queue.then(() => renderNow(parts, dir))
-        queue = next.catch(() => {})
-        return next
-      },
+      render: (parts, dir) => queued(() => renderNow(parts, dir)),
+      renderShots: (parts, plan) => queued(() => shootNow(parts, plan)),
       refused: () => refused,
       close: () => browser.close(),
     }
@@ -63,7 +85,8 @@ export const createRenderer = async ({ launch = (options) => chromium.launch(opt
 }
 
 // A result file's renders: <file stem>.renders/<fixture>-<run>/<view>.png beside
-// it, paths relative to its directory. Chromium starts on the first render or `start()`.
+// it, paths relative to its directory, and the `view` tool's shots, kept in memory.
+// Chromium starts on the first render or `start()`.
 export const createRunRenderer = (filePath, { start = () => createRenderer() } = {}) => {
   const dir = dirname(filePath)
   const stem = basename(filePath, '.json')
@@ -75,6 +98,7 @@ export const createRunRenderer = (filePath, { start = () => createRenderer() } =
       const views = await (await started()).render(parts, join(dir, `${stem}.renders`, `${fixture}-${run}`))
       return views.map((view) => ({ ...view, path: relative(dir, view.path) }))
     },
+    renderShots: async (parts, plan) => (await started()).renderShots(parts, plan),
     close: async () => {
       if (renderer) await (await renderer).close()
     },

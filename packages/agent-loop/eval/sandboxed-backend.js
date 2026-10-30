@@ -139,6 +139,12 @@ export const createSandboxedBackend = ({
     }
   }
 
+  // The conversation's last build, as `view` renders it; a dead executor has no build to send.
+  const mesh = async () => {
+    if (!executor) return { error: 'the evaluator is not running' }
+    return meshFrom(executor)
+  }
+
   const close = () => {
     ended = true
     executor?.close()
@@ -156,6 +162,7 @@ export const createSandboxedBackend = ({
     reset,
     requestTool,
     gradeProject,
+    mesh,
     crashes: () => crashes,
     exhausted: () => crashes > maxRestarts,
     close,
