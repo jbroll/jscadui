@@ -24,9 +24,10 @@ describe('fillFrameHtml', () => {
     expect(html).toContain('frame-ancestors https://jscad.rkroll.com')
   })
 
-  it('opens plain-http localhost only for a dev build', () => {
+  it('opens plain-http loopback only for a dev build', () => {
     const html = fillFrameHtml(template, { appOrigin: 'http://localhost:5120', runOrigin: 'http://localhost:5121', dev: true })
-    expect(connectSrc(html)).toContain('http://localhost:*')
+    // The e2e stub relays listen on 127.0.0.1, a different host from the app's localhost.
+    expect(connectSrc(html)).toEqual(expect.arrayContaining(['http://localhost:*', 'http://127.0.0.1:*']))
   })
 
   it('leaves no placeholder behind', () => {
@@ -56,14 +57,15 @@ describe('fillHtmlOrigins (app shell)', () => {
     expect(html).not.toMatch(/__[A-Z_]+__/)
   })
 
-  it('opens plain-http localhost only for a dev build', () => {
+  it('opens plain-http loopback only for a dev build', () => {
     const html = fillHtmlOrigins(appTemplate, {
       appOrigin: 'http://localhost:5120',
       runOrigin: 'http://localhost:5121',
       relayOrigin: 'https://jscad.rkroll.com',
       dev: true,
     })
-    expect(appDirective(html, 'frame-src')).toEqual(['http://localhost:5121', 'http://localhost:*'])
-    expect(appDirective(html, 'connect-src')).toContain('http://localhost:*')
+    expect(appDirective(html, 'frame-src')).toEqual(['http://localhost:5121', 'http://localhost:*', 'http://127.0.0.1:*'])
+    // The e2e stub relays listen on 127.0.0.1, a different host from the app's localhost.
+    expect(appDirective(html, 'connect-src')).toEqual(expect.arrayContaining(['http://localhost:*', 'http://127.0.0.1:*']))
   })
 })

@@ -5,7 +5,7 @@ export const fillHtmlOrigins = (content, { appOrigin, runOrigin, relayOrigin = a
   .replaceAll('__RUN_ORIGIN__', runOrigin)
   .replaceAll('__APP_ORIGIN__', appOrigin)
   .replaceAll('__RELAY_ORIGIN__', relayOrigin)
-  .replaceAll('__DEV_CONNECT__', dev ? 'http://localhost:*' : '')
+  .replaceAll('__DEV_CONNECT__', dev ? 'http://localhost:* http://127.0.0.1:*' : '')
 
 export const fillFrameHtml = (content, { appOrigin, runOrigin, dev }) =>
   fillHtmlOrigins(content, { appOrigin, runOrigin, dev })
