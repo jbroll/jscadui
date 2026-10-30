@@ -46,6 +46,23 @@ describe('wrapScadExports', () => {
     expect(wrapped.lazy).toBe(1)
   })
 
+  it('wraps a same-dimension list as one fluent array', () => {
+    const exports = { pair: () => [primitives.cuboid(), primitives.cuboid()] }
+    const wrapped = wrapScadExports(exports, jf)
+    const pair = wrapped.pair()
+    expect(typeof pair.translate).toBe('function')
+    expect(pair.map((item) => item.measureBoundingBox()[0][0])).toEqual([-1, -1])
+    const moved = pair.translate([10, 0, 0])
+    expect(moved).toHaveLength(2)
+    expect(moved.map((item) => item.measureBoundingBox()[0][0])).toEqual([9, 9])
+  })
+
+  it('wraps a same-dimension list of 2D shapes as a fluent 2D array', () => {
+    const wrapped = wrapScadExports({ pair: () => [primitives.square(), primitives.square()] }, jf)
+    const pair = wrapped.pair()
+    expect(typeof pair.extrudeLinear).toBe('function')
+  })
+
   it('wraps a dim-3 tree node', () => {
     const seen = []
     const stub = {

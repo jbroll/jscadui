@@ -505,6 +505,26 @@ test('a project js file requires a NopSCADlib nut through its clean export', asy
   expect(vertexCount).toBeGreaterThan(0)
 })
 
+// The frame registers the fluent wrapper for `.scad` requires, so a part
+// required from a project file comes back fluent. Only the eval backend
+// covered this chain; this runs the same one through the frame worker.
+test('a fluent project chains on a .scad part in the frame', async ({ page }) => {
+  await gotoHost(page)
+  const res = await load(page, {
+    entry: 'main.js',
+    files: {
+      'part.scad': 'module block(type) { cube([type[1], type[1], type[0]]); }\n',
+      'main.js':
+        "const { block } = require('./part.scad')\n" +
+        'module.exports = { main: () => block([3, 6]).translate([10, 0, 0]) }\n',
+    },
+  }, { timeoutMs: 120000 })
+  expect(res.ok).toBe(true)
+  const measured = await send(page, 'jscadMeasure', { options: {} })
+  expect(measured.result.dimensions).toEqual([6, 6, 3])
+  expect(measured.result.boundingBox[0][0]).toBeCloseTo(10)
+})
+
 // The transpiler reports each resolved file's own path as fromFile, so an
 // include from a file two directories deep has to resolve against that file
 // rather than against the entry.
