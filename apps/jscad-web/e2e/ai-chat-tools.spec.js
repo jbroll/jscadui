@@ -17,6 +17,9 @@ const keepMode = (page) =>
 
 const chunk = (json) => `data: ${JSON.stringify(json)}\n\n`
 
+// One built model, so a write turn has an entry to build.
+const CUBE = `const { cube } = require('@jscad/modeling').primitives\nconst main = () => cube({ size: 10 })\nmodule.exports = { main }\n`
+
 // The jscad-web free provider's catalog, as `GET /api/relay/jscad-web/v1/models` returns it.
 const INFERENCE_OPTIONS = [{ id: 'deepseek-v4-flash', kind: 'opencode-go', model: 'deepseek-v4-flash', available: true }]
 
@@ -99,7 +102,7 @@ const openChatWithKey = async (page, stub, { provider = 'openai', model = 'stub-
   await keepMode(page).selectOption('device')
   await page.locator('.ai-key-input').fill(key)
   await page.locator('.ai-save-key').click()
-  await expect(page.locator('.ai-settings')).toContainText('Key set (sk-test….')
+  await expect(page.locator('.ai-settings')).toContainText('Key set (sk-test…).')
 
   await page.addInitScript(({ port, tos }) => {
     window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)
@@ -442,7 +445,7 @@ test.describe('AI chat tools', () => {
     const tavily = page.locator('[data-search-provider="tavily"]')
     await tavily.locator('.ai-search-key-input').fill('sk-tavily')
     await tavily.locator('.ai-search-save').click()
-    await expect(tavily.locator('.ai-search-status')).toHaveText('key set')
+    await expect(tavily.locator('.ai-search-status')).toContainText('key set')
     await page.locator('.ai-dialog-footer button').click()
 
     await page.locator('.chat-input').fill('bearing size?')
@@ -543,7 +546,7 @@ test.describe('AI chat tools', () => {
     const tool = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').at(-1)
     expect(JSON.parse(tool.content)).toMatchObject({
       ok: false,
-      error: { name: 'PartLookAtUnsupportedError', message: expect.stringContaining('nope') },
+      error: { name: 'PartNotFoundError', message: expect.stringContaining('nope') },
     })
 
     await expect(page.locator('.chat-tool.failed')).toBeVisible()
@@ -556,7 +559,10 @@ test.describe('AI chat tools', () => {
   // every later turn, and absent before it exists.
   test('model spec written in one turn rides the next turn', async ({ page }) => {
     test.setTimeout(60_000)
+    // A notes-only project has no build entry, so the turn also writes the
+    // model the spec describes; both writes answer ok.
     stub = await startStubRelay([
+      { name: 'write', args: { path: 'main.js', content: CUBE } },
       { name: 'write', args: { path: 'notes/model-spec.md', content: '## Intent\n\nSPEC-MARKER-123 a bracket.\n' } },
       { text: 'Saved.' },
       { text: 'Still noted.' },
@@ -566,7 +572,7 @@ test.describe('AI chat tools', () => {
     await page.locator('.chat-input').fill('remember this')
     await page.locator('.chat-send').click()
     await expect(page.locator('.chat-messages')).toContainText('Saved.', { timeout: 30_000 })
-    await expect(page.locator('.chat-tool-mark').first()).toHaveText('ok')
+    await expect(page.locator('.chat-tool-mark')).toHaveText(['ok', 'ok'])
 
     // The first turn predates the spec: no Model spec heading rode it.
     expect(JSON.stringify(stub.requests[0].messages)).not.toContain('Model spec:')
@@ -646,5 +652,86 @@ test.describe('AI chat tools', () => {
     await expect(page.locator('.chat-tool-name')).toHaveText('question')
     await expect(page.locator('.chat-tool-target')).toHaveText('Printer')
     await expect(page.locator('.chat-tool-mark')).toHaveText('ok')
+  })
+
+  // A `question` waits on a person, so the loop's 120 s tool timeout
+  // (DEFAULT_TOOL_TIMEOUT_MS) never applies to it (AWAITS_USER races only the
+  // abort signal). Jumping the page clock three minutes proves an unanswered
+  // card outlives the cap without waiting: a real 120 s timeout would end the
+  // turn and remove the card here.
+  test('an open question outlives the tool timeout', async ({ page }) => {
+    test.setTimeout(60_000)
+    stub = await startStubRelay([
+      { name: 'question', args: { question: 'Which size?', options: ['10 mm', '20 mm'], header: 'Size' } },
+      { text: 'Building 20 mm.' },
+    ])
+    await openChatWithKey(page, stub)
+    // Installed after the page has loaded and rendered, so only this turn's
+    // timers are fake.
+    await page.clock.install()
+
+    await page.locator('.chat-input').fill('model a bracket')
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-question')).toBeVisible({ timeout: 30_000 })
+
+    await page.clock.fastForward('03:00')
+
+    // Still open, and the turn is still running rather than timed out.
+    await expect(page.locator('.chat-question')).toBeVisible()
+    await expect(page.locator('.chat-send')).toHaveText('Stop')
+
+    // The late answer still reaches the model as the tool result.
+    await page.locator('.chat-question-option', { hasText: '20 mm' }).click()
+    await expect(page.locator('.chat-messages')).toContainText('Building 20 mm.', { timeout: 30_000 })
+    const tool = stub.requests.at(-1).messages.filter((m) => m.role === 'tool').at(-1)
+    expect(tool.content).toBe('20 mm')
+  })
+
+  // The undo button through the real main.js wiring, not a stubbed
+  // `restoreTurn`: two writing turns pin history, only the newest is undoable,
+  // and a click goes confirmDiscard → projectManager.restoreVersion →
+  // switchProject → refreshHeader, which redraws the versions dropdown with the
+  // restore row. Unit tests cover the button's state machine (aiChat.test.js).
+  test('undo restores the newest writing turn through the project wiring', async ({ page }) => {
+    test.setTimeout(90_000)
+    const cube = (size) => `const { cube } = require('@jscad/modeling').primitives\nconst main = () => cube({ size: ${size} })\nmodule.exports = { main }\n`
+    stub = await startStubRelay([
+      { name: 'write', args: { path: 'main.js', content: cube(10) } },
+      { text: 'Saved a 10 mm cube.' },
+      { name: 'write', args: { path: 'main.js', content: cube(20) } },
+      { text: 'Saved a 20 mm cube.' },
+    ])
+    await openChatWithKey(page, stub)
+
+    await page.locator('.chat-input').fill('model a 10 mm cube')
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('Saved a 10 mm cube.', { timeout: 30_000 })
+    await page.locator('.chat-input').fill('make it 20 mm')
+    await page.locator('.chat-send').click()
+    await expect(page.locator('.chat-messages')).toContainText('Saved a 20 mm cube.', { timeout: 30_000 })
+    await expect(page.locator('.cm-content')).toContainText('cube({ size: 20 })')
+
+    const undo = page.locator('.chat-undo')
+    await expect(undo).toHaveCount(2)
+    // A later turn superseded the older one, so only the newest may restore.
+    await expect(undo.nth(0)).toBeDisabled()
+    await expect(undo.nth(0)).toHaveAttribute('title', 'A later turn changed the files')
+    await expect(undo.nth(1)).toBeEnabled()
+
+    // History before the undo; restoreVersion mints its own row and
+    // refreshHeader repaints the dropdown.
+    const versions = page.locator('.version-select option')
+    const before = await versions.count()
+    await expect(versions.first()).not.toContainText('restore')
+
+    await undo.nth(1).click()
+
+    await expect(undo.nth(1)).toHaveText('Undone')
+    await expect(undo.nth(1)).toBeDisabled()
+    await expect(undo.nth(0)).toBeDisabled()
+    // The files as they stood before the undone turn, reopened by switchProject.
+    await expect(page.locator('.cm-content')).toContainText('cube({ size: 10 })')
+    await expect(versions).toHaveCount(before + 1)
+    await expect(versions.first()).toContainText('restore')
   })
 })

@@ -937,6 +937,10 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
           console.warn('chat summarize failed:', err)
         }
       }
+      // A `question` waits on a person, so the loop exempts it from the tool
+      // timeout (AWAITS_USER races only the abort signal): an unanswered card
+      // outlives any turn-time cap. Every other tool keeps the loop's 120 s
+      // default, which is why no toolTimeoutMs is passed here.
       await runTurnFn({
         conversation: { messages: buildMessages({ systemPrompt: buildSystemPrompt(api), transcript: forModelOf(local.slice(0, -1)), files, build, message, images, summary: local.find(isSummaryMsg)?.text }) },
         provider,
