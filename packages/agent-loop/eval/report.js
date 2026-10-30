@@ -97,6 +97,9 @@ export function summarize(results) {
       firstTokenSeconds: meanOf(runs, (r) => r.metrics?.firstTokenSeconds),
       outputTokensPerSecond: meanOf(runs, (r) => r.metrics?.outputTokensPerSecond),
       reasoningTokens: meanOf(runs, (r) => r.metrics?.reasoningTokens),
+      roundsToFirstBuild: meanOf(scored, (r) => r.metrics?.roundsToFirstBuild),
+      maxBuildGap: meanOf(scored, (r) => r.metrics?.maxBuildGap),
+      outputTokensToFirstBuild: meanOf(scored, (r) => r.metrics?.outputTokensToFirstBuild),
     }
   })
 }
@@ -119,6 +122,10 @@ export function formatSummary(summary, speed) {
     lines.push(
       `${s.fixture}  ${n2or(s.providerSeconds)}  ${n2or(s.firstTokenSeconds)}  ${n2or(s.outputTokensPerSecond)}  ${n2or(s.reasoningTokens)}`,
     )
+  }
+  lines.push('', 'fixture  rounds  firstBuild  buildGap  tokensToFirstBuild')
+  for (const s of summary) {
+    lines.push(`${s.fixture}  ${n2or(s.rounds)}  ${n2or(s.roundsToFirstBuild)}  ${n2or(s.maxBuildGap)}  ${n2or(s.outputTokensToFirstBuild)}`)
   }
   const complex = summary.filter((s) => 'verdictRate' in s)
   if (complex.length) {
@@ -152,6 +159,14 @@ export function formatComparison(a, b) {
     const sb = b.summary.find((s) => s.fixture === name)
     lines.push(
       `${name}  ${cell(sa, 'rounds')} → ${cell(sb, 'rounds')}  ${cell(sa, 'failedCalls')} → ${cell(sb, 'failedCalls')}  ${cell(sa, 'seconds')} → ${cell(sb, 'seconds')}  ${cell(sa, 'geometryError')} → ${cell(sb, 'geometryError')}  ${cell(sa, 'warnings')} → ${cell(sb, 'warnings')}  ${cell(sa, 'docsCalls')} → ${cell(sb, 'docsCalls')}  ${cell(sa, 'providerSeconds')} → ${cell(sb, 'providerSeconds')}  ${cell(sa, 'outputTokensPerSecond')} → ${cell(sb, 'outputTokensPerSecond')}  ${cell(sa, 'inputTokens')} → ${cell(sb, 'inputTokens')}  ${cell(sa, 'outputTokens')} → ${cell(sb, 'outputTokens')}`,
+    )
+  }
+  lines.push('', 'fixture  rounds a → b  firstBuild a → b  buildGap a → b  tokensToFirstBuild a → b')
+  for (const name of names) {
+    const sa = a.summary.find((s) => s.fixture === name)
+    const sb = b.summary.find((s) => s.fixture === name)
+    lines.push(
+      `${name}  ${cell(sa, 'rounds')} → ${cell(sb, 'rounds')}  ${cell(sa, 'roundsToFirstBuild')} → ${cell(sb, 'roundsToFirstBuild')}  ${cell(sa, 'maxBuildGap')} → ${cell(sb, 'maxBuildGap')}  ${cell(sa, 'outputTokensToFirstBuild')} → ${cell(sb, 'outputTokensToFirstBuild')}`,
     )
   }
   const judged = names.filter((name) => [a, b].some((f) => 'verdictRate' in (f.summary.find((s) => s.fixture === name) ?? {})))

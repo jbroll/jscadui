@@ -1083,11 +1083,25 @@ tend to max out once a prompt clears the bar:
   an effective rate that includes time spent before the first visible token
   (e.g. reasoning); `null` when `outputTokens` is `null` or `providerSeconds`
   is zero.
+- `roundsToFirstBuild`, `maxBuildGap`, `outputTokensToFirstBuild`: how early
+  and how steadily the user sees a new model. A round is one assistant reply
+  in the transcript, numbered from 1 across every turn of the run; replies in
+  the fixture's prior `transcript` don't count. A build is a `write`, `edit`
+  or `delete` result with `ok: true` and a `geometry`; it is visible when its
+  `geometry` `parts`, `dimensions` or `volume` differ from the last visible
+  build. `roundsToFirstBuild` is the round of the first build, `null` when
+  none. `maxBuildGap` is the most rounds from the start to the first visible
+  build, between two visible builds, or from the last one to the run's last
+  round; the whole run's round count when nothing builds. `outputTokensToFirstBuild`
+  sums each round's `usage` output tokens through the round of the first
+  build; `null` without a build or when a round in that span reported no
+  usage. The means leave out `providerError` and `infraError` runs.
 
 `summarize` means each of these per fixture (over non-null values; `null`
 when none exist), and `formatSummary`/`formatComparison` print them in a
-second and third table alongside the existing one, showing `-` for a result
-file written before `metrics` existed. `reasoningTokens` appears only in
+second and third table alongside the existing one, and the cadence in a
+fourth (`rounds  firstBuild  buildGap  tokensToFirstBuild`), showing `-` for a
+result file written before a field existed. `reasoningTokens` appears only in
 `formatSummary`'s third table, not in `formatComparison`, which compares mean
 `inputTokens` and `outputTokens` and ends with the suite total: the sum of
 mean totals over the fixtures both files scored. `--regrade` fills

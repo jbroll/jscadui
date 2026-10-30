@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { endedWithoutReply, firstAttemptFailures, geometryError, gradedModel, gradeFixture, transcriptMetrics } from './grade.js'
+import { buildCadence, endedWithoutReply, firstAttemptFailures, geometryError, gradedModel, gradeFixture, transcriptMetrics } from './grade.js'
 
 const fixture = {
   name: 'cube-hole',
@@ -616,5 +616,84 @@ describe('interference in the grade', () => {
     const report = grade(null)
     expect(report.checkRate).toBe(1)
     expect(report).not.toHaveProperty('interference')
+  })
+})
+
+describe('buildCadence', () => {
+  const geo = (dimensions, volume = 200, parts = 1) => built({ saved: 'main.js', geometry: { parts, dimensions, volume } })
+  const reply = { role: 'assistant', content: 'done' }
+
+  it('finds the first visible build and the longest stretch without a new one', () => {
+    const transcript = [
+      { role: 'user', content: 'make it' },
+      toolMsg('t1', 'read', { path: 'main.js' }),
+      resultMsg('t1', JSON.stringify({ ok: true, content: '' })),
+      toolMsg('t2', 'write', { path: 'main.js', content: 'a' }),
+      resultMsg('t2', geo([10, 10, 2])),
+      toolMsg('t3', 'write', { path: 'base.js', content: 'b' }),
+      resultMsg('t3', geo([10, 10, 2])),
+      toolMsg('t4', 'write', { path: 'reel.js', content: 'r' }),
+      resultMsg('t4', geo([10, 10, 2])),
+      toolMsg('t5', 'edit', { path: 'main.js' }),
+      resultMsg('t5', geo([40, 30, 20], 9000, 3)),
+      reply,
+    ]
+    expect(buildCadence(transcript, { roundOutputTokens: [50, 70, 900, 900, 900, 10] })).toEqual({
+      roundsToFirstBuild: 2,
+      maxBuildGap: 3,
+      outputTokensToFirstBuild: 120,
+    })
+  })
+
+  it('skips failed builds and builds without geometry', () => {
+    const transcript = [
+      { role: 'user', content: 'make it' },
+      toolMsg('t1', 'write', { path: 'main.js', content: 'a' }),
+      resultMsg('t1', brokenBuild),
+      toolMsg('t2', 'write', { path: 'notes/a.md', content: 'n' }),
+      resultMsg('t2', built({ saved: 'notes/a.md' })),
+      toolMsg('t3', 'edit', { path: 'main.js' }),
+      resultMsg('t3', geo([10, 10, 2])),
+    ]
+    expect(buildCadence(transcript)).toEqual({ roundsToFirstBuild: 3, maxBuildGap: 3, outputTokensToFirstBuild: null })
+  })
+
+  it('counts the whole run as the gap when nothing ever builds', () => {
+    const transcript = [
+      { role: 'user', content: 'make it' },
+      toolMsg('t1', 'write', { path: 'main.js', content: 'a' }),
+      resultMsg('t1', brokenBuild),
+      reply,
+    ]
+    expect(buildCadence(transcript, { roundOutputTokens: [10, 5] })).toEqual({ roundsToFirstBuild: null, maxBuildGap: 2, outputTokensToFirstBuild: null })
+  })
+
+  it('numbers rounds after the prior conversation and across follow-up turns', () => {
+    const transcript = [
+      { role: 'user', content: 'a stand' },
+      { role: 'assistant', content: 'I saved a stand.' },
+      { role: 'user', content: 'project' },
+      { role: 'user', content: 'make it taller' },
+      toolMsg('t1', 'edit', { path: 'main.js' }),
+      resultMsg('t1', geo([10, 10, 20])),
+      reply,
+      { role: 'user', content: 'project' },
+      { role: 'user', content: 'and wider' },
+      toolMsg('t2', 'read', { path: 'main.js' }),
+      resultMsg('t2', JSON.stringify({ ok: true })),
+      toolMsg('t3', 'read', { path: 'main.js' }),
+      resultMsg('t3', JSON.stringify({ ok: true })),
+      toolMsg('t4', 'edit', { path: 'main.js' }),
+      resultMsg('t4', geo([30, 10, 20])),
+    ]
+    expect(buildCadence(transcript, { priorReplies: 1, roundOutputTokens: [40] })).toEqual({
+      roundsToFirstBuild: 1,
+      maxBuildGap: 4,
+      outputTokensToFirstBuild: 40,
+    })
+  })
+
+  it('is null for an empty run', () => {
+    expect(buildCadence([{ role: 'user', content: 'x' }])).toEqual({ roundsToFirstBuild: null, maxBuildGap: null, outputTokensToFirstBuild: null })
   })
 })

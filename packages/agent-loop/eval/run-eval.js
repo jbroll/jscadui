@@ -12,7 +12,7 @@ import { evalResultsDir } from '../log/log-dir.js'
 import { isMainModule } from '../src/mainModule.js'
 import { resolveCredentials } from './credentials.js'
 import { complexGates, complexProbe, complexReport, isComplex, renderRecord, scoreComplex, settleRun, userMessagesOf } from './complex.js'
-import { endedWithoutReply, GRADE_TIMEOUT_MS, gradedModel, gradeFixture, gradeTranscript, geometryError, interferenceFields, transcriptMetrics } from './grade.js'
+import { buildCadence, endedWithoutReply, GRADE_TIMEOUT_MS, gradedModel, gradeFixture, gradeTranscript, geometryError, interferenceFields, transcriptMetrics } from './grade.js'
 import { conversationTag, createLiveLog, formatLiveHeader, liveLogPath, prefixBlock } from './live-log.js'
 import { concurrencyFrom, runSuiteParallel } from './parallel.js'
 import { computeSpeed, formatComparison, formatSummary, summarize } from './report.js'
@@ -122,6 +122,7 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now(), onRetry)
   let inputTokens = null
   let outputTokens = null
   let reasoningTokens = null
+  const roundOutputTokens = []
   let providerSeconds = 0
   const firstTokenSeconds = []
   let providerRetries = 0
@@ -129,6 +130,7 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now(), onRetry)
     async *send(messages, tools, opts) {
       rounds += 1
       turnRounds += 1
+      roundOutputTokens.push(null)
       const startedAt = now()
       let firstContentAt = null
       let replied = false
@@ -141,7 +143,10 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now(), onRetry)
           if (isContentEvent(event)) replied = true
           if (event.type === 'usage') {
             if (typeof event.inputTokens === 'number') inputTokens = (inputTokens ?? 0) + event.inputTokens
-            if (typeof event.outputTokens === 'number') outputTokens = (outputTokens ?? 0) + event.outputTokens
+            if (typeof event.outputTokens === 'number') {
+              outputTokens = (outputTokens ?? 0) + event.outputTokens
+              roundOutputTokens[roundOutputTokens.length - 1] = (roundOutputTokens.at(-1) ?? 0) + event.outputTokens
+            }
             if (typeof event.reasoningTokens === 'number') reasoningTokens = (reasoningTokens ?? 0) + event.reasoningTokens
           }
           if (event.type === 'retry') {
@@ -171,6 +176,7 @@ const withTurnCap = (provider, maxTurns, now = () => performance.now(), onRetry)
     stopReasons: () => [...stopReasons],
     providerFailed: () => providerFailed,
     usage: () => ({ inputTokens, outputTokens, reasoningTokens }),
+    roundOutputTokens: () => [...roundOutputTokens],
     retries: () => providerRetries,
     speed: () => ({
       providerSeconds,
@@ -312,6 +318,8 @@ export async function runConversation(
   } = complex ? await scoreComplex(fixture, run, transcript, graded, { maxTurns, providerError, render }) : scoreGrade(fixture, transcript, graded, maxTurns, providerError)
   const { toolCalls, failedCalls, warnings, docsCalls } = transcriptMetrics(transcript)
   const { inputTokens, outputTokens, reasoningTokens } = cappedProvider.usage()
+  const priorReplies = (fixture.transcript ?? []).filter((m) => m.role === 'assistant').length
+  const cadence = buildCadence(transcript, { priorReplies, roundOutputTokens: cappedProvider.roundOutputTokens() })
   const { providerSeconds, firstTokenSeconds } = cappedProvider.speed()
   const outputTokensPerSecond =
     outputTokens != null && providerSeconds > 0 ? outputTokens / providerSeconds : null
@@ -339,6 +347,7 @@ export async function runConversation(
       firstTokenSeconds,
       outputTokensPerSecond,
       geometryError: geometry,
+      ...cadence,
     },
     ...fields,
     ...(error ? { error } : {}),

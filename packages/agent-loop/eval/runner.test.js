@@ -97,6 +97,19 @@ describe('runSuite', () => {
     expect(result.metrics.outputTokens).toBe(25)
   })
 
+  it('records the build cadence with output tokens per round up to the first visible build', async () => {
+    const backend = createEvalBackend()
+    const cube = 'const jf = require("@jbroll/jscad-fluent")\nfunction main() { return [jf.cube({ size: 20 })] }\nmodule.exports = { main }'
+    const provider = scripted([
+      [{ type: 'usage', outputTokens: 30 }, { type: 'tool_use', id: 't1', name: 'glob', input: {} }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'usage', outputTokens: 200 }, { type: 'tool_use', id: 't2', name: 'write', input: { path: 'main.js', content: cube } }, { type: 'done', stopReason: 'tool_use' }],
+      [{ type: 'usage', outputTokens: 5 }, { type: 'text', text: 'a 20mm cube' }, { type: 'done', stopReason: 'end_turn' }],
+    ])
+    const fixture = { name: 'x', prompt: 'p', requires: ['write'], verifyBeforeWrite: false, maxTurns: 8, checks: () => [] }
+    const [result] = await runSuite([fixture], { provider, backend })
+    expect(result.metrics).toEqual(expect.objectContaining({ rounds: 3, roundsToFirstBuild: 2, maxBuildGap: 2, outputTokensToFirstBuild: 230 }))
+  })
+
   it('refuses without a provider', async () => {
     await expect(runSuite([], { provider: null, backend: createEvalBackend() })).rejects.toThrow(/provider/)
   })

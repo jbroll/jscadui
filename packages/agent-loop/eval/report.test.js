@@ -24,11 +24,13 @@ describe('eval report', () => {
         fixture: 'a', runs: 2, firstAttemptFailures: 2, checkPassRate: 0.5, total: 4, errors: 1,
         rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null, warnings: null, docsCalls: null, interferingPairs: 0,
         providerSeconds: null, firstTokenSeconds: null, outputTokensPerSecond: null, reasoningTokens: null,
+        roundsToFirstBuild: null, maxBuildGap: null, outputTokensToFirstBuild: null,
       },
       {
         fixture: 'b', runs: 1, firstAttemptFailures: 1, checkPassRate: 1, total: 7, errors: 0,
         rounds: null, failedCalls: null, inputTokens: null, outputTokens: null, seconds: null, geometryError: null, warnings: null, docsCalls: null, interferingPairs: 0,
         providerSeconds: null, firstTokenSeconds: null, outputTokensPerSecond: null, reasoningTokens: null,
+        roundsToFirstBuild: null, maxBuildGap: null, outputTokensToFirstBuild: null,
       },
     ])
     expect(formatSummary(summary)).toContain('a  2  2.00  0.50  4.00  1')
@@ -143,6 +145,24 @@ describe('eval report', () => {
     expect(text).toContain('a  1.50  0.30  50.00  30.00')
     const noneSummary = summarize([run('b', 0, 1, 8, undefined, { ...metrics, reasoningTokens: undefined })])
     expect(formatSummary(noneSummary)).toContain('b  1.50  0.30  50.00  -')
+  })
+
+  it('means, prints and compares the build cadence beside rounds, "-" for files without it', () => {
+    const cadence = { rounds: 6, roundsToFirstBuild: 2, maxBuildGap: 3, outputTokensToFirstBuild: 120 }
+    const summary = summarize([
+      run('a', 0, 1, 8, undefined, cadence),
+      run('a', 0, 1, 8, undefined, { rounds: 4, roundsToFirstBuild: 4, maxBuildGap: 4, outputTokensToFirstBuild: null }),
+      run('a', 0, 1, 8, 'status 500', { rounds: 1, roundsToFirstBuild: null, maxBuildGap: 1, outputTokensToFirstBuild: null }),
+    ])
+    expect(summary[0]).toEqual(expect.objectContaining({ roundsToFirstBuild: 3, maxBuildGap: 3.5, outputTokensToFirstBuild: 120 }))
+    const text = formatSummary(summary)
+    expect(text).toContain('fixture  rounds  firstBuild  buildGap  tokensToFirstBuild')
+    expect(text).toContain('a  3.67  3.00  3.50  120.00')
+    expect(formatSummary(summarize([run('b', 0, 1, 8, undefined, { rounds: 2 })]))).toContain('b  2.00  -  -  -')
+    const old = { model: 'm', summary: [{ fixture: 'a', runs: 1, rounds: 5, total: 8 }] }
+    const compared = formatComparison(old, { model: 'm', summary })
+    expect(compared).toContain('fixture  rounds a → b  firstBuild a → b  buildGap a → b  tokensToFirstBuild a → b')
+    expect(compared).toContain('a  5.00 → 3.67  - → 3.00  - → 3.50  - → 120.00')
   })
 
   it('computeSpeed sums wall/provider/tool seconds and medians first-token and throughput over all runs', () => {

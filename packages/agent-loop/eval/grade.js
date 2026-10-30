@@ -186,6 +186,43 @@ export function transcriptMetrics(transcript) {
   }
 }
 
+const geometryKey = ({ parts, dimensions, volume }) => JSON.stringify([parts, dimensions, volume])
+
+// How early and how steadily the run showed the user a new model. A round is
+// one provider reply, numbered from 1 across the whole run; `priorReplies`
+// skips the fixture's prior-conversation replies at the head of the transcript.
+// `roundOutputTokens[i]` is round i+1's output tokens, when the provider reported them.
+export function buildCadence(transcript, { priorReplies = 0, roundOutputTokens = [] } = {}) {
+  const roundOf = new Map()
+  let round = 0
+  const visible = []
+  let shown = null
+  for (const m of transcript) {
+    if (m.role === 'assistant') {
+      round += 1
+      if (round <= priorReplies) continue
+      for (const c of m.toolCalls ?? []) roundOf.set(c.id, { round: round - priorReplies, name: c.name })
+    } else if (m.role === 'tool') {
+      const call = roundOf.get(m.toolCallId)
+      if (!call || !SAVES.has(call.name)) continue
+      const report = parsed(m.content)
+      if (report?.ok !== true || !report.geometry) continue
+      const key = geometryKey(report.geometry)
+      if (key === shown) continue
+      shown = key
+      if (visible.at(-1) !== call.round) visible.push(call.round)
+    }
+  }
+  const rounds = Math.max(0, round - priorReplies)
+  if (rounds === 0) return { roundsToFirstBuild: null, maxBuildGap: null, outputTokensToFirstBuild: null }
+  const marks = [0, ...visible, rounds]
+  const maxBuildGap = Math.max(...marks.slice(1).map((r, i) => r - marks[i]))
+  const first = visible[0] ?? null
+  const spent = first === null ? [] : roundOutputTokens.slice(0, first)
+  const outputTokensToFirstBuild = first !== null && spent.length === first && spent.every((n) => typeof n === 'number') ? spent.reduce((a, b) => a + b, 0) : null
+  return { roundsToFirstBuild: first, maxBuildGap, outputTokensToFirstBuild }
+}
+
 const relativeError = (actual, target) => Math.abs(actual - target) / target
 
 // Relative error against an optional fixture target ({ volume?, dimensions? });
