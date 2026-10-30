@@ -206,7 +206,8 @@ export function buildCadence(transcript, { priorReplies = 0, roundOutputTokens =
       const call = roundOf.get(m.toolCallId)
       if (!call || !SAVES.has(call.name)) continue
       const report = parsed(m.content)
-      if (report?.ok !== true || !report.geometry) continue
+      // A save that fails only on interference or tests still built, and the viewer shows it.
+      if (!report?.geometry) continue
       const key = geometryKey(report.geometry)
       if (key === shown) continue
       shown = key

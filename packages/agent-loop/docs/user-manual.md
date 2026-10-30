@@ -1105,7 +1105,8 @@ tend to max out once a prompt clears the bar:
   and how steadily the user sees a new model. A round is one assistant reply
   in the transcript, numbered from 1 across every turn of the run; replies in
   the fixture's prior `transcript` don't count. A build is a `write`, `edit`
-  or `delete` result with `ok: true` and a `geometry`; it is visible when its
+  or `delete` result with a `geometry`, including one that failed only on
+  interference or tests, since the viewer still shows it; it is visible when its
   `geometry` `parts`, `dimensions` or `volume` differ from the last visible
   build. `roundsToFirstBuild` is the round of the first build, `null` when
   none. `maxBuildGap` is the most rounds from the start to the first visible

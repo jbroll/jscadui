@@ -658,6 +658,23 @@ describe('buildCadence', () => {
     expect(buildCadence(transcript)).toEqual({ roundsToFirstBuild: 3, maxBuildGap: 3, outputTokensToFirstBuild: null })
   })
 
+  it('counts a build that fails on interference but returns geometry', () => {
+    const interfering = JSON.stringify({
+      saved: 'main.js',
+      ok: false,
+      entry: 'main.js',
+      error: { name: 'InterferenceError', message: 'parts 0 and 1 share 4 mm³' },
+      geometry: { parts: 2, dimensions: [10, 10, 2], volume: 200 },
+    })
+    const transcript = [
+      { role: 'user', content: 'make it' },
+      toolMsg('t1', 'write', { path: 'main.js', content: 'a' }),
+      resultMsg('t1', interfering),
+      reply,
+    ]
+    expect(buildCadence(transcript)).toEqual({ roundsToFirstBuild: 1, maxBuildGap: 1, outputTokensToFirstBuild: null })
+  })
+
   it('counts the whole run as the gap when nothing ever builds', () => {
     const transcript = [
       { role: 'user', content: 'make it' },
