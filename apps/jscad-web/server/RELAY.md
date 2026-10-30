@@ -171,12 +171,18 @@ or prices.
   upstream call, so a typo cannot burn budget. The budgets are checked (`402` with
   `{error: {code: 'inference_quota_exhausted', scope, message}}`, `scope` of
   `month` or `day`), and a third request in flight from one IP group is `429`
-  with `Retry-After: 2`. Across every group the server holds at most 50 free
+  with `Retry-After: 2` and `{error: {code: 'inference_busy', retryAfter, message}}`.
+  Across every group the server holds at most 50 free
   turns (`RelayRouteOptions.maxInFlight`); over that is a `429` with
-  `Retry-After: 5`, logged as `{relay: 'inference_busy', inFlight}`, so a client
-  holding many `/64`s cannot multiply the per-group bound. A turn refused before
+  `Retry-After: 5`, the same body shape, logged as
+  `{relay: 'inference_busy', inFlight}`, so a client
+  holding many `/64`s cannot multiply the per-group bound. A non-finite or
+  non-positive `maxInFlight` falls back to 50 rather than disabling the ceiling
+  or refusing every turn. A turn refused before
   any upstream call (allowlist read failure, allowlist/DNS refusal) is still
-  logged with `costUsd: 0`. The body is rewritten: `model` is pinned to the
+  logged with `costUsd: 0`; an allowlist/DNS refusal is also logged to the
+  operator as `{relay: 'inference_refused', status, message, inference}`. The
+  body is rewritten: `model` is pinned to the
   option's, `stream` is `true`, `max_tokens` (chat completions) or
   `max_output_tokens` (responses) is the smaller of the client's and `maxTokens`,
   and chat completions ask for `stream_options.include_usage`. The client's

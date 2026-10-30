@@ -33,7 +33,10 @@ const DEFAULT_CHAT_LOG_DIR = './data/chat-logs'
 export const DEFAULT_CHAT_LOG_RETAIN_DAYS = 90
 const DEFAULT_SPEND_PATH = './data/relay-spend.json'
 /** No matter how many /64s a client holds, the server holds at most this many free turns. */
-const DEFAULT_MAX_IN_FLIGHT = 50
+export const DEFAULT_MAX_IN_FLIGHT = 50
+/** A non-finite or non-positive operator override is a mistake: use the ceiling. */
+export const resolveMaxInFlight = (value?: number): number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_MAX_IN_FLIGHT
 const INFERENCE_CACHE_MS = 5_000
 const DAY_MS = 24 * 60 * 60 * 1000
 const MAX_CHAT_LOG_RETAIN_DAYS = 3650
@@ -133,7 +136,7 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
   const inFlight = new Map<string, number>()
   /** The same turns counted across every group, for the operator's ceiling. */
   const inFlightTotal = (): number => [...inFlight.values()].reduce((sum, n) => sum + n, 0)
-  const maxInFlight = options.maxInFlight ?? DEFAULT_MAX_IN_FLIGHT
+  const maxInFlight = resolveMaxInFlight(options.maxInFlight)
 
   const ctx = {
     logger,

@@ -124,12 +124,14 @@ export const jscadHook = {
       // The ceiling is the operator's, not the caller's: make it visible.
       ctx.logger({ relay: 'inference_busy', inFlight: totalInFlight })
       res.setHeader('Retry-After', '5')
-      res.status(429).json({ error: 'relay busy: too many inference requests in flight' })
+      res.status(429).json({
+        error: { code: 'inference_busy', retryAfter: 5, message: 'relay busy: too many inference requests in flight' },
+      })
       return
     }
     if ((ctx.inFlight.get(group) ?? 0) >= MAX_IN_FLIGHT) {
       res.setHeader('Retry-After', '2')
-      res.status(429).json({ error: 'too many in flight' })
+      res.status(429).json({ error: { code: 'inference_busy', retryAfter: 2, message: 'too many in flight' } })
       return
     }
     ctx.inFlight.set(group, (ctx.inFlight.get(group) ?? 0) + 1)
@@ -149,120 +151,125 @@ export const jscadHook = {
       if (!res.writableFinished) abort.abort()
     })
 
-    // The client key is whatever the sentinel was; it is dropped here and never
-    // trusted. Only the operator's key goes upstream.
-    const bodyText = JSON.stringify(rewriteInferenceBody(req.body, option))
-    const headers = pickForwardHeaders(req.headers)
-    delete headers.authorization
-    delete headers['x-api-key']
-    headers.authorization = `Bearer ${option.key}`
-    const chatIdHeader = req.headers['x-jscad-chat-id']
-    const chatId = typeof chatIdHeader === 'string' && chatIdHeader !== '' ? chatIdHeader : null
-    // Free turns are always recorded, chat id or not.
-    const tee = teeRelayUpstream({ log: ctx.log, ts, kind: option.kind, path: option.path, request: Buffer.from(bodyText), chatId, started })
+    try {
+      // The client key is whatever the sentinel was; it is dropped here and never
+      // trusted. Only the operator's key goes upstream.
+      const bodyText = JSON.stringify(rewriteInferenceBody(req.body, option))
+      const headers = pickForwardHeaders(req.headers)
+      delete headers.authorization
+      delete headers['x-api-key']
+      headers.authorization = `Bearer ${option.key}`
+      const chatIdHeader = req.headers['x-jscad-chat-id']
+      const chatId = typeof chatIdHeader === 'string' && chatIdHeader !== '' ? chatIdHeader : null
+      // Free turns are always recorded, chat id or not.
+      const tee = teeRelayUpstream({ log: ctx.log, ts, kind: option.kind, path: option.path, request: Buffer.from(bodyText), chatId, started })
 
-    /** @type {Record<string, string>} */
-    let table
-    try {
-      table = ctx.readAllowlist()
-    } catch (err) {
-      ctx.logger({ relay: 'allowlist-error', message: err instanceof Error ? err.message : String(err) })
-      res.status(500).json({ error: 'relay: allowlist unavailable' })
-      tee.finish(500, { error: 'relay: allowlist unavailable', inference: option.id, costUsd: 0 })
-      release()
-      return
-    }
-    /** @type {string} */
-    let upstream
-    try {
-      upstream = await resolveTarget({ allowlist: table, kind: option.kind, subPath: option.path, dnsLookup: ctx.dnsLookup })
-    } catch (err) {
-      if (!(err instanceof RelayRefusal)) throw err
-      res.status(err.status).json({ error: err.message })
-      // Nothing reached the provider, so the turn is free but still recorded.
-      tee.finish(err.status, { error: err.message, inference: option.id, costUsd: 0 })
-      release()
-      return
-    }
-    // The client left while we were resolving: no request reached the provider,
-    // so nothing is charged, but the abandoned turn is still recorded.
-    if (abort.signal.aborted) {
-      tee.finish(499, { error: 'client closed', inference: option.id, costUsd: 0 })
-      release()
-      return
-    }
-
-    /** @type {globalThis.Response} */
-    let upstreamRes
-    try {
-      upstreamRes = await ctx.fetchFn(upstream, { method: 'POST', headers, body: bodyText, signal: abort.signal })
-    } catch {
+      /** @type {Record<string, string>} */
+      let table
+      try {
+        table = ctx.readAllowlist()
+      } catch (err) {
+        ctx.logger({ relay: 'allowlist-error', message: err instanceof Error ? err.message : String(err) })
+        res.status(500).json({ error: 'relay: allowlist unavailable' })
+        tee.finish(500, { error: 'relay: allowlist unavailable', inference: option.id, costUsd: 0 })
+        release()
+        return
+      }
+      /** @type {string} */
+      let upstream
+      try {
+        upstream = await resolveTarget({ allowlist: table, kind: option.kind, subPath: option.path, dnsLookup: ctx.dnsLookup })
+      } catch (err) {
+        if (!(err instanceof RelayRefusal)) throw err
+        ctx.logger({ relay: 'inference_refused', status: err.status, message: err.message, inference: option.id })
+        res.status(err.status).json({ error: err.message })
+        // Nothing reached the provider, so the turn is free but still recorded.
+        tee.finish(err.status, { error: err.message, inference: option.id, costUsd: 0 })
+        release()
+        return
+      }
+      // The client left while we were resolving: no request reached the provider,
+      // so nothing is charged, but the abandoned turn is still recorded.
       if (abort.signal.aborted) {
-        // The client left after the request went upstream, where the provider can
-        // still bill for the prompt it received, so charge the input estimate.
-        const cost = costUsd({ inputTokens: estimateTokens(Buffer.byteLength(bodyText)), outputTokens: 0 }, option)
-        meter.charge(ip, cost)
-        tee.finish(499, { error: 'client closed', inference: option.id, costUsd: cost })
-      } else {
-        // Never connected, so nothing was sent and nothing is charged.
-        res.status(502).json({ error: 'upstream unreachable' })
-        tee.finish(502, { response: 'upstream unreachable', inference: option.id, costUsd: 0 })
+        tee.finish(499, { error: 'client closed', inference: option.id, costUsd: 0 })
+        release()
+        return
       }
-      release()
-      return
-    }
 
-    res.status(upstreamRes.status)
-    const contentType = upstreamRes.headers.get('content-type')
-    if (contentType) res.setHeader('content-type', contentType)
-    res.setHeader('cache-control', 'no-cache')
-
-    const decoder = new TextDecoder()
-    let responseText = ''
-    let bytes = 0
-    /**
-     * @param {number} status
-     * @param {string} error
-     */
-    const settle = (status, error) => {
-      const usage = parseUsage(responseText)
-      // No usage means the stream was cut (page closed, upstream failed); the
-      // provider still billed for what it generated, so charge the estimate.
-      const cost = usage
-        ? costUsd(usage, option)
-        : costUsd(
-            { inputTokens: estimateTokens(Buffer.byteLength(bodyText)), outputTokens: estimateTokens(Buffer.byteLength(responseText)) },
-            option,
-          )
-      meter.charge(ip, cost)
-      tee.finish(status, { ...(error ? { error } : {}), inference: option.id, costUsd: cost })
-      release()
-    }
-    try {
-      if (!upstreamRes.body) {
-        res.end()
-      } else {
-        const reader = upstreamRes.body.getReader()
-        for (;;) {
-          const { done, value } = await reader.read()
-          if (done) break
-          bytes += value.byteLength
-          responseText += decoder.decode(value, { stream: true })
-          tee.chunk(value)
-          if (!(await writeOrClose(res, value))) {
-            await reader.cancel().catch(() => {})
-            settle(upstreamRes.status, 'client closed')
-            return
-          }
+      /** @type {globalThis.Response} */
+      let upstreamRes
+      try {
+        upstreamRes = await ctx.fetchFn(upstream, { method: 'POST', headers, body: bodyText, signal: abort.signal })
+      } catch {
+        if (abort.signal.aborted) {
+          // The client left after the request went upstream, where the provider can
+          // still bill for the prompt it received, so charge the input estimate.
+          const cost = costUsd({ inputTokens: estimateTokens(Buffer.byteLength(bodyText)), outputTokens: 0 }, option)
+          meter.charge(ip, cost)
+          tee.finish(499, { error: 'client closed', inference: option.id, costUsd: cost })
+        } else {
+          // Never connected, so nothing was sent and nothing is charged.
+          res.status(502).json({ error: 'upstream unreachable' })
+          tee.finish(502, { response: 'upstream unreachable', inference: option.id, costUsd: 0 })
         }
-        res.end()
+        release()
+        return
       }
-    } catch (err) {
-      settle(upstreamRes.status, abort.signal.aborted ? 'client closed' : `upstream stream failed: ${err instanceof Error ? err.message : String(err)}`)
-      res.destroy()
-      return
+
+      res.status(upstreamRes.status)
+      const contentType = upstreamRes.headers.get('content-type')
+      if (contentType) res.setHeader('content-type', contentType)
+      res.setHeader('cache-control', 'no-cache')
+
+      const decoder = new TextDecoder()
+      let responseText = ''
+      let bytes = 0
+      /**
+       * @param {number} status
+       * @param {string} error
+       */
+      const settle = (status, error) => {
+        const usage = parseUsage(responseText)
+        // No usage means the stream was cut (page closed, upstream failed); the
+        // provider still billed for what it generated, so charge the estimate.
+        const cost = usage
+          ? costUsd(usage, option)
+          : costUsd(
+              { inputTokens: estimateTokens(Buffer.byteLength(bodyText)), outputTokens: estimateTokens(Buffer.byteLength(responseText)) },
+              option,
+            )
+        meter.charge(ip, cost)
+        tee.finish(status, { ...(error ? { error } : {}), inference: option.id, costUsd: cost })
+        release()
+      }
+      try {
+        if (!upstreamRes.body) {
+          res.end()
+        } else {
+          const reader = upstreamRes.body.getReader()
+          for (;;) {
+            const { done, value } = await reader.read()
+            if (done) break
+            bytes += value.byteLength
+            responseText += decoder.decode(value, { stream: true })
+            tee.chunk(value)
+            if (!(await writeOrClose(res, value))) {
+              await reader.cancel().catch(() => {})
+              settle(upstreamRes.status, 'client closed')
+              return
+            }
+          }
+          res.end()
+        }
+      } catch (err) {
+        settle(upstreamRes.status, abort.signal.aborted ? 'client closed' : `upstream stream failed: ${err instanceof Error ? err.message : String(err)}`)
+        res.destroy()
+        return
+      }
+      settle(upstreamRes.status, '')
+      ctx.logger({ relay: `inference:${option.id}`, status: upstreamRes.status, bytes })
+    } finally {
+      release()
     }
-    settle(upstreamRes.status, '')
-    ctx.logger({ relay: `inference:${option.id}`, status: upstreamRes.status, bytes })
   },
 }

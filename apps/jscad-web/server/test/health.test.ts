@@ -22,8 +22,8 @@ function testConfig(): ServerConfig {
 
 let server: AppServer | undefined;
 
-afterEach(() => {
-  server?.db.close();
+afterEach(async () => {
+  await server?.close();
   server = undefined;
 });
 

@@ -1,6 +1,7 @@
 import express from 'express'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import request from 'supertest'
+import { Agent } from 'undici'
 import { MAX_BODY_BYTES, MAX_CONTENT_CHARS, mountFetchRoutes } from '../src/fetch/routes.js'
 
 let fetchMock: ReturnType<typeof vi.fn>
@@ -266,5 +267,13 @@ describe('fetch routes', () => {
     expect(res.status).toBe(502)
     expect(JSON.stringify(res.body)).not.toContain('super-secret')
     expect(JSON.stringify(logs)).not.toContain('super-secret')
+  })
+
+  it('exposes a close that shuts the public-only dispatcher', async () => {
+    const closeSpy = vi.spyOn(Agent.prototype, 'close')
+    const routes = mountFetchRoutes(express(), { trustedOrigins: ['https://app.test'], dnsLookup: PUBLIC_DNS })
+    await routes.close()
+    expect(closeSpy).toHaveBeenCalled()
+    closeSpy.mockRestore()
   })
 })

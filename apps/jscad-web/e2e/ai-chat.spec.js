@@ -5,6 +5,7 @@
 import { test, expect } from '@playwright/test'
 import http from 'node:http'
 import { createEvalBackend } from '../../../packages/agent-loop/eval/backend.js'
+import { DEFAULT_MAX_ROUNDS } from '../../../packages/agent-loop/src/loop.js'
 import { TOS_VERSION } from '../src/aiConsent.js'
 import { dismissWelcome, waitForRender, assertNoError, seedTos } from './helpers.js'
 
@@ -71,7 +72,6 @@ const PARITY_ROUNDS = [
   { name: 'measure', args: {} },
   { name: 'write', args: { path: 'main.js', content: CUBE } },
   { name: 'read', args: { path: 'main.js' } },
-  { name: 'read', args: { path: 'nope.js' } },
   { name: 'edit', args: { path: 'main.js', oldString: 'zzz', newString: 'y' } },
   { name: 'write', args: { path: '../x.js', content: 'x' } },
   { name: 'execute', args: { source: "const { cube } = require('@jscad/modeling').primitives\nconsole.log('hi')\nmodule.exports = { main: () => cube({ size: 3 }) }" } },
@@ -232,11 +232,15 @@ test.describe('AI chat', () => {
     stub.server.close()
   })
 
-  // Red on main since 2026-10-12. Decision: trim the script to 31 rounds and
+  // Red on main since 2026-10-12. Decision: trim the script to 30 rounds and
   // leave the `fixme` off, rather than raise the loop's safety cap
-  // (DEFAULT_MAX_ROUNDS 32) or seed the eval fixture. Rounds dropped:
+  // (DEFAULT_MAX_ROUNDS 32) or seed the eval fixture. 30 rounds plus the closing
+  // `Done.` is 31 sends, one below the cap, so a later round still has headroom.
+  // Rounds dropped:
   // - `list` (fixture drift: the app's default project carries a file the eval
   //   does not have),
+  // - `read nope.js` (`edit zzz` and `write ../x.js` already pin the error drift,
+  //   and this one only bought the 31st round with no headroom),
   // - `export step` (redundant with the `export stl` round that stays),
   // - the fluent `jf.*` write (the frame reports a helper slip once and without
   //   a location where the eval names every call site; the frame's own warnings
@@ -262,6 +266,8 @@ test.describe('AI chat', () => {
     await page.locator('.ai-save-key').click()
 
     const stub = await startStubRelay(PARITY_ROUNDS)
+    // A tool round per entry plus the closing `Done.` must leave cap headroom.
+    expect(PARITY_ROUNDS.length + 1).toBeLessThan(DEFAULT_MAX_ROUNDS)
     // The eval models with @jscad/modeling, the jscad engine, not manifold.
     await page.addInitScript(({ port, tos }) => {
       window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)

@@ -3,7 +3,8 @@ import request from 'supertest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { mountRelayRoutes } from '../src/relay/routes.js'
+import { mountRelayRoutes, resolveMaxInFlight } from '../src/relay/routes.js'
+import { jscadHook } from '../src/relay/providers/jscad.js'
 import {
   DEFAULT_INFERENCE_PATH,
   MESSAGES_MODELS,
@@ -436,6 +437,20 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     })
   })
 
+  it('logs a pre-upstream DNS refusal to the operator logger', async () => {
+    const logs: unknown[] = []
+    const { app } = buildApp({ config: inferenceJson(), logs, dnsLookup: async () => [{ address: '10.0.0.7' }] })
+    const res = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })
+    expect(res.status).toBe(400)
+    expect(logs).toContainEqual({
+      relay: 'inference_refused',
+      status: 400,
+      message: 'relay: upstream resolves to a private address',
+      inference: 'deepseek-v4.1-flash',
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('charges the IP group so an over-budget second turn is refused with the 402 body', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n'))
     const { app } = buildApp({ config: inferenceJson({ perIpDailyUsd: 0.00001 }) })
@@ -479,6 +494,18 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('falls back to the default operator ceiling for an invalid maxInFlight', async () => {
+    expect(resolveMaxInFlight(Number.NaN)).toBe(50)
+    expect(resolveMaxInFlight(0)).toBe(50)
+    expect(resolveMaxInFlight(-4)).toBe(50)
+    expect(resolveMaxInFlight(undefined)).toBe(50)
+    expect(resolveMaxInFlight(3)).toBe(3)
+
+    fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
+    const { app } = buildApp({ config: inferenceJson(), maxInFlight: 0 })
+    expect((await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })).status).toBe(200)
+  })
+
   it('refuses a third in-flight request from the same IP group with 429 and Retry-After: 2', async () => {
     const pending: Array<(r: Response) => void> = []
     fetchMock.mockImplementation(() => new Promise<Response>((resolve) => pending.push(resolve)))
@@ -491,6 +518,7 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     const third = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').send({ messages: [] })
     expect(third.status).toBe(429)
     expect(third.headers['retry-after']).toBe('2')
+    expect(third.body).toEqual({ error: { code: 'inference_busy', retryAfter: 2, message: 'too many in flight' } })
 
     for (const resolve of pending) resolve(sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
     await Promise.allSettled(held)
@@ -512,10 +540,50 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     const third = await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').set('X-Forwarded-For', '198.51.100.3').send({ messages: [] })
     expect(third.status).toBe(429)
     expect(third.headers['retry-after']).toBe('5')
+    expect(third.body).toEqual({
+      error: { code: 'inference_busy', retryAfter: 5, message: 'relay busy: too many inference requests in flight' },
+    })
     expect(logs).toContainEqual({ relay: 'inference_busy', inFlight: 2 })
 
     for (const resolve of pending) resolve(sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
     await Promise.allSettled(held)
+  })
+
+  it('releases the in-flight slot when a non-refusal error escapes after admission', async () => {
+    const inFlight = new Map<string, number>()
+    const recordsLog: unknown[] = []
+    const ctx = {
+      corsFor: () => true,
+      logger: (entry: unknown) => recordsLog.push(entry),
+      readInference: () => ({
+        monthlyUsd: 5,
+        perIpDailyUsd: 0.1,
+        options: [{ id: 'free', kind: 'opencode-go', model: 'm', path: 'v1/chat/completions', maxTokens: 10 }],
+      }),
+      meter: { check: () => ({ ok: true }), charge: () => {} },
+      inFlight,
+      inFlightTotal: () => [...inFlight.values()].reduce((sum, n) => sum + n, 0),
+      maxInFlight: 50,
+      readAllowlist: () => ({ 'opencode-go': 'https://upstream.test' }),
+      // `.map` on null is outside assertPublicUpstream's DNS catch, so a
+      // non-RelayRefusal escapes after the slot was taken.
+      dnsLookup: async () => null,
+      fetchFn: vi.fn(),
+      log: null,
+    }
+    const res = {
+      on: vi.fn(),
+      setHeader: vi.fn(),
+      status: vi.fn(),
+      json: vi.fn(),
+      end: vi.fn(),
+      destroy: vi.fn(),
+      writableFinished: false,
+    }
+    const req = { ip: '203.0.113.5', headers: {}, socket: { remoteAddress: '203.0.113.5' }, body: { messages: [] } }
+
+    await expect(jscadHook.servePOST(ctx as never, req as never, res as never, 'jscad-web', 'free/v1/chat/completions')).rejects.toThrow()
+    expect(inFlight.size).toBe(0)
   })
 
   it('404s a typo of a responses model on the chat-completions fallback path, without upstream', async () => {

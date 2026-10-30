@@ -6,5 +6,8 @@ import type { Request } from 'express';
 // appended; pin the header to it before auth mounts. resolveAuthor itself reads
 // only the session cookie, so the header is the auth IP surface.
 export function pinForwardedFor(req: Request): void {
+  // No resolved address means no trustworthy value; drop any forged header
+  // rather than let better-auth read it.
   if (req.ip) req.headers['x-forwarded-for'] = req.ip;
+  else delete req.headers['x-forwarded-for'];
 }

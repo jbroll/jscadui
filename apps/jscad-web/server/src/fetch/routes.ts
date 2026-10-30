@@ -18,14 +18,20 @@ export interface FetchRouteOptions {
   timeoutMs?: number;
 }
 
-export function mountFetchRoutes(app: Express, options: FetchRouteOptions): void {
+export interface FetchRoutesHandle {
+  /** Close the public-only dispatcher; call this on server shutdown. */
+  close(): Promise<void>;
+}
+
+export function mountFetchRoutes(app: Express, options: FetchRouteOptions): FetchRoutesHandle {
   const logger = options.logger ?? ((entry) => console.log(JSON.stringify(entry)));
   const { dnsLookup, timeoutMs } = options;
   // The origin check in fetchPage resolves the name first; the connection then
   // resolves it again. This dispatcher makes the address the socket actually
   // connects to the checked one, so a DNS answer that flips public→private
-  // between the two cannot reach the server's own network.
-  const dispatcher = new Agent({ connect: { lookup: publicOnlyLookup(dnsLookup) as unknown as LookupFunction } });
+  // between the two cannot reach the server's own network. An injected fetchFn
+  // (tests, the local launcher) owns its connections, so no agent is built.
+  const dispatcher = options.fetchFn ? undefined : new Agent({ connect: { lookup: publicOnlyLookup(dnsLookup) as unknown as LookupFunction } });
   const publicOnlyFetch = ((url: string, init?: Parameters<typeof undiciFetch>[1]) =>
     undiciFetch(url, { ...init, dispatcher })) as typeof fetch;
   const fetchFn = options.fetchFn ?? publicOnlyFetch;
@@ -69,4 +75,10 @@ export function mountFetchRoutes(app: Express, options: FetchRouteOptions): void
     const { status, body } = await fetchPage({ url, format, fetchFn, dnsLookup, timeoutMs, logger });
     res.status(status).json(body);
   });
+
+  return {
+    close: async () => {
+      await dispatcher?.close();
+    },
+  };
 }

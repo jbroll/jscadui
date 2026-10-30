@@ -43,6 +43,8 @@ export interface AppServer {
   db: Database.Database;
   signJWT: Identity['signJWT'];
   start(): Server;
+  /** Releases the fetch dispatcher's sockets and closes the database. */
+  close(): Promise<void>;
 }
 
 // Stands up the express app on ONE better-sqlite3 db: better-auth identity plus the health route
@@ -121,7 +123,7 @@ export async function createServer(config: ServerConfig): Promise<AppServer> {
   // The browser cannot read an arbitrary cross-origin page, so a URL already in
   // the conversation reaches it only through this relay: http(s) only, a bounded
   // redirect chain re-checked per hop, a bounded body and a capped answer.
-  mountFetchRoutes(app, { trustedOrigins: config.trustedOrigins });
+  const fetchRoutes = mountFetchRoutes(app, { trustedOrigins: config.trustedOrigins });
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -135,6 +137,10 @@ export async function createServer(config: ServerConfig): Promise<AppServer> {
       app.listen(config.port, config.host, () => {
         console.log(`[server] listening on ${config.host}:${config.port}`);
       }),
+    close: async () => {
+      await fetchRoutes.close();
+      db.close();
+    },
   };
 }
 

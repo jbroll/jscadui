@@ -15,11 +15,11 @@ describe('pinForwardedFor', () => {
     expect(req.headers['x-forwarded-for']).toBe('8.8.8.8');
   });
 
-  it('leaves the header alone when there is no resolved address', () => {
+  it('removes a forged header when there is no resolved address', () => {
     const req = fakeRequest({ 'x-forwarded-for': '9.9.9.9' });
 
     pinForwardedFor(req);
 
-    expect(req.headers['x-forwarded-for']).toBe('9.9.9.9');
+    expect(req.headers['x-forwarded-for']).toBeUndefined();
   });
 });
