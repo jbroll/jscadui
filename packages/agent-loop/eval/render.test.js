@@ -127,7 +127,7 @@ describe.skipIf(!hasChromium)('createRenderer', () => {
     }
   }, 60_000)
 
-  it('renders view shots at the asked size as PNG data URLs, then grades at 768 again', async () => {
+  it('renders perspective view shots at the asked size as PNG data URLs, then grades at 768 again', async () => {
     const renderer = await createRenderer()
     try {
       const parts = await partsOf([colors.colorize([0.78, 0.14, 0.13], primitives.cuboid({ size: [80, 30, 28] }))])
@@ -147,6 +147,10 @@ describe.skipIf(!hasChromium)('createRenderer', () => {
         expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([320, 200])
         expect(redPixels(png)).toBeGreaterThan(320 * 200 * 0.02)
         expect(shot.camera.aspect).toBeCloseTo(1.6)
+        expect(Object.keys(shot.camera).sort()).toEqual(['aspect', 'fov', 'position', 'target', 'up'])
+        expect(shot.camera.fov).toBeGreaterThan(0)
+        // The app's light theme background, not the grading grey.
+        expect(countPixels(png, (r, g, b) => r === 252 && g === 252 && b === 252)).toBeGreaterThan(320 * 200 * 0.2)
       }
       expect(shots[1].camera.target).toEqual([40, 0, 0])
       const after = await renderer.render(parts, dir)
@@ -165,6 +169,18 @@ describe.skipIf(!hasChromium)('createRenderer', () => {
       // palette[0] #c8553d is red-heavy, palette[1] #3d7cc8 is blue-heavy; both must show up.
       expect(countPixels(png, (r, g, b) => r > g + 30 && r > b + 30)).toBeGreaterThan(RENDER_SIZE * RENDER_SIZE * 0.01)
       expect(countPixels(png, (r, g, b) => b > r + 30 && b > g + 20)).toBeGreaterThan(RENDER_SIZE * RENDER_SIZE * 0.01)
+    } finally {
+      await renderer.close()
+    }
+  }, 60_000)
+
+  it("draws an uncoloured part in view shots with the app's default blue", async () => {
+    const renderer = await createRenderer()
+    try {
+      const parts = await partsOf([primitives.cuboid({ size: [40, 40, 40] })])
+      const [shot] = await renderer.renderShots(parts, { shots: [{ dir: [1, -1, 0.7], up: [0, 0, 1] }], size: { w: 200, h: 200 } })
+      const png = Buffer.from(shot.pngDataUrl.slice('data:image/png;base64,'.length), 'base64')
+      expect(countPixels(png, (r, g, b) => b > r + 60 && b > g + 20)).toBeGreaterThan(200 * 200 * 0.1)
     } finally {
       await renderer.close()
     }

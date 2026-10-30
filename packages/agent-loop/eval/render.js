@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { basename, dirname, join, relative } from 'node:path'
 import { chromium } from '@playwright/test'
+import { clipPlanes, frameShot } from '../src/viewFrame.js'
 import { DEFAULT_VIEW_SIZE } from '../src/viewSpec.js'
 import { VIEWS } from './views.js'
 
@@ -16,7 +17,22 @@ const nodeRequire = createRequire(import.meta.url)
 const THREE = readFileSync(join(dirname(nodeRequire.resolve('three')), 'three.min.js'), 'utf8')
 const PAGE = readFileSync(new URL('./render/page.html', import.meta.url), 'utf8')
 
+// The app's light theme background, the default a prod `view` call renders on.
+export const VIEW_BG = [0.99, 0.99, 0.99]
+
 const toBase64 = (positions) => Buffer.from(positions.buffer, positions.byteOffset, positions.byteLength).toString('base64')
+
+const boxOf = (parts) => {
+  const min = [Infinity, Infinity, Infinity]
+  const max = [-Infinity, -Infinity, -Infinity]
+  for (const { positions } of parts) {
+    for (let i = 0; i < positions.length; i += 1) {
+      min[i % 3] = Math.min(min[i % 3], positions[i])
+      max[i % 3] = Math.max(max[i % 3], positions[i])
+    }
+  }
+  return { min, max }
+}
 
 // One browser and one page per process, one model at a time. The page is set
 // as content and three.js added inline, so it needs no request; any it makes is refused.
@@ -31,11 +47,8 @@ export const createRenderer = async ({ launch = (options) => chromium.launch(opt
     })
     await page.setContent(PAGE)
     await page.addScriptTag({ content: THREE })
-    const draw = (parts) =>
-      page.evaluate(
-        (payload) => window.drawModel(payload),
-        parts.map(({ color, positions }) => ({ color, data: toBase64(positions) })),
-      )
+    const payload = (parts) => parts.map(({ color, positions }) => ({ color, data: toBase64(positions) }))
+    const draw = (parts) => page.evaluate((input) => window.drawModel(input), payload(parts))
     const renderNow = async (parts, dir) => {
       await draw(parts)
       mkdirSync(dir, { recursive: true })
@@ -50,17 +63,14 @@ export const createRenderer = async ({ launch = (options) => chromium.launch(opt
       return views
     }
     // The `view` tool's renderer contract (src/viewHandler.js): one PNG data URL and camera per shot, nothing on disk.
+    // Framed here with the app's math, so the page only draws.
     const shootNow = async (parts, { shots, size = DEFAULT_VIEW_SIZE }) => {
-      await draw(parts)
+      await page.evaluate(({ input, bg }) => window.drawShotModel(input, bg), { input: payload(parts), bg: VIEW_BG })
+      const model = boxOf(parts)
       const results = []
-      for (const { dir, up, target } of shots) {
-        const camera = await page.evaluate((shot) => window.renderShot(shot.dir, shot.up, shot.target, shot.w, shot.h), {
-          dir,
-          up,
-          target: target ?? null,
-          w: size.w,
-          h: size.h,
-        })
+      for (const shot of shots) {
+        const camera = frameShot(shot, model, size)
+        await page.evaluate(({ view, w, h }) => window.renderShot(view, w, h), { view: { ...camera, ...clipPlanes(camera) }, w: size.w, h: size.h })
         const png = await page.locator('#c').screenshot()
         results.push({ pngDataUrl: `data:image/png;base64,${png.toString('base64')}`, camera })
       }

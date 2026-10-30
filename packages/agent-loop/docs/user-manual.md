@@ -927,7 +927,9 @@ for a model that reads images; set it to match what the prod catalog serves.
 `run-eval` renders a vision model's `view` calls from the conversation's last
 build and answers `{ ok: true, shots }` with the same presets, aims, sizes and
 errors as the app (`NoGeometryError` before anything built, `ArgumentsError`,
-`PartNotFoundError`), so a vision lane needs Playwright's chromium as a complex
+`PartNotFoundError`). Shots use the app's perspective framing, lighting,
+background and default part colour, unlike the orthographic grading views. A
+vision lane needs Playwright's chromium as a complex
 pass does, and exits before any provider call when it does not start. The
 result file and the live log keep each view's camera stub
 (`{ ok, cameras }`), never the images. The in-process `runSuite` (keyless

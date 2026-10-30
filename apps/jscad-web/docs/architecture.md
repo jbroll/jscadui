@@ -487,7 +487,8 @@ The viewer's clip planes follow the camera's distance from its orbit target
 times it. A fixed range (1 mm to 50 m, as before) hid any model larger than
 about 30 m, because zoom to fit placed the camera beyond the far plane. The
 chat's `view` shots render with their own camera, whose planes also scale
-with distance (`src/aiViewRender.js`).
+with distance (`src/aiViewRender.js`, framing in
+`packages/agent-loop/src/viewFrame.js`, which the eval's view shots share).
 
 ### Parameter panel
 

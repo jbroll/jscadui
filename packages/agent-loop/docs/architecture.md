@@ -540,9 +540,19 @@ app and the eval. Only the inputs differ: the triangles come from the
 conversation's live executor (`mesh()` in `eval/sandboxed-backend.js`, paged
 and capped as for grading), part aims from its `measure`, and the shots from
 `renderShots` in `eval/render.js`, which returns PNG data URLs at the asked
-size and writes nothing. The eval's camera stays orthographic: a shot with a
-target is centred on it and opens until the whole box fits, so its framing
-differs from the app's perspective camera. `run-eval` starts chromium for a
+size and writes nothing. View shots are drawn the way the app draws them, not
+the way grading views are: `src/viewFrame.js` holds the app's framing, which
+`eval/render.js` runs in Node before handing the page a perspective camera
+(a field of view that fits every box corner with a 1.06 margin, near and far
+planes at the target distance / 100 and x 100). The page then draws with the
+app's scene: Phong material with face normals and no edge lines, the app's
+default blue `#0084d1` for an uncoloured part, an ambient light and a key light
+riding on the camera, on the light theme's `[0.99, 0.99, 0.99]` background.
+Only the four grading views stay orthographic. The shot still differs from the
+app's where the eval's triangles carry less: part alpha is dropped, so nothing
+is transparent, and instanced parts arrive as plain triangles, which look the
+same. The app's Smooth Render setting is not followed; shots are always
+faceted, as with its default. `run-eval` starts chromium for a
 vision lane as for a complex pass, and both share the one page, one call at a
 time. The loop sends the images to the provider; the result's transcript and
 the live log keep only the `{ ok, cameras }` stub, so a successful view counts
