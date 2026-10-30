@@ -6,7 +6,7 @@ import { serveFrame } from '../../serve.js'
 import { mimeOf, safeJoin } from '../static.js'
 import { appHosts, createFsHandler, fromApp, hiddenSegment, resolvesInside } from './fsApi.js'
 
-export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, fetchHandler, port }) => {
+export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, fetchHandler, searchHandler, port }) => {
   let fsHandler = null
   let appOrigin = ''
   let hosts = new Set()
@@ -18,6 +18,10 @@ export const startLocal = async ({ appDir, frameDir, modelDir, relayHandler, fet
     }
     if (path === '/api/fetch') {
       if (fetchHandler && await fetchHandler(req, res)) return
+      res.writeHead(404); res.end(); return
+    }
+    if (path === '/api/search') {
+      if (searchHandler && await searchHandler(req, res)) return
       res.writeHead(404); res.end(); return
     }
     if (path === '/api/fs' || path.startsWith('/api/fs/')) {

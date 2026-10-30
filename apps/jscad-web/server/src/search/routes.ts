@@ -1,29 +1,15 @@
 import type { Express, Request, Response } from 'express';
 import { RATE_PER_MIN, createLimiter, isTrustedRequest } from '../relay/policy.js';
+import { searchTavily } from './tavily.js';
 
 // Tavily answers no CORS preflight, so browsers can only reach it through
-// this route. The operator's key rides the server-to-Tavily call only: it is
-// never logged, never echoed, and never leaves this module's closure.
-const TAVILY_MCP = 'https://mcp.tavily.com/mcp/';
-const SNIPPET_MAX_CHARS = 500;
-
-interface TavilyMcpBody {
-  result?: { results?: Array<{ title?: unknown; url?: unknown; snippet?: unknown }> };
-  error?: unknown;
-}
-
+// this route. The operator's key never leaves the server (see tavily.js).
 export interface SearchRouteOptions {
   tavilyKey?: string;
   trustedOrigins: string[];
   logger?: (entry: Record<string, unknown>) => void;
   fetchFn?: typeof fetch;
 }
-
-const capSnippet = (snippet: unknown): string =>
-  String(snippet ?? '')
-    .split('```')
-    .join('``\u200b`')
-    .slice(0, SNIPPET_MAX_CHARS);
 
 export function mountSearchRoutes(app: Express, options: SearchRouteOptions): void {
   const logger = options.logger ?? ((entry) => console.log(JSON.stringify(entry)));
@@ -77,42 +63,14 @@ export function mountSearchRoutes(app: Express, options: SearchRouteOptions): vo
       res.status(503).json({ error: 'search: no provider key configured' });
       return;
     }
-    const key = options.tavilyKey;
-    let upstreamRes: globalThis.Response;
-    try {
-      upstreamRes = await fetchFn(`${TAVILY_MCP}?tavilyApiKey=${encodeURIComponent(key)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'jscadui-search-relay',
-          method: 'tools/call',
-          params: { name: 'tavily-search', arguments: { query: query.trim(), count: count ?? 8 } },
-        }),
-      });
-    } catch {
-      res.status(502).json({ error: 'upstream unreachable' });
-      return;
-    }
-    let body: TavilyMcpBody | null = null;
-    try {
-      body = (await upstreamRes.json()) as TavilyMcpBody;
-    } catch {
-      res.status(502).json({ error: 'upstream answered without JSON' });
-      return;
-    }
-    if (!upstreamRes.ok || body?.error || !Array.isArray(body?.result?.results)) {
-      logger({ search: 'tavily', status: upstreamRes.status });
-      res.status(502).json({ error: 'search: provider failed' });
-      return;
-    }
-    const results = body.result.results.map((hit) => ({
-      title: String(hit?.title ?? ''),
-      url: String(hit?.url ?? ''),
-      snippet: capSnippet(hit?.snippet),
-      provider: 'tavily',
-    }));
-    logger({ search: 'tavily', status: upstreamRes.status, count: results.length });
-    res.status(200).json({ ok: true, results });
+    const { status, body, upstream } = await searchTavily({
+      tavilyKey: options.tavilyKey,
+      query: query.trim(),
+      count,
+      fetchFn,
+    });
+    if (status === 200) logger({ search: 'tavily', status: upstream, count: (body.results as unknown[]).length });
+    else if (upstream !== undefined) logger({ search: 'tavily', status: upstream });
+    res.status(status).json(body);
   });
 }

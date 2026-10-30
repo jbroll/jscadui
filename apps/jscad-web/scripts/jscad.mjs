@@ -3,7 +3,7 @@
 //   jscad [dir|file] [--port N] [--build|--no-build] [--no-open]
 // Serves the app on :7377, the compute frame on :7378, the model dir at
 // /models/, a same-origin /api/relay so AI Chat works with your own key, and
-// /api/fetch for the chat's webfetch tool.
+// /api/fetch + /api/search for the chat's webfetch and websearch tools.
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
@@ -14,6 +14,7 @@ import { ensureLocalBuild } from './local/build.js'
 import { openBrowser } from './local/openBrowser.js'
 import { scaffoldStarter } from './local/scaffold.js'
 import { createFetchHandler } from './local/fetchApi.js'
+import { createSearchHandler } from './local/searchApi.js'
 import { createRelayHandler, defaultAllowlist, loadAllowlist } from './local/relay.js'
 import { startLocal } from './local/server.js'
 import { chatLogDir } from '@jscadui/agent-loop/log/log-dir.js'
@@ -72,7 +73,8 @@ const origin = `http://localhost:${port}`
 const logDir = chatLogDir()
 const relayHandler = createRelayHandler({ allowlist, trustedOrigins: [origin], log: logDir ? createChatLog(logDir) : null })
 const fetchHandler = createFetchHandler({ trustedOrigins: [origin] })
-const { url } = await startLocal({ appDir: out, frameDir: join(out, 'frame'), modelDir, relayHandler, fetchHandler, port })
+const searchHandler = createSearchHandler({ trustedOrigins: [origin], tavilyKey: process.env.JSCADUI_TAVILY_API_KEY })
+const { url } = await startLocal({ appDir: out, frameDir: join(out, 'frame'), modelDir, relayHandler, fetchHandler, searchHandler, port })
 const page = `${url}/#${urlPath}`
 console.log(`jscad: ${modelDir} → ${page}  (frame :${port + 1})`)
 console.log(logDir ? `jscad: chat log → ${logDir}` : 'jscad: chat log off (JSCAD_CHAT_LOG=0)')

@@ -77,10 +77,10 @@ import { missingSaveHandleMessage, saveRoute } from './src/saveFile.js'
 import { createDocs, createIndexLoader } from './src/apiIndex.js'
 import { showApiHelp, apiHelpStyles } from './src/apiHelp.js'
 import { initChat } from './src/aiChat.js'
-import { createSearchStores, createWebSearchHandler } from './src/aiSearch.js'
+import { createWebSearchHandler } from './src/aiSearch.js'
 import { createWebFetchHandler } from './src/aiFetch.js'
 import { dispatchTool, NO_ENTRY, SKILLS, skillTool } from '@jscadui/agent-loop'
-import { initAccount, getChatApi, getProviderConfig, getWebsearchSelection } from './src/aiAccount.js'
+import { getChatApi, getProviderConfig, getWebsearchSelection, initAccount, searchStores } from './src/aiAccount.js'
 import { getSession } from './src/syncEntry.js'
 
 /**
@@ -1132,7 +1132,9 @@ const aiDeps = {
   // when the control exists, but guard the not-yet-mounted case anyway.
   askUser: (input) => chatControls?.ask(input) ?? Promise.reject(new Error('chat not ready')),
   websearch: createWebSearchHandler({
-    stores: createSearchStores(globalThis.localStorage),
+    // The dialog's stores, not a second copy: session-custody keys live in
+    // page memory, so a fresh store set would see none of them.
+    stores: searchStores,
     getProjectId: () => currentProjectId,
     getPinned: () => getWebsearchSelection().provider,
   }),
