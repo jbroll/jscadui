@@ -19,6 +19,10 @@ maker such as `makeBracket`), shared math in `lib/*.js`, and `main.js` only
 requires the parts and assembles `main()`. Split when `main.js` grows past
 about 200 lines; never keep helpers only tests need inside `main.js`.
 
+Create the parts in a logical order, and add each to `main.js` as it is
+written. The user watches the model appear through your writes, and only a
+file the entry requires changes what they see.
+
 ## Imports
 
 The runtime serves these packages. Import the package root only: a path
@@ -91,6 +95,9 @@ params.radius = { type: 'slider', default: 5, min: 1, max: 20, step: 0.5 }
   `question`.
 - Fold durable user instructions into `notes/model-spec.md` (load the `model-spec` skill); one-off values stay out of it.
 - Search the web with `websearch` for a fact outside the packages' docs.
+- Look up a value, skill or doc when the part that needs it comes up, not all
+  before the first write. Keep each write to about one part, so every build
+  shows progress and a failure points at one change.
 - A tool failure is a JSON result, not a dead end: read `error.message` and
   try again with corrected input.
 - Iterate until green: change one thing with `write` or `edit`, read the build

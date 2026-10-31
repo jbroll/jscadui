@@ -171,6 +171,16 @@ fixed, the last in the modeling fork; these remain.
   `iceman-contributor-free` answered 503, so batches run beam alone, mostly as
   its own simulated user. Recheck the free list (`GET /zen/go/v1/models`)
   before a batch and update `synth/roles.js` when it changes.
+- **An unscripted `websearch` or `question` ends eval runs.** With no canned
+  result the eval answers `SearchUnavailableError`, and deepseek then often
+  returns an empty reply: all three `film-holder` runs in
+  `2026-10-31T000801Z-deepseek-v4.1-flash-fluent-edf2772c.json` ended
+  `empty provider reply` before any write. Canned results for the cadence
+  fixtures, or an answer that says to proceed from known values, would let
+  them score.
+- **Eval view shots still differ from the app's.** Alpha, per-vertex colours,
+  the dark theme and smooth shading are not followed
+  (`packages/agent-loop/eval/render/page.html`).
 
 ## Render sweep
 
