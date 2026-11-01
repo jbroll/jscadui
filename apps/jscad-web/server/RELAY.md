@@ -253,8 +253,10 @@ inference config that cannot be read logs
 `static/index.html` carries the app origin's policy as a
 `<meta http-equiv="Content-Security-Policy">`:
 
-- `script-src 'self'` — the inline preload that restores theme/welcome/editor
+- `script-src 'self' 'unsafe-eval'` — the inline preload that restores theme/welcome/editor
   width now lives in `static/preload.js`, so no `'unsafe-inline'` is needed.
+  `'unsafe-eval'` is load-bearing: regl compiles shaders through `Function()`,
+  and without it the viewer is a black screen (2026-11-01).
 - `frame-src https://jscad-run.rkroll.com` (plus `http://localhost:*` /
   `http://127.0.0.1:*` for the dev run frame) — the compute frame is the only
   embed.

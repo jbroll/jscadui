@@ -599,6 +599,11 @@ from the 2026-10-01 review.
 
 ## Remaining issues
 
+- **Deploy smoke render checks do not see a black viewer.** The 2026-11-01 CSP
+  deploy blocked regl's `Function()` shader compile, so every model drew a
+  black canvas, but `smoke-deploy.mjs` passed all render checks. The smoke
+  "renders" assertions must read back pixels (or the regl error) instead of
+  passing on a successfully returned but unpainted frame.
 - **Intermittent phantom `Syntax error` in `editor-api.test.js` under parallel
   turbo load (open, backlogged 2026-10-16).** `apps/jscad-web/test/editor-api.test.js
   > flags an unknown option` twice returned a single

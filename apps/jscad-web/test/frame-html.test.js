@@ -52,6 +52,9 @@ describe('fillHtmlOrigins (app shell)', () => {
     })
     expect(appDirective(html, 'frame-src')).toEqual(['https://jscad-run.rkroll.com'])
     expect(appDirective(html, 'connect-src')).toContain('https://jscad.rkroll.com')
+    // regl compiles shaders through Function(), so the viewer is a black
+    // screen without 'unsafe-eval' (prod incident 2026-11-01).
+    expect(appDirective(html, 'script-src')).toEqual(["'self'", "'unsafe-eval'"])
     expect(html).not.toContain('localhost')
     expect(html).not.toContain('127.0.0.1')
     expect(html).not.toMatch(/__[A-Z_]+__/)
