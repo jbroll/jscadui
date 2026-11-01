@@ -16,8 +16,15 @@ read it to check.
 
 Organize by part: one part per file (`bracket.js`, `plate.js` each export a
 maker such as `makeBracket`), shared math in `lib/*.js`, and `main.js` only
-requires the parts and assembles `main()`. Split when `main.js` grows past
-about 200 lines; never keep helpers only tests need inside `main.js`.
+requires the parts and assembles `main()`. Split any model of more than one
+part this way, however short; never keep helpers only tests need inside
+`main.js`.
+
+Each part file builds its part in its print orientation, resting on z = 0.
+`main()` rotates and moves each part into place and returns an array with one
+colored entry per printed piece, never one union of them. Assembled parts
+touch where they join: nothing floats and nothing overlaps. `check` reports
+both as `floating` and `interference`.
 
 Create the parts in a logical order, and add each to `main.js` as it is
 written. The user watches the model appear through your writes, and only a

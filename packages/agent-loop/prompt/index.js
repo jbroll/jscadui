@@ -10,12 +10,14 @@ import fluentCubeHole from './examples/fluent/03-cube-hole.js?raw'
 import fluentRoundedTray from './examples/fluent/04-rounded-tray.js?raw'
 import fluentHexNut from './examples/fluent/05-hex-nut.js?raw'
 import fluentMountingPlate from './examples/fluent/06-mounting-plate.js?raw'
+import fluentNameplateStand from './examples/fluent/07-nameplate-stand.js?raw'
 import modelingSphereUnion from './examples/modeling/01-sphere-union.js?raw'
 import modelingHollowCube from './examples/modeling/02-hollow-cube.js?raw'
 import modelingCubeHole from './examples/modeling/03-cube-hole.js?raw'
 import modelingRoundedTray from './examples/modeling/04-rounded-tray.js?raw'
 import modelingHexNut from './examples/modeling/05-hex-nut.js?raw'
 import modelingMountingPlate from './examples/modeling/06-mounting-plate.js?raw'
+import modelingNameplateStand from './examples/modeling/07-nameplate-stand.js?raw'
 import brainstormingSkill from './skills/brainstorming.md?raw'
 import writingPlansSkill from './skills/writing-plans.md?raw'
 import executingPlansSkill from './skills/executing-plans.md?raw'
@@ -68,6 +70,7 @@ export const EXAMPLES = {
     { file: '04-rounded-tray.js', source: fluentRoundedTray },
     { file: '05-hex-nut.js', source: fluentHexNut },
     { file: '06-mounting-plate.js', source: fluentMountingPlate },
+    { file: '07-nameplate-stand.js', source: fluentNameplateStand },
   ],
   modeling: [
     { file: '01-sphere-union.js', source: modelingSphereUnion },
@@ -76,5 +79,6 @@ export const EXAMPLES = {
     { file: '04-rounded-tray.js', source: modelingRoundedTray },
     { file: '05-hex-nut.js', source: modelingHexNut },
     { file: '06-mounting-plate.js', source: modelingMountingPlate },
+    { file: '07-nameplate-stand.js', source: modelingNameplateStand },
   ],
 }

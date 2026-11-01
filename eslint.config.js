@@ -30,6 +30,11 @@ export default tseslint.config(
     },
   },
   {
+    // A multi-file prompt example concatenates its files, each with its own requires.
+    files: ['packages/agent-loop/prompt/examples/**/*.js'],
+    rules: { 'no-redeclare': 'off' },
+  },
+  {
     // Ignore patterns
     ignores: [
       '**/build/**',
