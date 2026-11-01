@@ -149,6 +149,18 @@ describe('providers', () => {
     expect(await posted({ toolChoice: 'auto' })).not.toHaveProperty('tool_choice')
   })
 
+  it('anthropic: defaults max_tokens high enough for an agentic turn and honors the config', async () => {
+    const posted = async (config) => {
+      fetchMock.mockClear()
+      fetchMock.mockResolvedValue(new Response(sseBody('')))
+      const provider = createProvider(config)
+      for await (const e of provider.send([{ role: 'user', content: 'hi' }], [])) void e
+      return JSON.parse(fetchMock.mock.calls.at(-1)[1].body)
+    }
+    expect((await posted({ kind: 'anthropic', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test' })).max_tokens).toBe(32000)
+    expect((await posted({ kind: 'anthropic', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test', maxTokens: 8000 })).max_tokens).toBe(8000)
+  })
+
   it('opencode-go resolves the Zen URL through the openai adapter', async () => {
     const body = `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n` + `data: [DONE]\n\n`
     fetchMock.mockResolvedValue(new Response(sseBody(body)))

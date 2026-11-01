@@ -453,7 +453,12 @@ const anthropicProvider = (config) => {
       const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n')
       const body = {
         model: config.model,
-        max_tokens: 4096,
+        // This cap exists only to catch runaway reasoning, not to budget normal
+        // answers: output tokens are billed only when generated, so a generous
+        // default wastes nothing and never truncates a legitimate turn.
+        // 32000 sits under current Sonnet/Opus maxima while far above any
+        // legitimate single reply plus thinking.
+        max_tokens: config.maxTokens ?? 32000,
         stream: true,
         messages: toAnthropicMessages(messages.filter((m) => m.role !== 'system')),
       }
