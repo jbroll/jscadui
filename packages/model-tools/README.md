@@ -59,6 +59,13 @@ intersection of two 8192-polygon spheres takes about 2.3 s.
 each pair whose intersection throws (Manifold rejects a non-manifold imported
 mesh). Items with `previewOnly` are not parts and are skipped.
 
+`floating` lists the index strings of solids that touch no other solid: each
+one's bounding box is more than `FLOATING_TOLERANCE` (0.05 mm) from every
+other part's box. The test is on boxes alone, so a part whose box comes that
+close counts as touching even when the solids do not. Reference and
+`previewOnly` items take no part; with fewer than two parts, or for a single
+solid, `floating` is `[]`. `interference: false` leaves it out.
+
 An item tagged `reference = 'reason'` or `reference = { reason, allow? }` is a
 stand-in for something outside the printed part. It still collides with other
 parts unless `allow` lists them (selectors as in `measure`'s `parts`). `check`

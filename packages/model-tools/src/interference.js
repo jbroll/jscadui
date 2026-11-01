@@ -1,10 +1,12 @@
 import jscad from '@jscad/modeling'
+import { boxDistance } from './array-geom.js'
 import { partIndexes } from './measure.js'
 
 const { booleans, geometries, measurements } = jscad
 
 export const INTERFERENCE_EPSILON = 0.001
 export const MAX_INTERSECTIONS = 300
+export const FLOATING_TOLERANCE = 0.05
 // One plain-jscad intersection of two 8192-polygon spheres takes about 2.3 s.
 export const INTERFERENCE_BUDGET_MS = 5000
 const MAX_PAIRS = 20
@@ -117,6 +119,17 @@ export const sharedPairs = (items, { now = () => performance.now() } = {}) => {
     }
   }
   return { shared, tags, tagErrors, unchecked: uncheckedPairs.length }
+}
+
+// Box distance only: a part whose box comes within tolerance of another counts
+// as touching, so floating never flags a part that really touches.
+export const floatingParts = (items) => {
+  const isPart = (g) => isGeom3(g) && !g.previewOnly && (g.reference === undefined || g.reference === null || g.reference === false)
+  const parts = items.flatMap((item, index) => (isPart(item) ? [{ index, box: measurements.measureBoundingBox(solid(item)) }] : []))
+  if (parts.length < 2) return []
+  return parts
+    .filter((p) => parts.every((q) => q === p || boxDistance(p.box, q.box) > FLOATING_TOLERANCE))
+    .map((p) => String(p.index))
 }
 
 export const interference = (items, options) => {

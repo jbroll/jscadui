@@ -1,5 +1,5 @@
 import { measureArray, wrapOne } from './array-geom.js'
-import { interference } from './interference.js'
+import { floatingParts, interference } from './interference.js'
 import { analyzeMesh, outlinesClosed, weldedTriangles } from './mesh.js'
 import { findSelfIntersections } from './self-intersect.js'
 
@@ -152,7 +152,7 @@ const checkArray = (arr, bed, withInterference = true) => {
     entityCount: items.length,
     items: items.map(({ notes: _, ...it }) => it),
     ...(notes.length ? { notes } : {}),
-    ...(withInterference ? interference(arr) : {}),
+    ...(withInterference ? { ...interference(arr), floating: floatingParts(arr) } : {}),
   }
 }
 
@@ -163,10 +163,9 @@ export const checkGeom = (geom, geomType, bed, withInterference = true) => {
   return { empty: true, watertight: null, manifold: null, notes: ['not a geom2 or geom3'] }
 }
 
-export const check = (geometry, options = {}) =>
-  checkGeom(
-    Array.isArray(geometry) ? geometry : wrapOne(geometry),
-    Array.isArray(geometry) ? 'array' : classify(geometry),
-    options.bed,
-    options.interference !== false,
-  )
+export const check = (geometry, options = {}) => {
+  const withInterference = options.interference !== false
+  if (Array.isArray(geometry)) return checkGeom(geometry, 'array', options.bed, withInterference)
+  const result = checkGeom(wrapOne(geometry), classify(geometry), options.bed, withInterference)
+  return withInterference ? { ...result, floating: [] } : result
+}

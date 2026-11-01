@@ -183,3 +183,27 @@ test('an allow whose pair went unchecked is no error', () => {
 test('a reason of only whitespace is a tag error', () => {
   expect(check([cube(0), cube(50, { reference: '  ' })]).tagErrors).toEqual(['part 1: reference needs a reason'])
 })
+
+test('a part touching no other part is floating', () => {
+  expect(check([cube(0), cube(10), cube(30)]).floating).toEqual(['2'])
+})
+
+test('parts touching at a face or overlapping are not floating', () => {
+  expect(check([cube(0), cube(10), cube(15)]).floating).toEqual([])
+})
+
+test('a gap within 0.05 mm is touching, past it is floating', () => {
+  expect(check([cube(0), cube(10.04)]).floating).toEqual([])
+  expect(check([cube(0), cube(10.1)]).floating).toEqual(['0', '1'])
+})
+
+test('a single part is never floating', () => {
+  expect(check(cube(0)).floating).toEqual([])
+  expect(check([cube(0)]).floating).toEqual([])
+})
+
+test('reference and previewOnly parts neither float nor hold a part up', () => {
+  expect(check([cube(0), cube(10, { reference: 'motor' })]).floating).toEqual([])
+  expect(check([cube(0), cube(10, { reference: 'motor' }), cube(30)]).floating).toEqual(['0', '2'])
+  expect(check([cube(0), cube(10, { previewOnly: true }), cube(30)]).floating).toEqual(['0', '2'])
+})

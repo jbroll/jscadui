@@ -1,5 +1,5 @@
 import { anchors } from './anchors.js'
-import { measureArray, wrapOne } from './array-geom.js'
+import { boxGap, measureArray, wrapOne } from './array-geom.js'
 import { axisRelation, symmetryAxis } from './axis.js'
 import { INSIDE_OUT_NOTE, isInsideOut } from './check.js'
 import { isIndexSelector, matchPartName, partRefForms } from './partRefs.js'
@@ -136,9 +136,8 @@ export const measureBetween = (geom, geomType, [a, b]) => {
   const ma = measureSelection(items, a)
   const mb = measureSelection(items, b)
   const [axisA, axisB] = [axisOf(items, a), axisOf(items, b)]
-  const [[aLo, aHi], [bLo, bHi]] = [ma.boundingBox, mb.boundingBox]
   // Rounding keeps boolean noise (1e-14) from reading touching faces as overlap.
-  const gap = [0, 1, 2].map((k) => roundMicron(Math.max(bLo[k] - aHi[k], aLo[k] - bHi[k])))
+  const gap = boxGap(ma.boundingBox, mb.boundingBox).map(roundMicron)
   return {
     a,
     b,

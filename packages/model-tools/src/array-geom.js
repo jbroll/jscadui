@@ -94,3 +94,6 @@ export const measureArray = (arr) => {
     entityCount: items.length,
   }
 }
+// Per-axis gap between two boxes; negative where they overlap on that axis.
+export const boxGap = ([aLo, aHi], [bLo, bHi]) => [0, 1, 2].map((k) => Math.max(bLo[k] - aHi[k], aLo[k] - bHi[k]))
+export const boxDistance = (a, b) => Math.hypot(...boxGap(a, b).map((g) => Math.max(g, 0)))

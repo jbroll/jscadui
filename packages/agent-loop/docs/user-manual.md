@@ -473,7 +473,8 @@ A `PartTagError` message joins `check`'s `tagErrors` with `; `. An `allow`
 selector that names no part sharing volume with the reference part is a tag
 error (`part 2: allow 1 shares no volume with it; remove it from allow`), unless
 its pair went unchecked. The `check`
-tool description names `interference`, `references` and `tagErrors`; the
+tool description names `interference`, `references`, `tagErrors` and
+`floating` (parts of an assembly that touch no other part); the
 `measure` `overlaps` description says it lists every pair of parts that share
 volume, with the shared mm³ and the region size, allowed reference overlaps
 marked; the prompt says in one line that items in
