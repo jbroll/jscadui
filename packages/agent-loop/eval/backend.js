@@ -372,7 +372,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
       current = { report: gated }
       if (!isCodePath(next.path)) return gated
       const { tests, coverageNote } = summarizeTestRun(await runEvalTests(files, api), gated.geometry?.parts)
-      return { ...gated, ok: gated.ok && tests.ok, build: gated, tests, coverageNote }
+      return { ...gated, ok: gated.ok && tests.ok, tests, coverageNote }
     }
     const report = await build()
     if (!report) return toolError('ResetError', 'the run was reset before the build finished')
@@ -382,7 +382,7 @@ export function createEvalBackend({ api = DEFAULT_API, cannedSearch = [], canned
     // A red build stays saved — the run still answers, with ok false.
     if (!isCodePath(next.path)) return merged
     const { tests, coverageNote } = summarizeTestRun(await runEvalTests(files, api), merged.geometry?.parts)
-    return { ...merged, ok: merged.ok && tests.ok, build: merged, tests, coverageNote }
+    return { ...merged, ok: merged.ok && tests.ok, tests, coverageNote }
   }
 
   // A delete of a file that is not there answers ok: nothing changed, nothing

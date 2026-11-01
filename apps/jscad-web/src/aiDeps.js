@@ -21,7 +21,7 @@ const mergeStatic = (result, diagnostics) => {
  * edits. A write or edit is a save: it lands in the cache, in storage and in
  * the editor, then `build` runs the project the way the editor does and
  * answers its report — plus, for a `.js` file outside `test/` and `notes/`,
- * the full `test/` suite off the test worker, merged as `{build, tests}`
+ * the full `test/` suite off the test worker, merged in as `tests`
  * with a coverage note. Docs, notes and test files skip tests. `delete` removes a file the same way, out of the cache,
  * storage and the editor, so a reload mid-turn keeps it deleted; a delete of a
  * file that is not there answers ok and changes nothing. `storeFile` writes
@@ -129,7 +129,7 @@ export const createProjectTools = ({
       const createWorker = createTestWorker ?? defaultCreateWorker({})
       const run = await runProjectTests(files, getApi(), createWorker ? { createWorker } : {})
       const { tests, coverageNote } = summarizeTestRun(run, gated.geometry?.parts)
-      return { ...gated, ok: gated.ok && tests.ok, build: gated, tests, coverageNote }
+      return { ...gated, ok: gated.ok && tests.ok, tests, coverageNote }
     }
     const report = mergeStatic(writeReport(path, await build(), files), diagnostics)
     // Docs, notes and the test files themselves skip tests; every other `.js`
@@ -147,7 +147,7 @@ export const createProjectTools = ({
     const createWorker = createTestWorker ?? defaultCreateWorker({})
     const run = await runProjectTests(files, getApi(), createWorker ? { createWorker } : {})
     const { tests, coverageNote } = summarizeTestRun(run, report.geometry?.parts)
-    return { ...report, ok: report.ok && tests.ok, build: report, tests, coverageNote }
+    return { ...report, ok: report.ok && tests.ok, tests, coverageNote }
   }
 
   const remove = async (args) => {

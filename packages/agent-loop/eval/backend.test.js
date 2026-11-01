@@ -60,7 +60,6 @@ describe('eval backend builds', () => {
       console: [],
       params: [],
       geometry,
-      build: { saved: 'main.js', ok: true, entry: 'main.js', warnings: [], console: [], params: [], geometry },
       tests: { ok: true, passed: 0, failed: 0, assertsByPart: {}, uncovered: [0] },
       coverageNote: 'no test files in test/\ntests: 0 passed, 0 failed; 0/1 parts have a passing assert; uncovered parts: [0]',
     })
@@ -329,7 +328,6 @@ describe('eval backend project', () => {
     const noEntry = { saved: 'helper.js', ok: true, entry: null, note: `saved; ${NO_ENTRY_NOTE}`, warnings: [], console: [], params: [] }
     expect(res).toEqual({
       ...noEntry,
-      build: noEntry,
       tests: { ok: true, passed: 0, failed: 0, assertsByPart: {}, uncovered: [] },
       coverageNote: 'no test files in test/\ntests: 0 passed, 0 failed; build has no geometry so part coverage is unknown',
     })
@@ -353,9 +351,10 @@ describe('eval backend project', () => {
       expect(res).toMatchObject({
         saved: 'main.js',
         ok: true,
-        build: { ok: true, entry: 'main.js' },
+        entry: 'main.js',
         tests: { ok: true, passed: 1, failed: 0, assertsByPart: { 0: 1 }, uncovered: [] },
       })
+      expect(res).not.toHaveProperty('build')
       expect(res.coverageNote).toContain('1 passed, 0 failed')
       expect(res.coverageNote).toContain('every part has a passing assert')
     })
@@ -368,9 +367,9 @@ describe('eval backend project', () => {
       expect(res).toMatchObject({
         saved: 'main.js',
         ok: false,
-        build: { ok: true },
         tests: { ok: false, passed: 0, failed: 1, uncovered: [0] },
       })
+      expect(res).not.toHaveProperty('error')
       expect(res.coverageNote).toContain('boom')
     })
 

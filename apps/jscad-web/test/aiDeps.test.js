@@ -82,7 +82,6 @@ describe('write and edit', () => {
     expect(await t.write({ path: './parts/gear.js', content: 'gear' })).toEqual({
       saved: 'parts/gear.js',
       ...REPORT,
-      build: { saved: 'parts/gear.js', ...REPORT },
       tests: { ok: true, passed: 0, failed: 0, assertsByPart: {}, uncovered: [0] },
       coverageNote: 'no test files in test/\ntests: 0 passed, 0 failed; 0/1 parts have a passing assert; uncovered parts: [0]',
     })
@@ -136,9 +135,10 @@ describe('write with tests', () => {
     expect(res).toMatchObject({
       saved: 'main.js',
       ok: true,
-      build: { ok: true, entry: 'main.js' },
+      entry: 'main.js',
       tests: { ok: true, passed: 1, failed: 0, assertsByPart: { 0: 1 }, uncovered: [] },
     })
+    expect(res).not.toHaveProperty('build')
     expect(res.coverageNote).toContain('1 passed, 0 failed')
     expect(res.coverageNote).toContain('every part has a passing assert')
     expect(deps.build).toHaveBeenCalledTimes(1)
@@ -159,9 +159,9 @@ describe('write with tests', () => {
     expect(res).toMatchObject({
       saved: 'main.js',
       ok: false,
-      build: { ok: true },
       tests: { ok: false, failed: 1, uncovered: [0] },
     })
+    expect(res).not.toHaveProperty('error')
     expect(res.coverageNote).toContain('boom')
     expect(project.files()['main.js']).toBe('m2')
   })
