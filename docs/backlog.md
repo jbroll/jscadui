@@ -604,6 +604,13 @@ from the 2026-10-01 review.
   black canvas, but `smoke-deploy.mjs` passed all render checks. The smoke
   "renders" assertions must read back pixels (or the regl error) instead of
   passing on a successfully returned but unpainted frame.
+- **`tspspi/ALL.js` smoke check is marginal at its 240 s budget.** It passed
+  the 2026-10-26 deploy smoke and timed out twice on 2026-11-01 with zero
+  frame-compute changes between the builds (only the app-shell CSP string,
+  tests, docs, prompts and eval moved), while the sibling V1 deep-leaf check
+  passes and the Playwright host was under heavy local load (Firefox +
+  headless Chromium, load 4–14). Re-run from a quiet host (CI) before any
+  perf investigation.
 - **Intermittent phantom `Syntax error` in `editor-api.test.js` under parallel
   turbo load (open, backlogged 2026-10-16).** `apps/jscad-web/test/editor-api.test.js
   > flags an unknown option` twice returned a single
