@@ -514,6 +514,19 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
 
   const addStopped = () => addMessage('Stopped', 'stopped')
 
+  // Only the newest failure offers Retry, and only until another turn starts.
+  let retryButton = null
+  const addFailure = (text, message, images) => {
+    const node = addMessage('', 'error')
+    retryButton = el('button', 'chat-retry', 'Retry')
+    retryButton.type = 'button'
+    retryButton.disabled = running
+    retryButton.addEventListener('click', () => {
+      if (!running) runTurnLocal(message, images, { retry: true })
+    })
+    node.append(el('span', 'chat-error-text', text), retryButton)
+  }
+
   // A stored image that kept only its type and size draws as a marker.
   const addUserMessage = (text, images = []) => {
     if (images.length === 0) return addMessage(text, 'user')
@@ -792,11 +805,14 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     renderUndo()
     clearInterval(ticker)
     if (value) {
+      retryButton?.remove()
+      retryButton = null
       startedAt = Date.now()
       ticker = setInterval(tick, 1000)
       setStatus({ phase: 'thinking' })
     } else {
       setStatus(null)
+      if (retryButton) retryButton.disabled = false
       // A turn that ends with a question still open (a timeout, a provider
       // failure) settles it, so the card never outlives its turn.
       settleQuestion((pending) => {
@@ -844,7 +860,8 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     }
   }
 
-  const runTurnLocal = async (message) => {
+  // A retry resends a failed message and its images; the draft stays put.
+  const runTurnLocal = async (message, images = pending, { retry = false } = {}) => {
     const selection = getProvider()
     if (!selection) {
       addMessage('Set your model and API key in Chat settings first.', 'error')
@@ -868,13 +885,12 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         return
       }
     }
-    const images = pending
     if (images.length > 0 && !visionCapable(selection)) {
       addMessage(NO_VISION_SEND, 'error')
       return
     }
-    input.value = ''
-    pending = []
+    if (!retry) input.value = ''
+    pending = pending.filter((image) => !images.includes(image))
     renderPending()
     setAttachNote('')
     turnProject = pid()
@@ -1003,7 +1019,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       if (signal.aborted) stopped = true
       else {
         commit(local.slice(0, -1))
-        if (live()) addMessage(inferenceQuotaError(err) ? INFERENCE_QUOTA_MESSAGE : requestTooLarge(err) ? REQUEST_TOO_LARGE_MESSAGE : err.message, 'error')
+        if (live()) addFailure(inferenceQuotaError(err) ? INFERENCE_QUOTA_MESSAGE : requestTooLarge(err) ? REQUEST_TOO_LARGE_MESSAGE : err.message, message, images)
         // The failed message leaves the transcript, so its images are offered again.
         if (live() && images.length > 0 && pending.length === 0) {
           pending = images

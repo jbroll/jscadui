@@ -520,7 +520,7 @@ describe('model reasoning', () => {
       },
     })
     failing.type('a cube')
-    await vi.waitFor(() => expect(failing.q('.chat-msg.error')?.textContent).toBe('provider down'))
+    await vi.waitFor(() => expect(failing.q('.chat-msg.error .chat-error-text')?.textContent).toBe('provider down'))
     expect(failing.q('.chat-reasoning summary').textContent).toMatch(/^Thought for \d+s$/)
 
     const turn = heldTurn()
@@ -588,13 +588,52 @@ describe('model reasoning', () => {
       })
     const chat = openChat({ runTurnFn, storage: { readConversation: async () => null, writeConversation }, projectId: 'p1' })
     chat.type('first')
-    await vi.waitFor(() => expect(chat.q('.chat-msg.error')?.textContent).toBe('the provider refused to answer'))
+    await vi.waitFor(() => expect(chat.q('.chat-msg.error .chat-error-text')?.textContent).toBe('the provider refused to answer'))
     await vi.waitFor(() => expect(writeConversation.mock.calls.at(-1)?.[1]).toEqual([]))
     chat.type('second')
     await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(2))
     const sent = runTurnFn.mock.calls[1][0].conversation.messages.filter((m) => m.role === 'user').map((m) => m.content)
     expect(sent).not.toContain('first')
     expect(sent.at(-1)).toBe('second')
+  })
+
+  it('retries a failed turn with the same message, once, leaving the draft alone', async () => {
+    const writeConversation = vi.fn(async () => {})
+    const runTurnFn = vi.fn()
+      .mockRejectedValueOnce(new Error('provider down'))
+      .mockImplementation(async ({ onText }) => {
+        onText('ok')
+        return { messages: [] }
+      })
+    const chat = openChat({ runTurnFn, storage: { readConversation: async () => null, writeConversation }, projectId: 'p1' })
+    chat.type('first')
+    await vi.waitFor(() => expect(chat.q('.chat-msg.error .chat-error-text')?.textContent).toBe('provider down'))
+    await vi.waitFor(() => expect(chat.q('.chat-retry')?.disabled).toBe(false))
+    chat.q('.chat-input').value = 'a new draft'
+    chat.q('.chat-retry').click()
+    await vi.waitFor(() => expect(writeConversation.mock.calls.at(-1)?.[1]).toHaveLength(2))
+    expect(runTurnFn.mock.calls[1][0].conversation.messages.filter((m) => m.role === 'user' && m.content === 'first')).toHaveLength(1)
+    expect(writeConversation.mock.calls.at(-1)[1].map((m) => [m.role, m.content])).toEqual([['user', 'first'], ['assistant', 'ok']])
+    expect(chat.q('.chat-input').value).toBe('a new draft')
+    expect(chat.q('.chat-retry')).toBeNull()
+  })
+
+  it('keeps Retry disabled while a turn runs and drops it when a new turn starts', async () => {
+    let endTurnDone
+    const endTurn = vi.fn(() => new Promise((resolve) => { endTurnDone = resolve }))
+    const turn = heldTurn()
+    const runTurnFn = vi.fn().mockRejectedValueOnce(new Error('provider down')).mockImplementation(turn.runTurnFn)
+    const chat = openChat({ runTurnFn, endTurn })
+    chat.type('first')
+    await vi.waitFor(() => expect(chat.q('.chat-retry')).not.toBeNull())
+    expect(chat.q('.chat-retry').disabled).toBe(true)
+    chat.q('.chat-retry').click()
+    expect(runTurnFn).toHaveBeenCalledTimes(1)
+    endTurnDone()
+    await vi.waitFor(() => expect(chat.q('.chat-retry').disabled).toBe(false))
+    chat.type('second')
+    expect(chat.q('.chat-retry')).toBeNull()
+    expect(chat.q('.chat-msg.error .chat-error-text').textContent).toBe('provider down')
   })
 
   it('stores the reasoning of a stopped reply too', async () => {
@@ -644,7 +683,7 @@ describe('message kinds', () => {
     expect(rows.every((row) => row.tagName === 'DETAILS' && !row.open)).toBe(true)
     expect(JSON.parse(rows[0].querySelector('.chat-tool-input').textContent)).toEqual({ path: 'main.js', content: 'x' })
     expect(rows[1].querySelector('.chat-tool-result').textContent).toBe('cuboid(options)')
-    expect(q('.chat-msg.error').textContent).toBe('provider down')
+    expect(q('.chat-msg.error .chat-error-text').textContent).toBe('provider down')
   })
 
   it('shows a running tool as pending until it answers', async () => {
@@ -1669,7 +1708,7 @@ describe('askUser question card', () => {
     })
     const { q, type } = askChat({ runTurnFn })
     type('size?')
-    await vi.waitFor(() => expect(q('.chat-msg.error')?.textContent).toBe('provider down'))
+    await vi.waitFor(() => expect(q('.chat-msg.error .chat-error-text')?.textContent).toBe('provider down'))
     expect(q('.chat-question')).toBeNull()
     expect(q('.chat-send').textContent).toBe('Send')
   })

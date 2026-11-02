@@ -956,7 +956,7 @@ The message list shows each kind of row differently, light and dark alike
 | Reply text | `.chat-msg.assistant` | markdown on the panel: code blocks (`.chat-code`, with a `.chat-code-copy` button) and tables (`.chat-table`) on the tool-row tint, scrolling sideways when wide |
 | Reasoning | `<details class="chat-reasoning">` | smaller muted text behind a thin left rule, collapsed |
 | Tool call | `<details class="chat-tool">` | one monospace row: tool, its path, query or format (`toolDetail` from agent-loop), and `…`, `ok` or `failed`; opening it shows the input and the result; a `view` result auto-opens with thumbnail images (`.chat-tool-images`) that open full-size in a `.chat-view-overlay` dialog |
-| Error | `.chat-msg.error` | red-tinted block with a red left rule |
+| Error | `.chat-msg.error` | red-tinted block with a red left rule; a failed turn's row holds `.chat-error-text` and a `button.chat-retry` |
 | Stopped | `.chat-msg.stopped` | small muted italic `Stopped`, not an error |
 | Undo | `button.chat-undo` | small muted button after a turn that wrote to a stored project: `Undo this turn's changes`, then `Undone` once restored; disabled while a turn or an undo runs, and on every turn but the newest one with an `undo` |
 
@@ -974,6 +974,15 @@ found by its version ids rather than the object the button was drawn for, or
 in the stored conversation when the restore left for another project.
 `switchTo` on the project already shown does nothing, so reopening it keeps
 the view and a running turn's rows.
+
+A failed turn (not a stopped one) commits the transcript without its user
+message and puts the message's images back in the pending area when it is
+empty. Its error row's `Retry` calls `runTurnLocal(message, images, { retry:
+true })`, which leaves the input's draft alone and takes only those images
+out of the pending area, so the message is stored once. The button is drawn
+disabled inside the failing turn, `setRunning(false)` enables it, and
+`setRunning(true)` removes it, so only the newest failure offers one and
+never while a turn runs.
 
 A tool row is `failed` (red rule and text) when the tool threw or answered
 `{ ok: false }`, as an object or as JSON text.

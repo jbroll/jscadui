@@ -1762,7 +1762,8 @@ p {
   color: inherit;
 }
 
-.chat-undo {
+.chat-undo,
+.chat-retry {
   align-self: flex-start;
   margin: 4px 0;
   padding: 2px 8px;
@@ -1774,9 +1775,14 @@ p {
   border-radius: 4px;
   cursor: pointer;
 }
-.chat-undo:hover:not(:disabled) {
+.chat-undo:hover:not(:disabled),
+.chat-retry:hover:not(:disabled) {
   background: var(--chat-tool-hover);
 }
-.chat-undo:disabled {
+.chat-undo:disabled,
+.chat-retry:disabled {
   cursor: default;
+}
+.chat-retry {
+  margin: 0 0 0 8px;
 }

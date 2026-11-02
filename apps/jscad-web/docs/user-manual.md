@@ -115,6 +115,14 @@ new tab. Anything else, HTML included, shows as the literal text. Each code
 block has a `Copy` button that copies the block and shows `Copied`. Replies
 format as they stream, and a reopened conversation shows them the same way.
 
+## Retrying a failed message
+
+A turn that fails (provider error, quota, a message too large) shows a red
+error row, and the message leaves the stored conversation. The row's `Retry`
+button sends the same message again with its images. It leaves what you have
+typed in the input alone, is disabled while a turn runs, and disappears once
+any new turn starts.
+
 ## Images in the chat
 
 Paste an image into the chat input, drop one on the chat panel, or pick files
