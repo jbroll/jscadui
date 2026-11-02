@@ -33,8 +33,9 @@ beforeEach(() => {
 // project's cache, as main.js's does.
 const initEditor = (files = {}, confirm) => {
   const getFileFn = vi.fn(async (path) => entryOf(path.replace(/^\//, ''), files[path.replace(/^\//, '')] ?? ''))
-  editor.init('initial', vi.fn(), vi.fn(), getFileFn, confirm)
-  return { getFileFn }
+  const compile = vi.fn()
+  editor.init('initial', compile, vi.fn(), getFileFn, confirm)
+  return { getFileFn, compile }
 }
 
 describe('chat delete of the open file', () => {
@@ -93,7 +94,7 @@ describe('file tree', () => {
 
   it('asks the discard confirm before opening another file while dirty, and stays when declined', async () => {
     const confirm = vi.fn(async () => false)
-    initEditor({ 'main.js': 'main code', 'helper.js': 'helper code' }, confirm)
+    const { compile } = initEditor({ 'main.js': 'main code', 'helper.js': 'helper code' }, confirm)
     editor.setSource('main code', 'main.js')
     editor.setFiles([entryOf('main.js', 'main code'), entryOf('helper.js', 'helper code')], { keepBuffers: true })
     editor.applyEdit({ changes: [{ from: 0, insert: 'x' }], cursor: 1 })
@@ -101,6 +102,33 @@ describe('file tree', () => {
     await vi.waitFor(() => expect(confirm).toHaveBeenCalled())
     expect(editor.getPath()).toBe('main.js')
     expect(editor.getSource()).toBe('xmain code')
+    expect(compile).not.toHaveBeenCalled()
+  })
+
+  it('runs the clicked file once its text is in, as the editor run does', async () => {
+    const { compile } = initEditor({ 'main.js': 'main code', 'truck.js': 'truck code' })
+    editor.setSource('main code', 'main.js')
+    editor.setFiles([entryOf('main.js', 'main code'), entryOf('truck.js', 'truck code')], { keepBuffers: true })
+    document.querySelector('#editor-files [data-path="/truck.js"] .file-open').click()
+    await vi.waitFor(() => expect(compile).toHaveBeenCalledWith('truck code', '/truck.js'))
+    expect(compile).toHaveBeenCalledTimes(1)
+  })
+
+  it('runs the open file again when its own row is clicked', async () => {
+    const { compile } = initEditor({ 'main.js': 'main code' })
+    editor.setSource('main code', 'main.js')
+    editor.setFiles([entryOf('main.js', 'main code')], { keepBuffers: true })
+    document.querySelector('#editor-files [data-path="/main.js"] .file-open').click()
+    await vi.waitFor(() => expect(compile).toHaveBeenCalledWith('main code', 'main.js'))
+  })
+
+  it('opens a binary file without running it', async () => {
+    const { compile } = initEditor({ 'main.js': 'main code', 'part.stl': 'solid' })
+    editor.setSource('main code', 'main.js')
+    editor.setFiles([entryOf('main.js', 'main code'), entryOf('part.stl', 'solid')], { keepBuffers: true })
+    document.querySelector('#editor-files [data-path="/part.stl"] .file-open').click()
+    await vi.waitFor(() => expect(editor.getPath()).toBe('/part.stl'))
+    expect(compile).not.toHaveBeenCalled()
   })
 
   it('opens the clicked file once the discard is accepted', async () => {

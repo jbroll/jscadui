@@ -35,7 +35,7 @@ import * as exporter from './src/exporter.js'
 import * as menu from './src/menu.js'
 import { currentBuildHash, watchBuildHash } from './src/buildVersion.js'
 import * as remote from './src/remote.js'
-import { setError } from './src/error.js'
+import { setError, setNotice } from './src/error.js'
 import { ViewState } from './src/viewState.js'
 import * as welcome from './src/welcome.js'
 import * as about from './src/about.js'
@@ -51,6 +51,7 @@ import { installHarnessHook } from './src/harnessHook.js'
 import { createViewHandler } from '@jscadui/agent-loop/src/viewHandler.js'
 import { renderViews } from './src/aiViewRender.js'
 import { createProjectBuilds, projectEntry } from './src/projectBuild.js'
+import { createViewRuns } from './src/viewRuns.js'
 import { createExport } from './src/aiExport.js'
 // Nothing here may import ./src/storage/schema.js: its zod 4 types are more
 // than the root TS 4.9 gate can parse (see root tsconfig).
@@ -355,8 +356,8 @@ const loadApiIndex = createIndexLoader()
 // The report of the open project's last build, for the chat's header and its
 // measure, check and export; see src/projectBuild.js.
 const projectBuilds = createProjectBuilds({
-  measure: () => workerApi.jscadMeasure({ options: {} }),
-  check: () => workerApi.jscadCheck({ options: {} }),
+  measure: () => chatApi.jscadMeasure({ options: {} }),
+  check: () => chatApi.jscadCheck({ options: {} }),
   getApi: getChatApi,
   loadIndex: loadApiIndex,
   getFiles: () => fileSystem.projectFiles(),
@@ -466,7 +467,7 @@ const switchProject = createProjectSwitch({
   fileSystem,
   editor: { ...editor, confirmDiscard: () => (discardAnswered ? Promise.resolve(true) : editor.confirmDiscard()) },
   clearTempCache: () => workerApi.jscadClearTempCache(),
-  build: (entry) => buildProject(entry),
+  build: (entry) => viewRuns.open(entry),
   onOpen: (id, entry, name) => {
     // Leaving a stored project: mint one `edit` row for whatever it holds, but
     // only when that differs from its latest version, so a switch that changed
@@ -494,7 +495,7 @@ const diskProject = diskStore && createDiskProject({
   fileSystem,
   clearFileCache: (files) => workerApi.jscadClearFileCache({ files, root: PROJECT_BASE }),
   editor,
-  rebuild: () => buildProject().catch(setError),
+  rebuild: () => viewRuns.render().catch(setError),
 })
 
 // Lazy rowboat backend: built once a session exists, so anonymous users stay
@@ -584,7 +585,7 @@ const modelUpdateDeps = () => {
   let isStale = () => false
   let runId
   return {
-    workerApi,
+    workerApi: userApi,
     handleEntities: (result, options) => { if (!isStale()) handlers.entities(result, options) },
     setError,
     beginRun: () => {
@@ -630,14 +631,15 @@ const STALE = { stale: true }
 /**
  * Load a script and draw it. Resolves to the load's outcome, `{ result }` or
  * `{ error }`, or `{ stale: true }` when a newer load replaced it; a load of a
- * project file is recorded as the project's build.
- * @param {{script?:string,url?:string,base?:string,root?:string,source?:string}} options
+ * project file is recorded as the project's build unless `record` is false
+ * (a selected part, which is not the build the chat reads).
+ * @param {{script?:string,url?:string,base?:string,root?:string,record?:boolean}} options
  */
-const jscadScript = async ({ script, url = './jscad.model.js', base = currentBase, root }) => {
+const jscadScript = async ({ script, url = './jscad.model.js', base = currentBase, root, record = true }) => {
   const isStale = scriptRuns.load()
   const settled = (outcome) => {
     if (isStale()) return STALE
-    projectBuilds.recordLoad(url, outcome)
+    if (record) projectBuilds.recordLoad(url, outcome)
     return outcome
   }
   if (url !== lastScriptUrl) meshRefs.forget()
@@ -675,6 +677,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
     updatePipelineStats(statsContent, { triangles: 0, vertices: 0 })
     document.documentElement.dataset.vertices = '0'
     setError(undefined)
+    if (!record) return {}
     if (url.startsWith(PROJECT_BASE)) projectBuilds.recordNoEntry()
     else projectBuilds.recordLoad(url, {})
     return {}
@@ -782,26 +785,64 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
   }
 }
 
-/**
- * Build the open project: its entry (see projectEntry) run through the load
- * path above. The editor, a project switch and the chat's writes all build
- * this way, so each leaves the same report. The editor and a switch name the
- * file they open, which runs when it is a model of its own; the chat's builds
- * name none.
- * @param {string} [open]
- */
-const buildProject = async (open) => {
-  const files = await fileSystem.projectFiles()
-  const entry = projectEntry(files, currentEntry, open)
-  if (!entry) {
-    projectBuilds.recordNoEntry()
-    const error = Object.assign(new Error(NO_ENTRY), { name: 'NoEntryError' })
-    setError(error)
-    return { error }
-  }
+const noEntry = () => {
+  projectBuilds.recordNoEntry()
+  return Object.assign(new Error(NO_ENTRY), { name: 'NoEntryError' })
+}
+
+// A viewPlan's script and URLs; only the entry's load is the project's build.
+const planRequest = (plan, files) => {
   // Files the chat wrote into an empty cache are the open project from then on.
-  currentEntry ??= entry
-  return jscadScript({ script: typeof files[entry] === 'string' ? files[entry] : undefined, ...projectUrls(entry) })
+  if (plan.kind === 'entry') currentEntry ??= plan.path
+  const script = plan.script ?? files[plan.path]
+  return { script: typeof script === 'string' ? script : undefined, ...projectUrls(plan.url ?? plan.path), record: plan.kind === 'entry' }
+}
+
+/**
+ * The project's runs: the viewer draws the selected file (src/viewRuns.js),
+ * the chat's reports come from the entry. The editor, a project switch and
+ * the chat's writes all run through here, so each leaves the same report.
+ */
+const viewRuns = createViewRuns({
+  files: () => fileSystem.projectFiles(),
+  declared: () => currentEntry,
+  paint: async (plan) => {
+    if (plan.kind === 'entry' && !plan.path) {
+      const error = noEntry()
+      setError(error)
+      return { error }
+    }
+    return jscadScript(planRequest(plan, await fileSystem.projectFiles()))
+  },
+  // Drawn by nothing: the result's meshes are kept whole (no held refs) for the chat's view.
+  load: async (plan, { user }) => {
+    if (plan.kind === 'entry' && !plan.path) return { outcome: { error: noEntry() } }
+    const files = await fileSystem.projectFiles()
+    const { record, ...request } = planRequest(plan, files)
+    let outcome
+    try {
+      const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
+      let result = await sendScript(workerApi, files, { ...request, source: loadSource({ url: request.url, projectId: currentProjectId }), useGpuNormals, runId: newRunId(), held: [] }, getChatApi())
+      if (user && paramsCtrl.userInteracted.size) result = { ...result, ...(await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId: newRunId(), held: [] })) }
+      outcome = { result }
+    } catch (error) {
+      outcome = { error }
+    }
+    if (record) projectBuilds.recordLoad(request.url, outcome)
+    return { outcome, mesh: outcome.result?.entities }
+  },
+  notice: setNotice,
+})
+
+const withLoaded = (ensure, names) => new Proxy(workerApi, {
+  get: (target, name) => (names.includes(name) ? async (...args) => { await ensure(); return target[name](...args) } : target[name]),
+})
+// The chat reads the entry's model, the user's controls the selected file's.
+const chatApi = withLoaded(viewRuns.ensureEntry, ['jscadMeasure', 'jscadCheck', 'jscadExportData'])
+const userApi = withLoaded(viewRuns.ensureView, ['jscadMain', 'jscadExportData'])
+const chatNoGeometry = async () => {
+  await viewRuns.ensureEntry()
+  return projectBuilds.noGeometry()
 }
 
 // ============== Engine Initialization ==============
@@ -847,7 +888,7 @@ viewState.onRenderEngineChange = async (newEngine) => {
   const mainOptions = { ...paramsCtrl.getWorkerParams(), useGpuNormals, runId, held: meshRefs.held(), supersede: true }
   let result
   try {
-    result = await workerApi.jscadMain(mainOptions)
+    result = await userApi.jscadMain(mainOptions)
   } catch (error) {
     streamRuns.end(runId)
     if (error?.name === 'SupersededError') return
@@ -877,11 +918,12 @@ editor.init(
       await fileSystem.addToCacheWrapper(cachePath, script)
       await workerApi.jscadClearFileCache({ files: [cachePath], root: PROJECT_BASE })
       const open = projectPathOf(path)
-      // A model of its own that the user runs becomes the project's entry, so the project reopens on it.
+      // A model of its own that the user runs becomes the project's entry, so
+      // the project reopens on it; a part file the entry requires never does.
       const standalone = projectEntry(await fileSystem.projectFiles(), currentEntry, open) === open
       if (standalone) currentEntry = cachePath
       await recordEdit(script, cachePath, standalone ? { entry: cachePath } : {})
-      buildProject(open).catch(setError)
+      viewRuns.show(open).catch(setError)
     } else {
       // With no project opened the path is an example's URL or the editor's placeholder.
       const fullUrl = path.startsWith('http') ? path : new URL(path, appBase).toString()
@@ -964,7 +1006,7 @@ if (diskEntry === null) {
   }
 }
 
-await exporter.init(workerApi, { onError: setError })
+await exporter.init(userApi, { onError: setError })
 
 // ============== Default Script ==============
 if (loadDefault && !hasRemoteScript) {
@@ -1032,14 +1074,14 @@ const chatTools = createProjectTools({
   },
   showFiles,
   build: async () => {
-    const outcome = await buildProject()
+    const outcome = await viewRuns.build()
     if (outcome.stale) return { ok: false, error: { name: 'SupersededError', message: 'a newer run replaced this build before it finished; write or edit again to build' } }
     return projectBuilds.report()
   },
-  noGeometry: projectBuilds.noGeometry,
+  noGeometry: chatNoGeometry,
   recordGated: projectBuilds.recordReport,
   workerApi,
-  exportModel: createExport((args) => workerApi.jscadExportData(args), { save: diskProject?.saveExport }),
+  exportModel: createExport((args) => chatApi.jscadExportData(args), { save: diskProject?.saveExport }),
   getProjectId: () => currentProjectId,
   // Stored at once, so a reload mid-turn keeps it; a failure fails the
   // write tool, so the model sees it and can retry instead of the cache
@@ -1078,7 +1120,7 @@ editor.setFileActions({
     await removeProjectFile(target)
     await storageSession.removeThrough(currentProjectId, target)
     showFiles(await fileSystem.projectFiles())
-    buildProject().catch(setError)
+    viewRuns.render().catch(setError)
   },
   onRename: async (path, name) => {
     const from = projectPathOf(path)
@@ -1099,6 +1141,7 @@ editor.setFileActions({
     // build would look for a path that no longer exists.
     const renamingEntry = projectPathOf(currentEntry) === from
     if (renamingEntry) currentEntry = to
+    viewRuns.rename(from, to)
     await writeProjectFile(to, content)
     await storageSession.writeThrough(currentProjectId, to, content, { message: 'edit', coalesceKey: 'edit', coalesceMs: EDIT_COALESCE_MS, ...(renamingEntry ? { entry: to } : {}) })
     await removeProjectFile(from)
@@ -1108,7 +1151,7 @@ editor.setFileActions({
     // into the text view, so only a string moves the cursor.
     if (typeof content === 'string' && projectPathOf(editor.getPath()) === from) editor.setSource(content, to)
     showFiles(await fileSystem.projectFiles())
-    buildProject().catch(setError)
+    viewRuns.render().catch(setError)
   },
 })
 
@@ -1120,10 +1163,13 @@ const aiDeps = {
   // frame must return each solid's named frames: `measure` runs with anchors on
   // and reports the part-path frames the model tree stamped.
   view: createViewHandler({
-    getMesh: () => viewState.model,
-    noGeometry: projectBuilds.noGeometry,
+    getMesh: async () => {
+      await viewRuns.ensureEntry()
+      return viewRuns.entryMesh() ?? viewState.model
+    },
+    noGeometry: chatNoGeometry,
     render: renderViews,
-    measure: (options) => workerApi.jscadMeasure({ options }),
+    measure: (options) => chatApi.jscadMeasure({ options }),
     env: () => ({ THREE: globalThis.THREE, smooth: viewState.smoothRender, bg: viewState.theme.bg }),
   }),
   docs: createDocs(loadApiIndex, getChatApi),
@@ -1147,7 +1193,10 @@ installHarnessHook({
   view: aiDeps.view,
   measure: chatTools.measure,
   check: chatTools.check,
-  buildReport: () => projectBuilds.report(),
+  buildReport: async () => {
+    await viewRuns.ensureEntry()
+    return projectBuilds.report()
+  },
 })
 
 // Both drawer headers mount the same sign-in control and sign out together.

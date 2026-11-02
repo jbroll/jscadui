@@ -20,15 +20,16 @@ requires the parts and assembles `main()`. Split any model of more than one
 part this way, however short; never keep helpers only tests need inside
 `main.js`.
 
-Each part file builds its part in its print orientation, resting on z = 0.
-`main()` rotates and moves each part into place and returns an array with one
+Each part file exports makers named `make<Part>` (`makeTruck`), each
+returning its part in its print orientation, resting on z = 0; the user can
+select a part's file to view and export that part alone. `main()` rotates and moves each part into place and returns an array with one
 colored entry per printed piece, never one union of them. Assembled parts
 touch where they join: nothing floats and nothing overlaps. `check` reports
 both as `floating` and `interference`.
 
 Create the parts in a logical order, and add each to `main.js` as it is
-written. The user watches the model appear through your writes, and only a
-file the entry requires changes what they see.
+written. The user watches the model appear through your writes; with
+`main.js` selected, only a file the entry requires changes what they see.
 
 ## Imports
 

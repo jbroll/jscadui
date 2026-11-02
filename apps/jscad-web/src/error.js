@@ -24,6 +24,7 @@ export const setError = error => {
   const root = document.documentElement
   if (error) root.dataset.render = 'error'
   else if (root.dataset.render === 'running') root.dataset.render = 'ok'
+  errorBar.classList.remove('notice')
   if (error) {
     // Type-safe access to error properties
     const isErrorLike = error && typeof error === 'object'
@@ -35,6 +36,17 @@ export const setError = error => {
   } else {
     errorBar.classList.remove('visible')
   }
+}
+
+/**
+ * A line in the error bar that is not an error: the render state is left as
+ * the run set it, and the next run's setError replaces it.
+ * @param {string} text
+ */
+export const setNotice = (text) => {
+  errorName.innerText = ''
+  errorMessage.innerText = text
+  errorBar.classList.add('visible', 'notice')
 }
 
 /**

@@ -1158,21 +1158,51 @@ not there answers `ok` and changes nothing, so a stale path from the project
 note never fails the model. The deletion is stored too: `removeThrough` drops
 the path from the project's backend (`removeFiles` on local, rowboat and disk),
 so a reload mid-turn keeps it deleted, and the turn's snapshot records the
-project without the file. The build is `buildProject` in
-`main.js`: the entry, resolved by `projectEntry` (`src/projectBuild.js`), runs
-through `jscadScript`, the load path the editor and a project switch take, so
-a chat build draws, builds the params UI and shows its error like any other
-load. `projectEntry` is agent-loop's `resolveEntry` (package.json `main`, else
-`index.js`, `index.ts`, `main.js`), falling back to the entry the project
-declares when none of those exist: a dropped folder's `fileToRun` or a stored
-project's `entry`. The editor's run and a project switch also name the file they open (the
-edited file, or the stored `entry`). That file runs instead when it is a
-model of its own: it exports a `main`, and the entry neither requires nor
-imports it, directly or through other files. A stored project can hold such
-models beside `main.js`: a folder dropped on its row, or a second model the
-chat wrote. An editor run of one records it as the project's `entry`, so the
-project reopens on it. The chat's builds name no file and always run the
-Node entry, the one the prompt teaches. A project with no entry shows
+project without the file. The build is `viewRuns.build` (`src/viewRuns.js`,
+wired in `main.js`): the entry, resolved by `projectEntry`
+(`src/projectBuild.js`), runs through `jscadScript`, the load path the editor
+and a project switch take, so a chat build draws, builds the params UI and
+shows its error like any other load. `projectEntry` is agent-loop's
+`resolveEntry` (package.json `main`, else `index.js`, `index.ts`, `main.js`),
+falling back to the entry the project declares when none of those exist: a
+dropped folder's `fileToRun` or a stored project's `entry`. The chat's builds
+name no file and always build that Node entry, the one the prompt teaches.
+
+The viewer follows the selected file instead: the file the user last clicked
+in the tree or ran from the editor, or the stored `entry` a project switch
+opens on. `viewPlan` (`src/projectBuild.js`) says what it draws. The entry,
+or nothing selected, draws the assembly. A file that exports a `main` runs as
+itself, whether the entry requires it or not. A part file that exports
+`make[A-Z]*` functions draws through a synthesized entry, `.part-view.js`
+beside it (`partViewScript`): its `main` calls each maker with the run's
+params, flattens the results and lays them out along +x with a 5 mm gap from
+each one's `measureBoundingBox`, translating only in x, so each part keeps the
+print orientation its maker gave it. The measurement goes through the frame's
+`@jscad/modeling`, the anchored tree, which measures plain geometry, fluent
+shapes (they are geometry objects) and lazy tree nodes alike; it is awaited
+because a tree with an async leaf measures as a Promise. A file with neither
+keeps the viewer on what it showed, redraws it, and puts
+"<path> has no part to show (no main or make* export)" in the error bar as a
+notice (`setNotice`), not an error. The selection survives the chat's writes,
+so a write to `main.js` while `truck.js` is selected redraws the truck.
+
+The frame holds one model, so the chat's view of the entry and the viewer's
+part take turns. With a part selected, a chat build draws the part, then loads
+the entry without drawing (`load`: no stream, no held mesh refs) and records
+that load as the project's build, so the report, `measure`, `check`, `export`
+and `view` all see the assembly; `view` renders the entry's meshes from that
+load, not the viewer's. Each side reloads its model only when the other
+replaced it: `ensureEntry` runs before the chat's frame reads (`chatApi` in
+`main.js`), `ensureView` before the user's param change, render-engine switch
+or export (`userApi`), carrying the user's params. Only the entry's loads are
+recorded in `projectBuilds`.
+
+An editor run of a model of its own (it exports a `main`, and the entry
+neither requires nor imports it, directly or through other files) records it
+as the project's `entry`, so the project reopens on it. A stored project can
+hold such models beside `main.js`: a folder dropped on its row, or a second
+model the chat wrote. A part file the entry requires is never recorded, so
+the project reopens on `main.js`. A project with no entry shows
 `NoEntryError` in the error bar and reports `ok: true, entry: null` with
 `note: "no entry yet (…)"` to the chat (`noEntryReport`), since a helper
 written before its entry is no failure. A chat write answers the report

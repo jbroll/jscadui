@@ -232,11 +232,17 @@ one hides the model-options menu rather than sitting under it.
 
 Which file runs: the project's entry is `package.json` `main`, else
 `index.js`, `index.ts` or `main.js`, else the entry the project declares (a
-dropped folder's is named by the rule above). Running a
-file from the editor (Shift+Enter) runs that file instead when it exports its
-own `main` and the entry does not require it, such as `bracket/index.js`
-dropped beside `main.js`; the project then reopens on it. Editing a helper the
-entry requires runs the entry. The chat's builds always run the entry.
+dropped folder's is named by the rule above). The chat's builds always run
+the entry. The viewer shows the file you select in the editor's file list (a
+click runs it) or run from the editor (Shift+Enter): the entry shows the
+assembly, a file with its own `main` runs that, and a part file shows the
+parts its `make<Part>` exports return, side by side along x in their print
+orientation, ready to export alone. A file with neither, such as
+`lib/dims.js`, leaves the view as it was with a notice. The view stays on the
+selected file while the chat writes; the chat still measures and views the
+entry. A file with its own `main` that the entry does not require, such as
+`bracket/index.js` dropped beside `main.js`, becomes the project's entry, so
+the project reopens on it.
 
 ## Deployment
 

@@ -750,6 +750,9 @@ p {
   max-height: 40%;
   padding: 10px;
 }
+#error-bar.notice {
+  background-color: #2e96ea99;
+}
 #error-bar label {
   font-weight: bold;
 }

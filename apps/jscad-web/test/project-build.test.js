@@ -131,6 +131,11 @@ describe('viewPlan', () => {
     expect(viewPlan({ 'main.js': MAIN, 'p.js': 'const makeLid = () => 1\nmodule.exports = { lid: makeLid }' }, 'main.js', 'p.js').kind).toBe('none')
   })
 
+  it('never makes a part file the entry an editor run records; only a model of its own', () => {
+    expect(projectEntry(files, 'main.js', 'truck.js')).toBe('main.js')
+    expect(projectEntry(files, 'main.js', 'bracket/index.js')).toBe('bracket/index.js')
+  })
+
   it('keeps the entry the chat builds when the selected file is a model of its own', () => {
     expect(viewPlan(files, 'bracket/index.js', 'bracket/index.js')).toEqual({ kind: 'file', path: 'bracket/index.js' })
     expect(viewPlan(files, 'bracket/index.js')).toEqual({ kind: 'entry', path: 'main.js' })

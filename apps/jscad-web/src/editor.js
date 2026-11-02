@@ -9,6 +9,7 @@ import * as drawer from './drawer.js'
 import { apiExtensions } from './editorApi.js'
 import { createEditorBuffer } from './editorBuffer.js'
 import { renderFileTree } from './fileTree.js'
+import { isBinaryPath } from './projectFiles.js'
 
 /** 
  * @typedef {import('@jscadui/fs-provider').FSFileEntry} FSFileEntry
@@ -275,19 +276,20 @@ const treeConfirm = (message) => confirmFn
   ? confirmFn({ title: 'Delete file?', message, confirmLabel: 'Delete', cancelLabel: 'Cancel' })
   : Promise.resolve(false)
 
+// A row click opens the file and runs it, so the viewer shows that file's part.
 const openTreeFile = async (path) => {
   // The buffer follows whichever spelling set it (setSource is called with the
   // bare entry path, tree rows carry the leading slash).
-  if (path.replace(/^\//, '') === currentFile.replace(/^\//, '')) return
-  // Navigating away from a dirty buffer reuses the whole-project discard gate.
-  if (!(await confirmDiscard())) return
-  const buffered = buffer.isDirtyPath(path) ? path : buffer.isDirtyPath(String(path).replace(/^\//, '')) ? String(path).replace(/^\//, '') : null
-  if (buffered !== null) {
-    setSource(buffer.get(buffered), path, { clean: false })
-    return
+  if (path.replace(/^\//, '') !== currentFile.replace(/^\//, '')) {
+    // Navigating away from a dirty buffer reuses the whole-project discard gate.
+    if (!(await confirmDiscard())) return
+    const buffered = buffer.isDirtyPath(path) ? path : buffer.isDirtyPath(String(path).replace(/^\//, '')) ? String(path).replace(/^\//, '') : null
+    const file = editorFilesArr.find((entry) => entry.fullPath === path)
+    if (buffered !== null) setSource(buffer.get(buffered), path, { clean: false })
+    else if (file) await readSource(file, path)
+    else return
   }
-  const file = editorFilesArr.find((entry) => entry.fullPath === path)
-  if (file) await readSource(file, path)
+  if (!isBinaryPath(path.replace(/^\//, ''))) runScript()
 }
 
 const renderTree = () => {
