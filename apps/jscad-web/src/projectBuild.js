@@ -21,6 +21,17 @@ const EXPORTS_MAIN = [
 
 const exportsMain = (text) => EXPORTS_MAIN.some((pattern) => pattern.test(text))
 
+// Keys only: `{ lid: makeLid }` exports `lid`, not a maker.
+const EXPORTS_MAKER = [
+  /\bmodule\.exports\s*=\s*\{(?:[^}]*,)?\s*make[A-Z]\w*\s*[,:}(]/,
+  /\b(?:module\.)?exports\.make[A-Z]\w*\s*=/,
+  /\bexport\s+(?:async\s+)?function\s*\*?\s*make[A-Z]/,
+  /\bexport\s+(?:const|let|var)\s+make[A-Z]/,
+  /\bexport\s*\{[^}]*\bmake[A-Z][^}]*\}/,
+]
+
+const exportsMaker = (text) => EXPORTS_MAKER.some((pattern) => pattern.test(text))
+
 /**
  * The file a project build runs: agent-loop's resolveEntry, else the entry the
  * project declares, such as a dropped folder's `<folder>/<entry>`.
@@ -35,6 +46,55 @@ export const projectEntry = (files, declared, open) => {
   const standalone = textFile(files, open)
   if (standalone && standalone !== entry && exportsMain(files[standalone]) && !(entry && requireClosure(files, entry).has(standalone))) return standalone
   return entry
+}
+
+/** The synthesized entry a part file's makers render through, named beside the part. */
+export const PART_VIEW = '.part-view.js'
+
+const GAP_MM = 5
+
+/**
+ * An entry for a part file: every `make[A-Z]*` function it exports, called
+ * with the run's params, flattened and laid out along +x by bounding box.
+ * @param {string} path the part file, a bare project path
+ */
+export const partViewScript = (path) => `const part = require(${JSON.stringify(`./${path.slice(path.lastIndexOf('/') + 1)}`)})
+const { measurements, transforms } = require('@jscad/modeling')
+const main = async (params) => {
+  const shapes = []
+  for (const name of Object.keys(part)) {
+    if (/^make[A-Z]/.test(name) && typeof part[name] === 'function') shapes.push(...[await part[name](params)].flat(Infinity))
+  }
+  const placed = []
+  let x = 0
+  for (const shape of shapes) {
+    // The frame's tree measures a shape with an async leaf as a Promise.
+    const [[minX], [maxX]] = await measurements.measureBoundingBox(shape)
+    placed.push(transforms.translateX(x - minX, shape))
+    x += maxX - minX + ${GAP_MM}
+  }
+  return placed
+}
+module.exports = { main }
+`
+
+/**
+ * What the viewer shows for the selected file `view`: the entry the chat
+ * builds (`entry`), a file that exports a main (`file`), a part file's makers
+ * through a synthesized entry (`makers`, with its `url` and `script`), or
+ * nothing to show (`none`).
+ * @param {Record<string, unknown>} files
+ * @param {string} [declared]
+ * @param {string} [view]
+ */
+export const viewPlan = (files, declared, view) => {
+  const entry = projectEntry(files, declared)
+  const path = textFile(files, view)
+  if (!path || path === entry) return { kind: 'entry', path: entry }
+  const text = /** @type {string} */ (files[path])
+  if (exportsMain(text)) return { kind: 'file', path }
+  if (exportsMaker(text)) return { kind: 'makers', path, url: path.slice(0, path.lastIndexOf('/') + 1) + PART_VIEW, script: partViewScript(path) }
+  return { kind: 'none', path }
 }
 
 // With no index the error goes out without its hint.

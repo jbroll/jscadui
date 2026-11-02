@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import index from '@jscadui/agent-loop/api/index.json'
 import { NO_ENTRY_NOTE, noEntryReport, noMainError, notGeometryError } from '@jscadui/agent-loop'
-import { createProjectBuilds, projectEntry } from '../src/projectBuild.js'
+import { createProjectBuilds, PART_VIEW, projectEntry, viewPlan } from '../src/projectBuild.js'
 
 const measured = { entityCount: 1, boundingBox: [[0, 0, 0], [10, 20, 30]], dimensions: [10, 20, 30], volume: 6000 }
 const checked = { ok: true, watertight: true, manifold: true, selfIntersecting: false }
@@ -83,6 +83,57 @@ describe('projectEntry', () => {
 
   it('runs an open model in a project with no entry', () => {
     expect(projectEntry({ 'gear.js': MODEL }, undefined, 'gear.js')).toBe('gear.js')
+  })
+})
+
+describe('viewPlan', () => {
+  const MAIN = "const { makeTruck } = require('./truck.js')\nmodule.exports = { main: () => makeTruck() }"
+  const files = {
+    'main.js': MAIN,
+    'truck.js': "const dims = require('./lib/dims.js')\nmodule.exports = { makeTruck, makeWheelset, axleDx }",
+    'lib/dims.js': 'module.exports = { length: 40 }',
+    'gear.js': "module.exports = { main: () => require('./truck.js').makeTruck() }",
+    'bracket/index.js': 'module.exports = { main }',
+    'notes/plan.md': '# plan',
+  }
+
+  it('shows the entry when no file is selected, the entry itself is, or the file is gone', () => {
+    for (const view of [undefined, 'main.js', '/main.js', 'missing.js']) expect(viewPlan(files, 'main.js', view), String(view)).toEqual({ kind: 'entry', path: 'main.js' })
+  })
+
+  it('runs a selected file that exports main, required by the entry or a model of its own', () => {
+    expect(viewPlan(files, 'main.js', 'gear.js')).toEqual({ kind: 'file', path: 'gear.js' })
+    expect(viewPlan(files, 'main.js', '/bracket/index.js')).toEqual({ kind: 'file', path: 'bracket/index.js' })
+  })
+
+  it('renders the make* exports of a part file through a synthesized entry beside it', () => {
+    const plan = viewPlan(files, 'main.js', 'truck.js')
+    expect(plan).toMatchObject({ kind: 'makers', path: 'truck.js', url: PART_VIEW })
+    expect(plan.script).toContain('require("./truck.js")')
+    expect(viewPlan({ ...files, 'parts/axle.js': 'exports.makeAxle = () => 1' }, 'main.js', 'parts/axle.js')).toMatchObject({ kind: 'makers', url: `parts/${PART_VIEW}` })
+  })
+
+  it('recognises each way a file exports a maker', () => {
+    const exporting = [
+      'module.exports = { makeTruck, axleDx }',
+      'module.exports = {\n  size,\n  makeBody: () => 1,\n}',
+      'module.exports.makeLid = () => 1',
+      'exports.makeLid = () => 1',
+      'export function makeLid () {}',
+      'export const makeLid = () => 1',
+      'const makeLid = () => 1\nexport { makeLid }',
+    ]
+    for (const text of exporting) expect(viewPlan({ 'main.js': MAIN, 'p.js': text }, 'main.js', 'p.js').kind, text).toBe('makers')
+  })
+
+  it('has no part to show for a file with neither main nor a maker', () => {
+    for (const view of ['lib/dims.js', 'notes/plan.md']) expect(viewPlan(files, 'main.js', view), view).toEqual({ kind: 'none', path: view })
+    expect(viewPlan({ 'main.js': MAIN, 'p.js': 'const makeLid = () => 1\nmodule.exports = { lid: makeLid }' }, 'main.js', 'p.js').kind).toBe('none')
+  })
+
+  it('keeps the entry the chat builds when the selected file is a model of its own', () => {
+    expect(viewPlan(files, 'bracket/index.js', 'bracket/index.js')).toEqual({ kind: 'file', path: 'bracket/index.js' })
+    expect(viewPlan(files, 'bracket/index.js')).toEqual({ kind: 'entry', path: 'main.js' })
   })
 })
 
