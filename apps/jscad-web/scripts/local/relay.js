@@ -14,7 +14,7 @@ import {
   pickForwardHeaders,
   resolveTarget,
 } from '../../server/src/relay/policy.js'
-import { teeRelayUpstream } from '../../server/src/relay/chatLog.js'
+import { chatHeadersOf, teeRelayUpstream } from '../../server/src/relay/chatLog.js'
 import { writeOrClose } from '../../server/src/relay/pipe.js'
 
 // A reasoning model can stream nothing for minutes; undici's default gives up after 5.
@@ -64,13 +64,12 @@ export const createRelayHandler = ({ allowlist, trustedOrigins, allowPrivateUpst
     const chunks = []
     for await (const c of req) chunks.push(c)
     const logging = log !== null && req.method === 'POST'
-    const chatId = req.headers['x-jscad-chat-id']
     const tee = logging ? teeRelayUpstream({
       log,
       ts,
       kind: m[1],
       path: sub,
-      chatId: typeof chatId === 'string' ? chatId : null,
+      ...chatHeadersOf(req.headers),
       request: Buffer.concat(chunks),
       started,
     }) : null

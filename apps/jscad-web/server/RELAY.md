@@ -220,8 +220,17 @@ error instead of HTML.
 ## Chat logs
 
 Both relays log conversations to a per-day JSONL file, one record per relayed
-POST: `{ts, chatId, kind, path, status, request, response, ms}`, plus
-`inference` (the free option's id) and `costUsd` for a free turn. The request
+POST: `{ts, chatId, turnId, round, kind, path, status, request, response, ms}`,
+plus `inference` (the free option's id) and `costUsd` for a free turn, and
+`purpose` on a request that is not a model round (`summary` for the
+summarizer). `ts` is when the relay received the request and `ms` how long it
+took to finish. `chatId`, `turnId`, `round` and `purpose` come from the
+client's `x-jscad-chat-id`, `x-jscad-turn-id`, `x-jscad-round` and
+`x-jscad-purpose` headers (null when absent or malformed; `round` is a positive
+integer) and are never forwarded upstream. The chat keeps one chat id per
+stored conversation, a fresh turn id per user message, and numbers the turn's
+provider requests from 1; an empty-reply resend repeats its round's number.
+The request
 body drops `tools` (large and re-derivable), and each inline image part becomes
 a text part `[image: <mime>, <w>x<h>]`, so no image bytes are written. The production relay's directory is
 `CHAT_LOG_DIR`, default `./data/chat-logs`; `0` turns logging off. It keeps

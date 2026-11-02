@@ -3,7 +3,7 @@
 // POST is recorded only when it carries an `x-jscad-chat-id`. This is the
 // behaviour every non-jscad-web kind keeps.
 import { RelayRefusal, pickForwardHeaders, resolveTarget } from '../policy.js'
-import { teeRelayUpstream } from '../chatLog.js'
+import { chatHeadersOf, teeRelayUpstream } from '../chatLog.js'
 import { writeOrClose } from '../pipe.js'
 
 /**
@@ -46,20 +46,19 @@ const forward = async (ctx, req, res, method, kind, subPath) => {
     res.status(err.status).json({ error: err.message })
     return
   }
-  // The chat id travels only as far as this process: logging is the one place
-  // that reads it, and the header is not in FORWARD_HEADERS.
-  const chatIdHeader = req.headers['x-jscad-chat-id']
-  const chatId = typeof chatIdHeader === 'string' && chatIdHeader !== '' ? chatIdHeader : null
+  // The chat log headers travel only as far as this process: logging is the
+  // one place that reads them, and none is in FORWARD_HEADERS.
+  const chat = chatHeadersOf(req.headers)
   const body = method === 'GET' ? undefined : JSON.stringify(req.body ?? {})
   const tee =
-    ctx.log && method === 'POST' && chatId
+    ctx.log && method === 'POST' && chat.chatId
       ? teeRelayUpstream({
           log: ctx.log,
           ts,
           kind,
           path: subPath,
           request: Buffer.from(body ?? ''),
-          chatId,
+          ...chat,
           started,
         })
       : null

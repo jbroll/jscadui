@@ -362,6 +362,15 @@ describe('POST /api/relay/jscad-web/<id>/<path>', () => {
     expect(records(logDir)[0].chatId).toBe('chat-7')
   })
 
+  it('keeps the turn id and round on the record when the client sends them', async () => {
+    fetchMock.mockImplementation(async () => sse('data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'))
+    const logDir = tmp()
+    const { app } = buildApp({ config: inferenceJson(), logDir })
+    await post(app, 'deepseek-v4.1-flash', 'v1/chat/completions').set('x-jscad-chat-id', 'chat-7').set('x-jscad-turn-id', 'turn-7').set('x-jscad-round', '4').send({ messages: [] })
+    await vi.waitFor(() => expect(records(logDir)).toHaveLength(1))
+    expect(records(logDir)[0]).toMatchObject({ chatId: 'chat-7', turnId: 'turn-7', round: 4 })
+  })
+
   it('estimates the charge when the stream carries no usage', async () => {
     fetchMock.mockImplementation(async () => sse('data: {"choices":[{"delta":{"content":"hello world"}}]}\n\n'))
     const logDir = tmp()

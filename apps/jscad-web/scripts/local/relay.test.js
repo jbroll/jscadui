@@ -242,14 +242,16 @@ describe('relay log', () => {
   it('logs a POST with its chat id and response, without tools or headers, and does not forward the id', async () => {
     const records = []
     await withServers(async (base, seen) => {
-      const res = await post(base, { authorization: 'Bearer sk-secret', 'x-jscad-chat-id': 'chat-1' })
+      const res = await post(base, { authorization: 'Bearer sk-secret', 'x-jscad-chat-id': 'chat-1', 'x-jscad-turn-id': 'turn-1', 'x-jscad-round': '1' })
       expect(await res.text()).toContain('echo:/v1/chat/completions:')
-      expect(seen[0]['x-jscad-chat-id']).toBeUndefined()
+      expect(Object.keys(seen[0]).filter((h) => h.startsWith('x-jscad-'))).toEqual([])
     }, { log: { write: (r) => records.push(r) } })
     expect(records).toHaveLength(1)
     const [r] = records
     expect(r).toMatchObject({
       chatId: 'chat-1',
+      turnId: 'turn-1',
+      round: 1,
       kind: 'test',
       path: 'v1/chat/completions',
       status: 200,
@@ -260,7 +262,7 @@ describe('relay log', () => {
     expect(Number.isNaN(Date.parse(r.ts))).toBe(false)
     expect(r.ms).toBeGreaterThanOrEqual(0)
     expect(JSON.stringify(r)).not.toContain('sk-secret')
-    expect(Object.keys(r).sort()).toEqual(['chatId', 'kind', 'ms', 'path', 'request', 'response', 'status', 'ts'])
+    expect(Object.keys(r).sort()).toEqual(['chatId', 'kind', 'ms', 'path', 'request', 'response', 'round', 'status', 'ts', 'turnId'])
   })
 
   it('records a null chatId when the header is missing', async () => {

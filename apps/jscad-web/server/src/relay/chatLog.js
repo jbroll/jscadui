@@ -142,6 +142,29 @@ export const createChatLog = (dir, { warn = console.warn } = {}) => {
   }
 }
 
+/** @param {unknown} value */
+const headerText = (value) => (typeof value === 'string' && value !== '' ? value : null)
+
+const PURPOSE = /^[a-z][a-z-]{0,31}$/
+
+/**
+ * The chat client's log headers: `x-jscad-chat-id`, `x-jscad-turn-id`,
+ * `x-jscad-round` (a positive integer) and `x-jscad-purpose` (a short
+ * lowercase word). Anything missing or malformed reads as null.
+ * @param {Record<string, string | string[] | undefined>} headers
+ * @returns {{ chatId: string | null, turnId: string | null, round: number | null, purpose: string | null }}
+ */
+export const chatHeadersOf = (headers) => {
+  const round = headerText(headers['x-jscad-round'])
+  const purpose = headerText(headers['x-jscad-purpose'])
+  return {
+    chatId: headerText(headers['x-jscad-chat-id']),
+    turnId: headerText(headers['x-jscad-turn-id']),
+    round: round !== null && /^[1-9]\d{0,5}$/.test(round) ? Number(round) : null,
+    purpose: purpose !== null && PURPOSE.test(purpose) ? purpose : null,
+  }
+}
+
 /**
  * Tees one relayed upstream response into the chat log: feed every upstream
  * byte to `chunk`, then call `finish` once with the final status. Both relays
@@ -154,10 +177,13 @@ export const createChatLog = (dir, { warn = console.warn } = {}) => {
  *   path: string,
  *   request: import('node:buffer').Buffer,
  *   chatId?: string | null,
+ *   turnId?: string | null,
+ *   round?: number | null,
+ *   purpose?: string | null,
  *   started?: number,
  * }} opts
  */
-export const teeRelayUpstream = ({ log, ts, kind, path, request, chatId = null, started = Date.now() }) => {
+export const teeRelayUpstream = ({ log, ts, kind, path, request, chatId = null, turnId = null, round = null, purpose = null, started = Date.now() }) => {
   const decoder = new TextDecoder()
   let response = ''
   return {
@@ -177,6 +203,9 @@ export const teeRelayUpstream = ({ log, ts, kind, path, request, chatId = null, 
       const record = {
         ts,
         chatId,
+        turnId,
+        round,
+        ...(purpose ? { purpose } : {}),
         kind,
         path,
         status,

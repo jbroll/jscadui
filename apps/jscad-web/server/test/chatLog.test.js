@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { CHAT_LOG_FILE, appendChatRecord, chatLogFileName, createChatLog, teeRelayUpstream, toLogRequest } from '../src/relay/chatLog.js'
+import { CHAT_LOG_FILE, appendChatRecord, chatHeadersOf, chatLogFileName, createChatLog, teeRelayUpstream, toLogRequest } from '../src/relay/chatLog.js'
 import { tempDir } from './tempDir.js'
 
 const record = (ts, extra = {}) => ({ ts, chatId: 'c', kind: 'openai', path: 'v1/chat/completions', status: 200, request: {}, response: 'x', ms: 1, ...extra })
@@ -105,13 +105,35 @@ describe('teeRelayUpstream', () => {
     expect(line.request).not.toHaveProperty('tools')
     expect(line.response).toBe('data: hello\n\ndata: world\n\n')
     // The record is exactly this field set: headers are never written.
-    expect(Object.keys(line).sort()).toEqual(['chatId', 'kind', 'ms', 'path', 'request', 'response', 'status', 'ts'])
+    expect(Object.keys(line).sort()).toEqual(['chatId', 'kind', 'ms', 'path', 'request', 'response', 'round', 'status', 'ts', 'turnId'])
+    expect(line).toMatchObject({ turnId: null, round: null })
+  })
+
+  it('records the turn id, round and purpose it is given', () => {
+    const dir = tempDir('chatlog-')
+    const log = createChatLog(dir)
+    const tee = teeRelayUpstream({ log, ts: '2026-09-27T10:00:00.000Z', kind: 'openai', path: 'p', chatId: 'c', turnId: 't', round: 2, purpose: 'summary', request: Buffer.from('{}') })
+    tee.finish(200)
+    const line = JSON.parse(readFileSync(join(dir, '2026-09-27.jsonl'), 'utf8').trim())
+    expect(line).toMatchObject({ chatId: 'c', turnId: 't', round: 2, purpose: 'summary' })
   })
 
   it('writes nothing and returns null when logging is off', () => {
     const tee = teeRelayUpstream({ log: null, ts: '2026-09-27T10:00:00.000Z', kind: 'openai', path: 'v1/chat/completions', request: Buffer.from('{}') })
     tee.chunk(Buffer.from('x'))
     expect(tee.finish(200)).toBeNull()
+  })
+})
+
+describe('chatHeadersOf', () => {
+  it('reads the chat, turn, round and purpose headers', () => {
+    expect(chatHeadersOf({ 'x-jscad-chat-id': 'c', 'x-jscad-turn-id': 't', 'x-jscad-round': '3', 'x-jscad-purpose': 'summary' })).toEqual({ chatId: 'c', turnId: 't', round: 3, purpose: 'summary' })
+  })
+
+  it('answers null for missing, empty or malformed values', () => {
+    expect(chatHeadersOf({})).toEqual({ chatId: null, turnId: null, round: null, purpose: null })
+    expect(chatHeadersOf({ 'x-jscad-chat-id': '', 'x-jscad-round': '0', 'x-jscad-purpose': 'Bad Value!' })).toEqual({ chatId: null, turnId: null, round: null, purpose: null })
+    expect(chatHeadersOf({ 'x-jscad-round': '1.5' }).round).toBeNull()
   })
 })
 

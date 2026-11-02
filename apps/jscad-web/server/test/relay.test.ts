@@ -237,6 +237,23 @@ describe('chat logging', () => {
     expect(Object.keys(headers)).not.toContain('x-jscad-chat-id')
   })
 
+  it('records the turn id, round and purpose headers, and forwards none of them', async () => {
+    fetchMock.mockImplementation(async () => sseResponse('data: hello\n\n'))
+    const logDir = tmpLogDir()
+    await request(relayApp([], { chatLogDir: logDir }))
+      .post('/api/relay/openai/v1/chat/completions')
+      .set('Origin', 'https://app.test')
+      .set('x-jscad-chat-id', 'chat-1')
+      .set('x-jscad-turn-id', 'turn-1')
+      .set('x-jscad-round', '2')
+      .set('x-jscad-purpose', 'summary')
+      .send({ model: 'm' })
+
+    expect(logRecords(logDir)[0]).toMatchObject({ chatId: 'chat-1', turnId: 'turn-1', round: 2, purpose: 'summary' })
+    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>
+    expect(Object.keys(headers).filter((h) => h.startsWith('x-jscad-'))).toEqual([])
+  })
+
   it('writes nothing for a POST without a chat id', async () => {
     fetchMock.mockImplementation(async () => sseResponse('data: hello\n\n'))
     const logDir = tmpLogDir()
@@ -276,7 +293,7 @@ describe('chat logging', () => {
 
     const [record] = logRecords(logDir)
     // Exactly the record shape: no headers, and no field a header could hide in.
-    expect(Object.keys(record).sort()).toEqual(['chatId', 'kind', 'ms', 'path', 'request', 'response', 'status', 'ts'])
+    expect(Object.keys(record).sort()).toEqual(['chatId', 'kind', 'ms', 'path', 'request', 'response', 'round', 'status', 'ts', 'turnId'])
     expect(JSON.stringify(record)).not.toMatch(/sk-secret|sk-ant|cookie-secret|203\.0\.113\.9/)
   })
 

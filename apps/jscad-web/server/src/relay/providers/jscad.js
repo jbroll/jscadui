@@ -4,7 +4,7 @@
 // trusts the client's `jscad-web-free` sentinel.
 import { RelayRefusal, pickForwardHeaders, resolveTarget } from '../policy.js'
 import { costUsd, estimateTokens, ipGroup, parseUsage } from '../meter.js'
-import { teeRelayUpstream } from '../chatLog.js'
+import { chatHeadersOf, teeRelayUpstream } from '../chatLog.js'
 import { writeOrClose } from '../pipe.js'
 
 // The catalog lives at `<root>/api/relay/jscad-web/v1/models`; the free turn
@@ -159,10 +159,8 @@ export const jscadHook = {
       delete headers.authorization
       delete headers['x-api-key']
       headers.authorization = `Bearer ${option.key}`
-      const chatIdHeader = req.headers['x-jscad-chat-id']
-      const chatId = typeof chatIdHeader === 'string' && chatIdHeader !== '' ? chatIdHeader : null
       // Free turns are always recorded, chat id or not.
-      const tee = teeRelayUpstream({ log: ctx.log, ts, kind: option.kind, path: option.path, request: Buffer.from(bodyText), chatId, started })
+      const tee = teeRelayUpstream({ log: ctx.log, ts, kind: option.kind, path: option.path, request: Buffer.from(bodyText), ...chatHeadersOf(req.headers), started })
 
       /** @type {Record<string, string>} */
       let table
