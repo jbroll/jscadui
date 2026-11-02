@@ -14,6 +14,30 @@ test.describe('editor drawer projects', () => {
     expect(await versionSelect.locator('option').count()).toBeGreaterThan(0)
   })
 
+  test('each file row keeps its name, rename and delete on one line', async ({ page }) => {
+    await page.goto('/')
+    await dismissWelcome(page)
+    await waitForRender(page)
+    const header = page.locator('#editor-header .project-header')
+    await expect(header).toHaveAttribute('data-project-id', /.+/)
+    // The boot example lists no files; a folder drop opens the tree.
+    await header.evaluate((target) => {
+      const source = 'module.exports = { main: () => [] }\n'
+      const file = { kind: 'file', name: 'a-file-name-long-enough-to-crowd-the-row-icons.js', getFile: async () => new File([source], 'index.js') }
+      const dir = { kind: 'directory', name: 'bracket', values: async function* () { yield file } }
+      const dataTransfer = { items: [{ kind: 'file', getAsFileSystemHandle: async () => dir }] }
+      const drop = new Event('drop', { bubbles: true, cancelable: true })
+      Object.defineProperty(drop, 'dataTransfer', { value: dataTransfer })
+      target.dispatchEvent(drop)
+    })
+    const row = page.locator('#editor-files .file-node[data-path="/bracket/a-file-name-long-enough-to-crowd-the-row-icons.js"]')
+    await expect(row).toBeAttached()
+    await page.locator('#editor-file').click()
+    await expect(row).toBeVisible()
+    const boxes = await row.evaluate((node) => ['.file-open', '.file-rename', '.file-delete'].map((sel) => node.querySelector(sel).getBoundingClientRect().top))
+    expect(new Set(boxes).size).toBe(1)
+  })
+
   test("a part file's row shows its part alone; the chat's handlers still read the entry", async ({ page }) => {
     await page.addInitScript(() => window.localStorage.setItem('jscad-harness', '1'))
     await page.goto('/')

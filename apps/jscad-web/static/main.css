@@ -296,6 +296,34 @@ p {
 #editor-files button:focus {
   background-color: #f6f6f9;
 }
+/* One line per file: the name takes the room, the size and the icons their own width. */
+#editor-files .file-node {
+  display: flex;
+  align-items: stretch;
+  white-space: nowrap;
+  background-color: #fdfdfd;
+}
+#editor-files .file-node > button {
+  flex: none;
+  width: auto;
+}
+#editor-files .file-node > .file-open {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#editor-files .file-size {
+  flex: none;
+  align-self: center;
+  padding: 0 6px;
+  font-family: monospace;
+  font-size: 8pt;
+  color: #888;
+}
+.dark #editor-files .file-node {
+  background-color: #333;
+}
 .dark #editor-nav button {
   background-color: #333;
   color: #bbb;
