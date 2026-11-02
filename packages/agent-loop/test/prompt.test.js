@@ -4,6 +4,7 @@ import { APIS, DEFAULT_API } from '../src/api.js'
 import { assemblePrompt, buildSystemPrompt } from '../src/prompt.js'
 import { EXAMPLES, SKILLS } from '../prompt/index.js'
 import { createEvalBackend } from '../eval/backend.js'
+import { writeExample } from '../eval/exampleFiles.js'
 
 const exampleDir = (api) => new URL(`../prompt/examples/${api}/`, import.meta.url)
 const filesOf = (api) => readdirSync(exampleDir(api)).filter((f) => f.endsWith('.js')).sort()
@@ -60,23 +61,13 @@ describe('system prompt', () => {
     else expect(source).not.toMatch(/fluent|\bjf\b/)
   })
 
-  // A multi-file example marks each file with a `// name.js` line; main.js comes last.
-  const projectFiles = (source) => {
-    const parts = source.split(/^(?=\/\/ [\w/-]+\.js\b)/m)
-    if (parts.length === 1) return [['main.js', source]]
-    return parts.slice(1).map((part) => [part.match(/^\/\/ ([\w/-]+\.js)/)[1], part])
-  }
-
   it.each(examples)('%s/%s builds in the eval backend with no option warnings', async (api, file) => {
-    const backend = createEvalBackend({ api })
-    let res
-    for (const [path, content] of projectFiles(read(api, file))) res = JSON.parse(await backend.requestTool('write', { path, content }))
-    expect(res).toMatchObject({ ok: true, warnings: [] })
+    expect(await writeExample(createEvalBackend({ api }), read(api, file))).toMatchObject({ ok: true, warnings: [] })
   })
 
   it('the multi-part example returns colored parts that touch without overlapping', async () => {
     const backend = createEvalBackend({ api: 'fluent' })
-    for (const [path, content] of projectFiles(read('fluent', '07-nameplate-stand.js'))) await backend.requestTool('write', { path, content })
+    await writeExample(backend, read('fluent', '07-nameplate-stand.js'))
     const res = JSON.parse(await backend.requestTool('measure', { between: ['0', '1'], overlaps: true }))
     expect(res).toMatchObject({ ok: true, entityCount: 2, between: { distance: 0 }, overlaps: { total: 0 } })
   })

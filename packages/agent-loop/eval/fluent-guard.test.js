@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createEvalBackend } from './backend.js'
+import { writeExample } from './exampleFiles.js'
 import { KEYLESS_SOURCES } from './keyless.js'
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url))
@@ -25,7 +26,7 @@ describe('fluent method checks on real models', () => {
     const warned = []
     let ran = 0
     for (const { name, source } of corpus()) {
-      const res = JSON.parse(await createEvalBackend().requestTool('write', { path: 'main.js', content: source }))
+      const res = await writeExample(createEvalBackend(), source)
       if (!res.ok) {
         skipped.push(`${name}: ${res.error.message}`)
         continue
