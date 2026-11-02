@@ -394,6 +394,7 @@ const fsDeps = {
   onAliasFound: alias => workerApi.jscadInit({ alias }),
   onScriptReady: (script, url) => {
     currentEntry = url
+    viewRuns.forget()
     jscadScript(projectUrls(url))
     editor.setSource(script, url)
   },
@@ -644,6 +645,7 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
   }
   if (url !== lastScriptUrl) meshRefs.forget()
   lastScriptUrl = url
+  if (!url.startsWith(PROJECT_BASE)) viewRuns.forget()
   let runId = beginStream(isStale)
   currentBase = base
   loadDefault = false

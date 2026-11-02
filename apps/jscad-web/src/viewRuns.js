@@ -101,6 +101,12 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
     },
     /** The entry's mesh for the chat's view, or null when the viewer shows the entry itself. */
     entryMesh: () => (selected === undefined ? null : entryMesh),
+    /** Something else loaded (an example, a dropped folder): neither side has a model to restore. */
+    forget: () => {
+      selected = undefined
+      held = null
+      entryMesh = null
+    },
     rename: (from, to) => {
       if (selected !== undefined && selected === bare(from)) selected = bare(to)
     },

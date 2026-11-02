@@ -127,6 +127,18 @@ describe('createViewRuns', () => {
     expect(runs.slice(1)).toEqual([['paint', 'main.js'], ['paint', 'gear.js']])
   })
 
+  it('after another load, a param change does not bring the part back over it', async () => {
+    const { views, runs } = setup()
+    await views.show('truck.js')
+    await views.build()
+    views.forget()
+    runs.length = 0
+    await views.ensureView()
+    await views.ensureEntry()
+    expect(runs).toEqual([])
+    expect(views.selected()).toBe(undefined)
+  })
+
   it('a rename of the selected file moves the selection', async () => {
     const { views } = setup()
     await views.show('truck.js')
