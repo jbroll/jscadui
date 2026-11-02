@@ -59,7 +59,7 @@ test('an attached image goes to a vision model and shows in the user bubble', as
   await page.locator('.ai-field', { has: page.locator('.ai-field-name', { hasText: /^Keep$/ }) }).locator('select').selectOption('device')
   await page.locator('.ai-key-input').fill('sk-test')
   await page.locator('.ai-save-key').click()
-  await expect(page.locator('.ai-settings')).toContainText('Key set (sk-test…).')
+  await expect(page.locator('.ai-key-input')).toHaveAttribute('placeholder', 'sk-test…')
   await page.reload()
   await dismissWelcome(page)
   await waitForRender(page)

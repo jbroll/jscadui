@@ -44,16 +44,12 @@ const textInput = (value = '', placeholder = '', type = 'text') => {
 
 export const keyStore = createKeyStore()
 
-// A stored key reads back as its first 8 characters plus an ellipsis: enough
-// to tell which key is on the device without revealing it in the dialog.
-const keyFingerprint = (key) => (typeof key === 'string' && key ? ` (${key.slice(0, 8)}…)` : '')
-const keyLineText = () => {
-  const key = keyStore.get()
-  return key ? `Key set${keyFingerprint(key)}.` : 'No key set.'
-}
-const searchStatusText = (store) => {
+// A stored key shows in its empty input as the placeholder: its first 8
+// characters plus an ellipsis, enough to tell which key is on the device
+// without revealing it. Typing over it enters a replacement.
+const showStoredKey = (input, store, empty) => {
   const key = store.get()
-  return key ? `key set${keyFingerprint(key)}` : 'keyless'
+  input.placeholder = typeof key === 'string' && key ? `${key.slice(0, 8)}…` : empty
 }
 
 // One search-key store per provider (page memory + origin localStorage, never
@@ -301,6 +297,8 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   const key = textInput('', 'sk-...', 'password')
   key.classList.add('ai-key-input')
   key.autocomplete = 'off'
+  const showKey = () => showStoredKey(key, keyStore, 'sk-...')
+  showKey()
   // A typed-but-unsaved key draft, held while free shows the fixed sentinel.
   let keyDraft = ''
   const mode = el('select', 'ai-input')
@@ -315,7 +313,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
   saveKey.type = 'button'
   const clearKey = el('button', 'ai-button', 'Forget key')
   clearKey.type = 'button'
-  const keyLine = el('span', 'ai-session', keyLineText())
+  const keyLine = el('span', 'ai-session', '')
   const keyActions = el('div', 'ai-actions')
   keyActions.append(saveKey, clearKey, keyLine)
 
@@ -394,9 +392,7 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
       key.type = 'password'
       if (key.value === FREE_API_KEY) key.value = keyDraft
     }
-    // The key line always describes the keystore, never the free sentinel:
-    // the key box itself shows the fixed key while free is selected.
-    keyLine.textContent = keyLineText()
+    showKey()
     recordToggle.checked = free ? true : getRecordOwnChats()
     recordToggle.disabled = free
     refreshEffort()
@@ -431,7 +427,9 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
     const input = textInput('', `${id} key`, 'password')
     input.classList.add('ai-search-key-input')
     input.autocomplete = 'off'
-    const status = el('span', 'ai-search-status', searchStatusText(store))
+    const status = el('span', 'ai-search-status', '')
+    const showKey = () => showStoredKey(input, store, `${id} key`)
+    showKey()
     const save = el('button', 'ai-button ai-search-save', 'Save')
     save.type = 'button'
     const clear = el('button', 'ai-button ai-search-clear', 'Clear')
@@ -444,14 +442,16 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
           await store.set(input.value, searchMode.value, searchPassphrase.value || undefined)
           input.value = ''
         }
-        status.textContent = searchStatusText(store)
+        status.textContent = ''
+        showKey()
       } catch (err) {
         status.textContent = `key failed: ${err.message}`
       }
     })
     clear.addEventListener('click', () => {
       store.clear()
-      status.textContent = 'keyless'
+      status.textContent = ''
+      showKey()
     })
     row.append(link, input, save, clear, status)
     searchRows.append(row)
@@ -695,7 +695,8 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
         key.value = ''
       }
       persistSelection()
-      keyLine.textContent = keyLineText()
+      keyLine.textContent = ''
+      showKey()
       loadModels()
     } catch (err) {
       keyLine.textContent = `Key failed: ${err.message}`
@@ -704,7 +705,8 @@ export const initAccount = (container, { onSignOut = () => {}, hasLocalWork = ()
 
   clearKey.addEventListener('click', () => {
     keyStore.clear()
-    keyLine.textContent = 'No key set.'
+    keyLine.textContent = ''
+    showKey()
   })
 
   renderProviderOptions()

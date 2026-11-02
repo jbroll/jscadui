@@ -232,16 +232,16 @@ describe('account header', () => {
     document.querySelector('.ai-gear').click()
     const row = document.querySelector('[data-search-provider="tavily"]')
     expect(row).toBeTruthy()
-    expect(row.querySelector('.ai-search-status').textContent).toMatch(/keyless/)
+    expect(row.querySelector('.ai-search-key-input').placeholder).toBe('tavily key')
     row.querySelector('.ai-search-key-input').value = 'tvly-x'
     row.querySelector('.ai-search-save').click()
-    await vi.waitFor(() => expect(row.querySelector('.ai-search-status').textContent).toMatch(/key set/))
+    await vi.waitFor(() => expect(row.querySelector('.ai-search-key-input').placeholder).toBe('tvly-x…'))
     expect(searchStores.tavily.get()).toBe('tvly-x')
     expect(searchStores.exa.get()).toBeNull()
     expect(calls.filter(([url]) => /exa|parallel|firecrawl|tavily|tinyfish|mcp/i.test(url))).toEqual([])
     row.querySelector('.ai-search-clear').click()
     expect(searchStores.tavily.get()).toBeNull()
-    expect(row.querySelector('.ai-search-status').textContent).toMatch(/keyless/)
+    expect(row.querySelector('.ai-search-key-input').placeholder).toBe('tavily key')
   })
 
   it('persists the websearch blanket toggle and notifies the live chat', async () => {
@@ -400,13 +400,17 @@ describe('account header', () => {
     keepSelect().dispatchEvent(new Event('change'))
     document.querySelector('.ai-key-input').value = 'sk-device-key-1'
     document.querySelector('.ai-save-key').click()
-    await vi.waitFor(() => expect(document.body.textContent).toMatch(/Key set \(sk-devic…\)/))
+    await vi.waitFor(() => expect(document.querySelector('.ai-key-input').placeholder).toBe('sk-devic…'))
+    expect(document.querySelector('.ai-key-input').value).toBe('')
+    expect(document.body.textContent).not.toMatch(/Key set/)
     // A reload rebuilds the dialog over the same storage: the device scope
     // and the key identifier come back with it.
     document.body.innerHTML = '<div id="b"></div>'
     initAccount(document.getElementById('b'))
     expect(keepSelect().value).toBe('device')
-    expect(document.body.textContent).toMatch(/Key set \(sk-devic…\)/)
+    expect(document.querySelector('.ai-key-input').placeholder).toBe('sk-devic…')
+    document.querySelectorAll('.ai-button').forEach((b) => { if (b.textContent === 'Forget key') b.click() })
+    expect(document.querySelector('.ai-key-input').placeholder).toBe('sk-...')
   })
 
   it('restores the search Keep mode and fingerprints saved search keys', async () => {
@@ -421,11 +425,15 @@ describe('account header', () => {
     const row = document.querySelector('[data-search-provider="exa"]')
     row.querySelector('.ai-search-key-input').value = 'exa-key-12345'
     row.querySelector('.ai-search-save').click()
-    await vi.waitFor(() => expect(row.querySelector('.ai-search-status').textContent).toBe('key set (exa-key-…)'))
+    await vi.waitFor(() => expect(row.querySelector('.ai-search-key-input').placeholder).toBe('exa-key-…'))
+    expect(row.querySelector('.ai-search-status').textContent).toBe('')
     document.body.innerHTML = '<div id="b"></div>'
     initAccount(document.getElementById('b'))
     expect(document.querySelector('.ai-search-mode').value).toBe('device')
-    expect(document.querySelector('[data-search-provider="exa"] .ai-search-status').textContent).toBe('key set (exa-key-…)')
+    const reloaded = document.querySelector('[data-search-provider="exa"]')
+    expect(reloaded.querySelector('.ai-search-key-input').placeholder).toBe('exa-key-…')
+    reloaded.querySelector('.ai-search-clear').click()
+    expect(reloaded.querySelector('.ai-search-key-input').placeholder).toBe('exa key')
   })
 })
 

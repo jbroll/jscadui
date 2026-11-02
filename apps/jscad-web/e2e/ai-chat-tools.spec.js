@@ -102,7 +102,7 @@ const openChatWithKey = async (page, stub, { provider = 'openai', model = 'stub-
   await keepMode(page).selectOption('device')
   await page.locator('.ai-key-input').fill(key)
   await page.locator('.ai-save-key').click()
-  await expect(page.locator('.ai-settings')).toContainText('Key set (sk-test…).')
+  await expect(page.locator('.ai-key-input')).toHaveAttribute('placeholder', 'sk-test…')
 
   await page.addInitScript(({ port, tos }) => {
     window.localStorage.setItem('jscad-ai.relay', `http://127.0.0.1:${port}`)
@@ -445,7 +445,7 @@ test.describe('AI chat tools', () => {
     const tavily = page.locator('[data-search-provider="tavily"]')
     await tavily.locator('.ai-search-key-input').fill('sk-tavily')
     await tavily.locator('.ai-search-save').click()
-    await expect(tavily.locator('.ai-search-status')).toContainText('key set')
+    await expect(tavily.locator('.ai-search-key-input')).toHaveAttribute('placeholder', 'sk-tavil…')
     await page.locator('.ai-dialog-footer button').click()
 
     await page.locator('.chat-input').fill('bearing size?')
