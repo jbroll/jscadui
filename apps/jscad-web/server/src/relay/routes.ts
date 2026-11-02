@@ -15,13 +15,13 @@ export interface RelayRouteOptions {
   fetchFn?: typeof fetch
   /** DNS seam: defaults to `node:dns` lookup; tests inject fakes. */
   dnsLookup?: (host: string) => Promise<Array<{ address: string }>>
-  /** Where the chat log goes: `CHAT_LOG_DIR`, then `./data/chat-logs`. `0` turns logging off. */
+  /** Where the chat log goes: `CHAT_LOG_DIR`, then `<DATA_PATH>/chat-logs`. `0` turns logging off. */
   chatLogDir?: string
   /** Days of chat log to keep: `CHAT_LOG_RETAIN_DAYS`, then 90. */
   chatLogRetainDays?: number
   /** Free inference options file: `RELAY_INFERENCE`, then `/etc/jscad-relay/jscad-inference.json`. */
   inferencePath?: string
-  /** Meter state file: `RELAY_SPEND_PATH`, then `./data/relay-spend.json`. */
+  /** Meter state file: `RELAY_SPEND_PATH`, then `<DATA_PATH>/relay-spend.json`. */
   inferenceSpendPath?: string
   /** Clock seam for the meter; defaults to `Date.now`. */
   now?: () => number
@@ -29,9 +29,10 @@ export interface RelayRouteOptions {
   maxInFlight?: number
 }
 
-const DEFAULT_CHAT_LOG_DIR = './data/chat-logs'
+// The service's working directory is the deployed app, which every deploy
+// rsyncs with --delete; DATA_PATH (set by the systemd unit) survives deploys.
+const dataDir = (): string => process.env.DATA_PATH?.trim() || './data'
 export const DEFAULT_CHAT_LOG_RETAIN_DAYS = 90
-const DEFAULT_SPEND_PATH = './data/relay-spend.json'
 /** No matter how many /64s a client holds, the server holds at most this many free turns. */
 export const DEFAULT_MAX_IN_FLIGHT = 50
 /** A non-finite or non-positive operator override is a mistake: use the ceiling. */
@@ -93,7 +94,7 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
   // Many browsers share this relay, so a client gets a small burst.
   const limiter = createLimiter({ ratePerMin: RATE_PER_MIN, burst: 10 })
   const allowed = new Set(options.trustedOrigins)
-  const chatLogDir = options.chatLogDir ?? process.env.CHAT_LOG_DIR ?? DEFAULT_CHAT_LOG_DIR
+  const chatLogDir = options.chatLogDir ?? process.env.CHAT_LOG_DIR ?? join(dataDir(), 'chat-logs')
   const log = chatLogDir === '0' ? null : createChatLog(chatLogDir)
   if (log) {
     // At startup, and then once a day for a server that stays up for months.
@@ -116,7 +117,7 @@ export function mountRelayRoutes(app: Express, options: RelayRouteOptions): void
   // through the same 5-second cache as the allowlist so an edit applies without
   // a restart.
   const inferencePath = options.inferencePath ?? process.env.RELAY_INFERENCE ?? DEFAULT_INFERENCE_PATH
-  const spendPath = options.inferenceSpendPath ?? process.env.RELAY_SPEND_PATH ?? DEFAULT_SPEND_PATH
+  const spendPath = options.inferenceSpendPath ?? process.env.RELAY_SPEND_PATH ?? join(dataDir(), 'relay-spend.json')
   // A bad spend file must stop only the free models, not the whole server.
   let meter: ReturnType<typeof createMeter> | null = null
   try {

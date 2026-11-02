@@ -191,7 +191,7 @@ or prices.
 
 ### Meter
 
-Spend is one JSON file, default `./data/relay-spend.json`, override with
+Spend is one JSON file, default `$DATA_PATH/relay-spend.json`, override with
 `RELAY_SPEND_PATH`: the month's total and each IP group's spend for the current
 UTC day, so a restart does not hand out the budget again. The group is the
 whole IPv4 address (including both spellings of an IPv4-mapped address,
@@ -233,7 +233,9 @@ provider requests from 1; an empty-reply resend repeats its round's number.
 The request
 body drops `tools` (large and re-derivable), and each inline image part becomes
 a text part `[image: <mime>, <w>x<h>]`, so no image bytes are written. The production relay's directory is
-`CHAT_LOG_DIR`, default `./data/chat-logs`; `0` turns logging off. It keeps
+`CHAT_LOG_DIR`, default `$DATA_PATH/chat-logs` (`./data/chat-logs` without
+`DATA_PATH`); `0` turns logging off. The systemd unit sets `DATA_PATH` outside
+the app directory, which each deploy replaces with `rsync --delete`. It keeps
 `CHAT_LOG_RETAIN_DAYS` (default 90) day files and prunes the rest. The value is
 a whole number of days from 1 to 3650: a fraction is floored, anything outside
 the range is clamped, and an empty or non-numeric value means the default. An own-key

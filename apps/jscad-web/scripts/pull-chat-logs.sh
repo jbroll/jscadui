@@ -11,9 +11,9 @@
 # chatDataDir in packages/agent-loop/log/log-dir.js.
 #
 # Source: the host and remote user come from server/deploy.conf. The remote
-# directory is the server's CHAT_LOG_DIR, which defaults to ./data/chat-logs
-# relative to the service's working directory (<EXPRESS_APP_BASE_PATH>/<APP_NAME>,
-# per the deploy.sh express_app module). Set REMOTE_CHAT_LOG_DIR when the host
+# directory is the server's CHAT_LOG_DIR, which defaults to $DATA_PATH/chat-logs;
+# the express_app systemd unit sets DATA_PATH to
+# <EXPRESS_APP_DATA_PATH>/<APP_NAME>/data. Set REMOTE_CHAT_LOG_DIR when the host
 # overrides CHAT_LOG_DIR in its secrets env.
 #
 # Usage:
@@ -31,8 +31,8 @@ APP_PORT="${APP_PORT:-0}"
 
 : "${REMOTE_HOST:?server/deploy.conf did not set REMOTE_HOST}"
 remote_user="${REMOTE_USER:-$(id -un)}"
-app_path="${EXPRESS_APP_BASE_PATH:-/var/lib}/${APP_NAME:-jscad-studio-api}"
-remote_log_dir="${REMOTE_CHAT_LOG_DIR:-$app_path/data/chat-logs}"
+data_path="${EXPRESS_APP_DATA_PATH:-/var/lib}/${APP_NAME:-jscad-studio-api}/data"
+remote_log_dir="${REMOTE_CHAT_LOG_DIR:-$data_path/chat-logs}"
 
 data_dir="${JSCAD_CHAT_DATA:-$HOME/src/jscad-chat-evals}"
 if [ ! -d "$data_dir" ]; then
