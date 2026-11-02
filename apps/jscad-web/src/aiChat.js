@@ -239,6 +239,29 @@ const phaseLabel = (status) => {
 // Providers stream reasoning text, not its token count; about four characters make a token.
 const CHARS_PER_TOKEN = 4
 
+const USAGE_FIELDS = ['inputTokens', 'outputTokens', 'reasoningTokens']
+
+// A field a provider never reported stays absent rather than counting as zero.
+export const addUsage = (total, usage) => {
+  let next = total
+  for (const field of USAGE_FIELDS) {
+    const n = usage?.[field]
+    if (typeof n === 'number') next = { ...next, [field]: (next?.[field] ?? 0) + n }
+  }
+  return next ?? null
+}
+
+const tokenCount = (n) => (n < 1000 ? String(n) : `${(n / 1000).toFixed(1)}k`)
+
+export const usageLabel = (usage) => {
+  const parts = []
+  if (typeof usage?.inputTokens === 'number') parts.push(`${tokenCount(usage.inputTokens)} in`)
+  if (typeof usage?.outputTokens === 'number') parts.push(`${tokenCount(usage.outputTokens)} out`)
+  if (parts.length === 0) return null
+  const thinking = usage.reasoningTokens > 0 ? ` (${tokenCount(usage.reasoningTokens)} thinking)` : ''
+  return `${parts.join(' · ')}${thinking}`
+}
+
 /**
  * `getBuild` answers the open project's last build report, whichever run made
  * it; `startTurn` runs before a turn reads the project for its context, and
@@ -514,6 +537,11 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
 
   const addStopped = () => addMessage('Stopped', 'stopped')
 
+  const addUsageLine = (usage) => {
+    const label = usageLabel(usage)
+    if (label) addMessage(label, 'usage')
+  }
+
   // Only the newest failure offers Retry, and only until another turn starts.
   let retryButton = null
   const addFailure = (text, message, images) => {
@@ -576,6 +604,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       for (const step of m.reasoning ?? []) addReasoningBlock(thoughtLabel(step.seconds), step.text)
       if (m.role === 'user') addUserMessage(m.content, m.images)
       else if (m.role === 'assistant' && m.content) addAssistant(m.content)
+      if (m.role === 'assistant') addUsageLine(m.usage)
       if (m.stopped) addStopped()
       if (m.undo?.length > 0) addUndo(m)
     }
@@ -923,9 +952,10 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     let assistantText = ''
     let stopped = false
     let replied = false
+    let usage = null
     turnReasoning = []
     turnMentions = []
-    const reply = (fields) => ({ role: 'assistant', content: assistantText, ...fields, ...(turnMentions.length > 0 ? { mentions: [...turnMentions] } : {}), ...(turnReasoning.length > 0 ? { reasoning: turnReasoning } : {}) })
+    const reply = (fields) => ({ role: 'assistant', content: assistantText, ...fields, ...(turnMentions.length > 0 ? { mentions: [...turnMentions] } : {}), ...(turnReasoning.length > 0 ? { reasoning: turnReasoning } : {}), ...(usage ? { usage } : {}) })
     try {
       const provider = createProvider({
         ...selection,
@@ -1007,10 +1037,13 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         },
         onReasoning: (text) => { if (live()) addReasoning(text) },
         onStatus: (next) => { if (live()) setStatus(next) },
+        onUsage: (next) => { usage = addUsage(usage, next) },
         signal,
       })
       endReasoning()
       if (assistantText) {
+        endAssistant()
+        if (live()) addUsageLine(usage)
         commit([...local, reply()])
         replied = true
       }
@@ -1028,7 +1061,11 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       }
     } finally {
       if (stopped) {
-        if (live()) addStopped()
+        endAssistant()
+        if (live()) {
+          addUsageLine(usage)
+          addStopped()
+        }
         commit([...local, reply({ stopped: true })])
         replied = true
       }

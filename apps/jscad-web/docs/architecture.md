@@ -958,6 +958,7 @@ The message list shows each kind of row differently, light and dark alike
 | Tool call | `<details class="chat-tool">` | one monospace row: tool, its path, query or format (`toolDetail` from agent-loop), and `…`, `ok` or `failed`; opening it shows the input and the result; a `view` result auto-opens with thumbnail images (`.chat-tool-images`) that open full-size in a `.chat-view-overlay` dialog |
 | Error | `.chat-msg.error` | red-tinted block with a red left rule; a failed turn's row holds `.chat-error-text` and a `button.chat-retry` |
 | Stopped | `.chat-msg.stopped` | small muted italic `Stopped`, not an error |
+| Token usage | `.chat-msg.usage` | small muted line under the reply (before `Stopped`): `12.3k in · 1.8k out (0.9k thinking)` |
 | Undo | `button.chat-undo` | small muted button after a turn that wrote to a stored project: `Undo this turn's changes`, then `Undone` once restored; disabled while a turn or an undo runs, and on every turn but the newest one with an `undo` |
 
 `endTurn` returns the version each written project had before the turn; the
@@ -1000,6 +1001,17 @@ reasoning: [{ text, seconds }] }` (with `stopped: true` for a stopped one;
 no `reasoning` key when there was none), so a resumed conversation shows
 each step's block, closed, above the reply text. Tool rows are not stored,
 so after a reload the blocks of a turn sit together above its text.
+
+`runTurn`'s `onUsage` reports each provider round's `{ inputTokens,
+outputTokens, reasoningTokens }`, any of them `null` (Anthropic sends input
+and output in separate events). `addUsage` sums the numbers per turn and
+leaves a field never reported absent rather than zero; `usageLabel` draws the
+known fields and returns `null` when neither input nor output arrived, so no
+row is drawn. Reasoning counts are part of the output, shown as its
+`thinking` share. A replied or stopped turn stores the total as the reply's
+`usage` (no key when nothing arrived) and `renderLoaded` redraws the row;
+`forModel` copies only role, content, mentions and images, so the model never
+sees it. A failed turn commits no reply, so its usage is dropped.
 
 A long chat folds its evicted turns into a summary it keeps as the
 transcript's first message, `{ role: 'system', text, basis }`, rendered as

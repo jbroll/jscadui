@@ -115,6 +115,16 @@ new tab. Anything else, HTML included, shows as the literal text. Each code
 block has a `Copy` button that copies the block and shows `Copied`. Replies
 format as they stream, and a reopened conversation shows them the same way.
 
+## Token usage
+
+Under each reply a small muted line shows the tokens the turn spent, summed
+over every model request in it: `12.3k in · 1.8k out`. When the provider
+reports reasoning tokens, their share of the output follows as
+`(0.9k thinking)`. Counts under 1000 show plain. A stopped turn shows what it
+spent before the stop; a failed turn and a provider that reports no usage
+show no line. A reopened conversation keeps the line. There are no cost
+figures.
+
 ## Retrying a failed message
 
 A turn that fails (provider error, quota, a message too large) shows a red

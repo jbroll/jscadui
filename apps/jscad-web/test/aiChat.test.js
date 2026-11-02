@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildSystemPrompt, dispatchTool, SUMMARY_PREFIX } from '@jscadui/agent-loop'
 import { TOS_VERSION } from '../src/aiConsent.js'
-import { createWebsearchGrant, initChat, relayBaseUrl, visionCapable, WEB_ALLOW, WEB_DECLINE, WEB_PERMISSION_QUESTION, webDeclined, webUnasked } from '../src/aiChat.js'
+import { addUsage, createWebsearchGrant, initChat, relayBaseUrl, usageLabel, visionCapable, WEB_ALLOW, WEB_DECLINE, WEB_PERMISSION_QUESTION, webDeclined, webUnasked } from '../src/aiChat.js'
 import * as modelVision from '../src/modelVision.js'
 
 // Every turn is gated on the accepted terms version, so each test here starts
@@ -646,6 +646,94 @@ describe('model reasoning', () => {
     q('.chat-send').click()
     await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
     expect(writeConversation.mock.calls.at(-1)[1][1]).toEqual({ role: 'assistant', content: '', stopped: true, reasoning: [{ text: 'hmm', seconds: expect.any(Number) }] })
+  })
+})
+
+describe('turn token usage', () => {
+  it('sums usage across rounds, treating a missing field as unreported', () => {
+    let total = null
+    total = addUsage(total, { inputTokens: 1000, outputTokens: null, reasoningTokens: null })
+    total = addUsage(total, { inputTokens: null, outputTokens: 300, reasoningTokens: null })
+    total = addUsage(total, { inputTokens: 11300, outputTokens: 1500, reasoningTokens: 900 })
+    expect(total).toEqual({ inputTokens: 12300, outputTokens: 1800, reasoningTokens: 900 })
+    expect(addUsage(null, { inputTokens: null, outputTokens: null, reasoningTokens: null })).toBeNull()
+    expect(addUsage(null, { inputTokens: 5 })).toEqual({ inputTokens: 5 })
+  })
+
+  it('labels thousands with one decimal and smaller counts plain', () => {
+    expect(usageLabel({ inputTokens: 12300, outputTokens: 1800 })).toBe('12.3k in · 1.8k out')
+    expect(usageLabel({ inputTokens: 12345, outputTokens: 1800, reasoningTokens: 900 })).toBe('12.3k in · 1.8k out (900 thinking)')
+    expect(usageLabel({ inputTokens: 999, outputTokens: 2500, reasoningTokens: 1500 })).toBe('999 in · 2.5k out (1.5k thinking)')
+    expect(usageLabel({ outputTokens: 40 })).toBe('40 out')
+    expect(usageLabel({ inputTokens: 40, outputTokens: 2, reasoningTokens: 0 })).toBe('40 in · 2 out')
+    expect(usageLabel(null)).toBeNull()
+  })
+
+  const usageTurn = (rounds) => async ({ onText, onUsage }) => {
+    for (const usage of rounds) onUsage(usage)
+    onText('done')
+    return { messages: [] }
+  }
+
+  it('shows the turn total under the reply, stores it, and never sends it to the model', async () => {
+    const writeConversation = vi.fn(async () => {})
+    const first = openChat({
+      runTurnFn: usageTurn([
+        { inputTokens: 1200, outputTokens: 300, reasoningTokens: null },
+        { inputTokens: 1300, outputTokens: 200, reasoningTokens: null },
+      ]),
+      storage: { readConversation: async () => null, writeConversation },
+      projectId: 'p1',
+    })
+    first.type('a cube')
+    await vi.waitFor(() => expect(first.q('.chat-msg.usage')?.textContent).toBe('2.5k in · 500 out'))
+    expect(first.q('.chat-msg.assistant').compareDocumentPosition(first.q('.chat-msg.usage')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const stored = writeConversation.mock.calls.at(-1)[1]
+    expect(stored[1]).toEqual({ role: 'assistant', content: 'done', usage: { inputTokens: 2500, outputTokens: 500 } })
+
+    const runTurnFn = vi.fn(async () => ({ messages: [] }))
+    const second = openChat({ runTurnFn, storage: { readConversation: async () => ({ messages: stored, updated: 1 }), writeConversation }, projectId: 'p1' })
+    await vi.waitFor(() => expect(second.q('.chat-msg.usage')?.textContent).toBe('2.5k in · 500 out'))
+    second.type('go on')
+    await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
+    expect(runTurnFn.mock.calls[0][0].conversation.messages.slice(1, 3)).toEqual([
+      { role: 'user', content: 'a cube' },
+      { role: 'assistant', content: 'done' },
+    ])
+  })
+
+  it('shows no usage line when no usage arrived', async () => {
+    const { q, type } = openChat({ runTurnFn: usageTurn([]) })
+    type('a cube')
+    await vi.waitFor(() => expect(q('.chat-msg.assistant')?.textContent).toBe('done'))
+    await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
+    expect(q('.chat-msg.usage')).toBeNull()
+  })
+
+  it('shows and stores the usage of a stopped turn', async () => {
+    const turn = heldTurn()
+    const writeConversation = vi.fn(async () => {})
+    const { q, type } = openChat({ runTurnFn: turn.runTurnFn, storage: { readConversation: async () => null, writeConversation }, projectId: 'p1' })
+    type('a cube')
+    await vi.waitFor(() => expect(turn.runTurnFn).toHaveBeenCalledTimes(1))
+    turn.args().onUsage({ inputTokens: 800, outputTokens: 50, reasoningTokens: null })
+    turn.args().onText('Writing')
+    q('.chat-send').click()
+    await vi.waitFor(() => expect(q('.chat-msg.stopped')).not.toBeNull())
+    expect(q('.chat-msg.usage').textContent).toBe('800 in · 50 out')
+    expect(writeConversation.mock.calls.at(-1)[1][1]).toEqual({ role: 'assistant', content: 'Writing', stopped: true, usage: { inputTokens: 800, outputTokens: 50 } })
+  })
+
+  it('shows no usage line for a failed turn', async () => {
+    const { q, type } = openChat({
+      runTurnFn: async ({ onUsage }) => {
+        onUsage({ inputTokens: 800, outputTokens: 50, reasoningTokens: null })
+        throw new Error('provider down')
+      },
+    })
+    type('a cube')
+    await vi.waitFor(() => expect(q('.chat-msg.error')).not.toBeNull())
+    expect(q('.chat-msg.usage')).toBeNull()
   })
 })
 

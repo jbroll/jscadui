@@ -1396,6 +1396,12 @@ p {
   font-style: italic;
   color: var(--chat-muted);
 }
+.chat-msg.usage {
+  margin-top: 0;
+  font-size: 8.5pt;
+  font-variant-numeric: tabular-nums;
+  color: var(--chat-muted);
+}
 
 /* Markdown in replies (chatMarkdown.js), sized for the narrow drawer. */
 .chat-msg.assistant > :first-child {
