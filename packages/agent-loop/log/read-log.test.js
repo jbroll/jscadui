@@ -67,7 +67,14 @@ describe('readConversations', () => {
     expect(conversation.model).toBe('m')
     expect(conversation.turns).toEqual([
       {
+        turnId: null,
         ts: '2026-09-27T10:00:00.000Z',
+        end: '2026-09-27T10:00:02.005Z',
+        rounds: [
+          { round: 1, ts: '2026-09-27T10:00:00.000Z', ms: 5 },
+          { round: 2, ts: '2026-09-27T10:00:01.000Z', ms: 5 },
+          { round: 3, ts: '2026-09-27T10:00:02.000Z', ms: 5 },
+        ],
         user: 'A single sphere',
         steps: [
           { name: 'eval', input: bad, result: JSON.stringify(fail), ok: false, error: 'failed to load module @jscad/primitives' },
@@ -75,8 +82,45 @@ describe('readConversations', () => {
         ],
         final: 'Here is a sphere.',
       },
-      { ts: '2026-09-27T10:01:00.000Z', user: 'Make it bigger', steps: [], final: 'Done.' },
+      {
+        turnId: null,
+        ts: '2026-09-27T10:01:00.000Z',
+        end: '2026-09-27T10:01:00.005Z',
+        rounds: [{ round: 1, ts: '2026-09-27T10:01:00.000Z', ms: 5 }],
+        user: 'Make it bigger',
+        steps: [],
+        final: 'Done.',
+      },
     ])
+  })
+
+  it('groups rounds into turns by turn id, keeping logged round numbers and a resend', async () => {
+    const withTurn = (record, turnId, round) => ({ ...record, turnId, round })
+    const [first, second, third, fourth] = openaiChat
+    // A turn whose second request repeats the user's text (an empty-reply
+    // resend) would split under inference; its turn id keeps it whole.
+    const resend = rec('2026-09-27T10:00:00.500Z', 'chat-1', OAI, first.request, openaiCall('c1', 'eval', bad))
+    const dir = writeLog({ '2026-09-27.jsonl': [withTurn(first, 't1', 1), withTurn(resend, 't1', 1), withTurn(second, 't1', 2), withTurn(third, 't1', 3), withTurn(fourth, 't2', 1)] })
+    const [conversation] = await readConversations(dir)
+    expect(conversation.turns.map((t) => [t.turnId, t.ts, t.end, t.rounds.map((r) => r.round)])).toEqual([
+      ['t1', '2026-09-27T10:00:00.000Z', '2026-09-27T10:00:02.005Z', [1, 1, 2, 3]],
+      ['t2', '2026-09-27T10:01:00.000Z', '2026-09-27T10:01:00.005Z', [1]],
+    ])
+    expect(conversation.turns[0]).toMatchObject({ user: 'A single sphere', final: 'Here is a sphere.' })
+  })
+
+  it('keeps a summary request out of the rounds and on the turn it belongs to', async () => {
+    const summary = { ...rec('2026-09-27T10:00:59.000Z', 'chat-1', OAI, { model: 'cheap', messages: [{ role: 'user', content: 'Summarize this' }] }, openaiText('a sphere')), turnId: 't2', round: null, purpose: 'summary' }
+    const dir = writeLog({ '2026-09-27.jsonl': [{ ...openaiChat[3], turnId: 't2', round: 1 }, summary] })
+    const [conversation] = await readConversations(dir)
+    expect(conversation.model).toBe('m')
+    expect(conversation.turns).toHaveLength(1)
+    expect(conversation.turns[0]).toMatchObject({
+      turnId: 't2',
+      user: 'Make it bigger',
+      rounds: [{ round: 1, ts: '2026-09-27T10:01:00.000Z', ms: 5 }],
+      summaries: [{ ts: '2026-09-27T10:00:59.000Z', ms: 5 }],
+    })
   })
 
   it('reads anthropic tool results out of user blocks', async () => {
@@ -128,7 +172,10 @@ describe('readConversations', () => {
     expect(conversations).toHaveLength(2)
     expect(conversations[0].chatId).toBeNull()
     expect(conversations[0].turns[0]).toEqual({
+      turnId: null,
       ts: '2026-09-27T10:00:00.000Z',
+      end: '2026-09-27T10:00:00.005Z',
+      rounds: [{ round: 1, ts: '2026-09-27T10:00:00.000Z', ms: 5 }],
       user: 'A sphere',
       steps: [{ name: 'eval', input: { source: 'y' }, result: null, ok: null }],
       final: null,

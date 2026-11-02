@@ -62,13 +62,19 @@ const stepsOf = (messages) => {
     })
 }
 
+const endOf = (record) => (typeof record.ms === 'number' ? new Date(Date.parse(record.ts) + record.ms).toISOString() : null)
+
 const buildTurn = async (records) => {
   const last = records.at(-1)
   const response = await responseMessage(last)
   const messages = [...requestMessages(last), ...(response.message ? [response.message] : [])]
   const at = messages.findLastIndex(isUserText)
   return {
+    turnId: records[0].turnId ?? null,
     ts: records[0].ts,
+    end: endOf(last),
+    // A record from before the relay logged rounds counts by its place in the turn.
+    rounds: records.map((r, i) => ({ round: r.round ?? i + 1, ts: r.ts, ms: r.ms ?? null })),
     user: at === -1 ? null : messages[at].content,
     steps: stepsOf(messages.slice(at + 1)),
     final: response.message?.content ?? null,
@@ -76,18 +82,36 @@ const buildTurn = async (records) => {
   }
 }
 
-// A request whose last message is the user's own text opens a turn; tool rounds continue it.
+// A logged turn id bounds a turn. Older records have none: there a request
+// whose last message is the user's own text opens a turn; tool rounds continue it.
+const opensTurn = (current, record) => {
+  if (current.length === 0) return false
+  const turnId = current[0].turnId ?? null
+  if (record.turnId || turnId) return record.turnId !== turnId
+  return isUserText(requestMessages(record).at(-1))
+}
+
 const turnsOf = async (records) => {
   const turns = []
   let current = []
   for (const record of records) {
-    if (current.length > 0 && isUserText(requestMessages(record).at(-1))) {
+    if (opensTurn(current, record)) {
       turns.push(await buildTurn(current))
       current = []
     }
     current.push(record)
   }
   if (current.length > 0) turns.push(await buildTurn(current))
+  return turns
+}
+
+// A summary request belongs to its turn id's turn, else to the next turn to start.
+const attachSummaries = (turns, summaries) => {
+  for (const s of summaries) {
+    const turn = turns.find((t) => s.turnId && t.turnId === s.turnId) ?? turns.find((t) => t.ts >= s.ts)
+    if (!turn) continue
+    turn.summaries = [...(turn.summaries ?? []), { ts: s.ts, ms: s.ms ?? null }]
+  }
   return turns
 }
 
@@ -100,8 +124,11 @@ export const readConversations = async (dir, { since } = {}) => {
     groups.get(key).push(record)
   }
   const conversations = []
-  for (const [key, list] of groups) {
-    const conversation = { chatId: typeof key === 'string' ? key : null, model: list[0].request.model ?? null, api: apiStyleOf(list[0]), turns: await turnsOf(list) }
+  for (const [key, all] of groups) {
+    const list = all.filter((r) => !r.purpose)
+    if (list.length === 0) continue
+    const turns = attachSummaries(await turnsOf(list), all.filter((r) => r.purpose))
+    const conversation = { chatId: typeof key === 'string' ? key : null, model: list[0].request.model ?? null, api: apiStyleOf(list[0]), turns }
     conversations.push({ ...conversation, stumbles: countStumbles(conversation) })
   }
   return conversations

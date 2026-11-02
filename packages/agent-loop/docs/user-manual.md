@@ -542,7 +542,12 @@ The `jscad-chat` launcher's relay logs each chat request as one JSONL line
 to `<data>/logs` and `<data>/results` when that repo is present, else the XDG
 fallback (logs) or nothing (results, see `EVAL_RESULTS_DIR` below). The reader
 groups the lines by chat id, splits them into turns, and parses each response
-with the adapters' own stream parsers. The log holds no image bytes: both
+with the adapters' own stream parsers. A record with a `turnId` belongs to that
+turn, and its `round` is the one logged. A record from before the relay logged
+turn ids starts a new turn when its request ends on the user's own text, and
+its round is its place in the turn. A record with a `purpose` (`summary`) is
+not a round: it goes on its turn's `summaries` (or, without a turn id, the next
+turn to start). The log holds no image bytes: both
 relays write each inline image part as a text part `[image: image/jpeg,
 1200x900]` (`toLogRequest` in `apps/jscad-web/server/src/relay/chatLog.js`;
 the size is read from the PNG, GIF or JPEG header and left out when it cannot
@@ -577,7 +582,11 @@ or a leading `input` item for Responses, a leading message for chat
 completions); a log from before the two-style split, whose prompt taught
 both, reports `unknown`. `readConversations(dir, { since })` in
 `log/read-log.js` returns
-`[{ chatId, model, api, turns: [{ ts, user, steps: [{ name, input, result, ok, error? }], final, error? }], stumbles: { failedCalls, unbuiltTurns } }]`.
+`[{ chatId, model, api, turns: [{ turnId, ts, end, rounds: [{ round, ts, ms }], summaries?: [{ ts, ms }], user, steps: [{ name, input, result, ok, error? }], final, error? }], stumbles: { failedCalls, unbuiltTurns } }]`,
+which `--json` prints. A turn's `ts` is its first round's start, `end` its
+last round's `ts` plus `ms` (null when that record has no `ms`), and `turnId`
+null for an old record. An empty-reply resend shows as two rounds with one
+number.
 `readBatch(dir, batchId)` returns the same plus `label: { scenario, builder, simUser, run } | null`.
 It reads the directory the launcher writes (`JSCAD_CHAT_LOG` when set) and
 the day files one directory below it, such as the production logs
