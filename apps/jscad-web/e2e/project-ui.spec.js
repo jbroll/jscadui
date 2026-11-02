@@ -14,6 +14,47 @@ test.describe('editor drawer projects', () => {
     expect(await versionSelect.locator('option').count()).toBeGreaterThan(0)
   })
 
+  test("a part file's row shows its part alone; the chat's handlers still read the entry", async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('jscad-harness', '1'))
+    await page.goto('/')
+    await dismissWelcome(page)
+    await waitForRender(page)
+    const header = page.locator('#editor-header .project-header')
+    await expect(header).toHaveAttribute('data-project-id', /.+/)
+    await header.evaluate((target) => {
+      const sources = {
+        'truck.js': "const { cuboid } = require('@jscad/modeling').primitives\nconst makeTruck = () => cuboid({ size: [10, 10, 10], center: [0, 0, 5] })\nmodule.exports = { makeTruck, axleDx: 12 }\n",
+        'dims.js': 'module.exports = { length: 40 }\n',
+      }
+      const files = Object.entries(sources).map(([name, source]) => ({ kind: 'file', name, getFile: async () => new File([source], name) }))
+      const dir = { kind: 'directory', name: 'parts', values: async function* () { yield* files } }
+      const dataTransfer = { items: [{ kind: 'file', getAsFileSystemHandle: async () => dir }] }
+      const drop = new Event('drop', { bubbles: true, cancelable: true })
+      Object.defineProperty(drop, 'dataTransfer', { value: dataTransfer })
+      target.dispatchEvent(drop)
+    })
+    const truck = page.locator('#editor-files .file-node[data-path="/parts/truck.js"]')
+    await expect(truck).toBeAttached()
+    const assemblyVertices = await page.evaluate(() => document.documentElement.dataset.vertices)
+
+    await page.locator('#editor-file').click()
+    await truck.locator('.file-open').click()
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.vertices)).not.toBe(assemblyVertices)
+    const truckVertices = await page.evaluate(() => document.documentElement.dataset.vertices)
+    await expect(page.locator('#error-bar')).not.toHaveClass(/visible/)
+
+    const report = await page.evaluate(() => globalThis.jscadHarness.buildReport())
+    expect(report.entry).toBe('main.js')
+    expect(report.geometry.parts).toBeGreaterThan(1)
+    expect(await page.evaluate(() => document.documentElement.dataset.vertices)).toBe(truckVertices)
+
+    await page.locator('#editor-file').click()
+    await page.locator('#editor-files .file-node[data-path="/parts/dims.js"] .file-open').click()
+    await expect(page.locator('#error-bar')).toHaveClass(/notice/)
+    await expect(page.locator('#error-bar')).toContainText('parts/dims.js has no part to show (no main or make* export)')
+    expect(await page.evaluate(() => document.documentElement.dataset.vertices)).toBe(truckVertices)
+  })
+
   test('a folder dropped on the open project runs its own model from the editor', async ({ page }) => {
     await page.goto('/')
     await dismissWelcome(page)

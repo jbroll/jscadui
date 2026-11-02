@@ -17,7 +17,8 @@ test('the harness hook exposes the chat handlers when the flag is set', async ({
   const unbuilt = await page.evaluate(() => globalThis.jscadHarness.measure({}))
   expect(unbuilt.error.name).toBe('NoGeometryError')
 
-  // A dropped folder opens as the project; running its file is a project build (as in project-ui.spec.js).
+  // A folder dropped on the open project runs from the editor (as in project-ui.spec.js) and the
+  // viewer shows it; the chat's handlers read the project's entry, main.js, built beside it.
   const header = page.locator('#editor-header .project-header')
   await expect(header).toHaveAttribute('data-project-id', /.+/)
   await header.evaluate((target) => {
@@ -45,7 +46,8 @@ test('the harness hook exposes the chat handlers when the flag is set', async ({
   expect(check.ok).toBe(true)
 
   const report = await page.evaluate(() => globalThis.jscadHarness.buildReport())
-  expect(report.ok).toBe(true)
+  expect(report.entry).toBe('main.js')
+  expect(report.geometry.parts).toBeGreaterThan(0)
 })
 
 test('the harness hook is absent without the flag', async ({ page }) => {
