@@ -330,11 +330,13 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   // (handleTool) can skip DOM writes once another project is open.
   let turnProject = null
   const live = () => turnProject === pid()
-  // opencode groups a conversation's requests by this id, so it must outlive one message.
+  // opencode and the relay's chat log group a conversation's requests by this
+  // id, so it rides on each stored user message and outlives a page reload.
   const sessions = new Map()
   const sessionId = () => {
     const key = pid() ?? ''
-    if (!sessions.has(key)) sessions.set(key, crypto.randomUUID())
+    const stored = shown === pid() ? transcript.findLast((m) => typeof m.chatId === 'string')?.chatId : undefined
+    if (!sessions.has(key)) sessions.set(key, stored ?? crypto.randomUUID())
     return sessions.get(key)
   }
 
@@ -866,7 +868,13 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     turnProject = pid()
     turnExcerpt = message
     renderNotice()
-    let local = [...transcript, { role: 'user', content: message, ...(images.length > 0 ? { images } : {}) }]
+    const chatId = sessionId()
+    const turnId = crypto.randomUUID()
+    // A custom base URL may be a provider called directly, whose CORS preflight
+    // would refuse the log headers. An own-key opt-out must omit them, or the
+    // relay would log a turn the user refused.
+    const logged = (sel, purpose) => (sel.baseUrl || !getRecordOwnChats() ? {} : { chatId, turnId, ...(purpose ? { purpose } : {}) })
+    let local = [...transcript, { role: 'user', content: message, chatId, ...(images.length > 0 ? { images } : {}) }]
     const persist = (messages) => {
       if (!storage || !turnProject) return
       persistTranscript(turnProject, messages)
@@ -894,11 +902,9 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       const provider = createProvider({
         ...selection,
         baseUrl: selection.baseUrl || relayBaseUrl(selection),
-        sessionId: sessionId(),
+        sessionId: chatId,
         maxBodyBytes: selection.baseUrl ? undefined : RELAY_BODY_LIMIT_BYTES,
-        // A custom base URL may be a provider called directly, whose CORS preflight would refuse this header.
-        // An own-key opt-out must omit it, or the relay would log a turn the user refused.
-        ...(selection.baseUrl || !getRecordOwnChats() ? {} : { chatId: sessionId() }),
+        ...logged(selection),
       })
       startTurn()
       const files = await projectFiles()
@@ -924,6 +930,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
           const summarizer = createProvider({
             ...summarizerSelection,
             baseUrl: summarizerSelection.baseUrl || relayBaseUrl(summarizerSelection),
+            ...logged(summarizerSelection, 'summary'),
           })
           const text = await summarizeTranscript(
             { turns: freshTurns, priorSummary: prior?.text ?? '' },
@@ -944,6 +951,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
       await runTurnFn({
         conversation: { messages: buildMessages({ systemPrompt: buildSystemPrompt(api), transcript: forModelOf(local.slice(0, -1)), files, build, message, images, summary: local.find(isSummaryMsg)?.text }) },
         provider,
+        turnId,
         api,
         vision: visionCapable(selection),
         requestTool: handleTool,

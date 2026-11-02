@@ -321,7 +321,7 @@ describe('running turn', () => {
     expect(q('.chat-msg.error')).toBeNull()
     expect(endTurn).toHaveBeenCalledTimes(1)
     expect(storage.writeConversation.mock.calls.at(-1)[1]).toEqual([
-      { role: 'user', content: 'a cube' },
+      { role: 'user', content: 'a cube', chatId: expect.any(String) },
       { role: 'assistant', content: 'Writing the cu', stopped: true },
     ])
   })
@@ -693,7 +693,7 @@ describe('stored conversation', () => {
     container.querySelector('.chat-form').dispatchEvent(new Event('submit', { cancelable: true }))
     await vi.waitFor(() => expect(storage.writeConversation.mock.calls.at(-1)?.[1]).toContainEqual({ role: 'assistant', content: 'hi' }))
     const persisted = storage.writeConversation.mock.calls.at(-1)[1]
-    expect(persisted).toContainEqual({ role: 'user', content: 'hello' })
+    expect(persisted).toContainEqual({ role: 'user', content: 'hello', chatId: expect.any(String) })
     expect(persisted).toContainEqual({ role: 'assistant', content: 'hi' })
   })
 
@@ -740,7 +740,7 @@ describe('stored conversation', () => {
     q('.chat-send').click()
     await vi.waitFor(() => expect(q('.chat-send').textContent).toBe('Send'))
     expect(writeConversation.mock.calls.at(-1)[1]).toEqual([
-      { role: 'user', content: 'a cube' },
+      { role: 'user', content: 'a cube', chatId: expect.any(String) },
       { role: 'assistant', content: 'Writing', stopped: true, mentions: ['a.js'] },
     ])
   })
@@ -954,6 +954,110 @@ describe('opencode session', () => {
     expect(session(0)).toEqual(expect.any(String))
     expect(session(1)).not.toBe(session(0))
     vi.unstubAllGlobals()
+  })
+})
+describe('chat log ids', () => {
+  const memoryStorage = () => {
+    const store = {}
+    return {
+      store,
+      readConversation: async (id) => (store[id] ? { messages: store[id], updated: 1 } : null),
+      writeConversation: vi.fn(async (id, messages) => { store[id] = messages }),
+    }
+  }
+  const sendingTurn = () => vi.fn(async ({ provider, onText }) => {
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], [], { round: 1 })) void e
+    onText('ok')
+    return { messages: [] }
+  })
+  const own = { kind: 'openai', model: 'm', apiKey: 'k' }
+
+  it('keeps the chat id of a stored conversation across a reload, and starts a fresh one on New chat', async () => {
+    const fetchMock = vi.fn(async () => new Response('data: [DONE]\n\n'))
+    vi.stubGlobal('fetch', fetchMock)
+    window.localStorage.removeItem('jscad-ai.relay')
+    try {
+      const storage = memoryStorage()
+      const turn = async (chat, text, calls) => {
+        await vi.waitFor(() => expect(chat.q('.chat-send').textContent).toBe('Send'))
+        chat.type(text)
+        await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(calls))
+        await vi.waitFor(() => expect(storage.store.p1?.at(-1)).toMatchObject({ role: 'assistant', content: 'ok' }))
+        return fetchMock.mock.calls[calls - 1][1].headers['x-jscad-chat-id']
+      }
+      const first = openChat({ getProvider: () => own, runTurnFn: sendingTurn(), storage, projectId: 'p1' })
+      const id = await turn(first, 'one', 1)
+      expect(id).toEqual(expect.any(String))
+      expect(storage.store.p1[0]).toMatchObject({ role: 'user', content: 'one', chatId: id })
+      const reloaded = openChat({ getProvider: () => own, runTurnFn: sendingTurn(), storage, projectId: 'p1' })
+      await vi.waitFor(() => expect(reloaded.q('.chat-msg.user')?.textContent).toBe('one'))
+      expect(await turn(reloaded, 'two', 2)).toBe(id)
+      reloaded.q('.chat-new').click()
+      await vi.waitFor(() => expect(storage.store.p1).toEqual([]))
+      const fresh = await turn(reloaded, 'three', 3)
+      expect(fresh).not.toBe(id)
+      expect(storage.store.p1[0].chatId).toBe(fresh)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('names each turn with a fresh turn id that the provider sends with the round', async () => {
+    const fetchMock = vi.fn(async () => new Response('data: [DONE]\n\n'))
+    vi.stubGlobal('fetch', fetchMock)
+    window.localStorage.removeItem('jscad-ai.relay')
+    try {
+      const runTurnFn = sendingTurn()
+      const chat = openChat({ getProvider: () => own, runTurnFn, projectId: 'p1' })
+      for (const [i, text] of ['one', 'two'].entries()) {
+        await vi.waitFor(() => expect(chat.q('.chat-send').textContent).toBe('Send'))
+        chat.type(text)
+        await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(i + 1))
+      }
+      const [a, b] = runTurnFn.mock.calls.map(([options]) => options.turnId)
+      expect(a).toEqual(expect.any(String))
+      expect(b).not.toBe(a)
+      expect(fetchMock.mock.calls[0][1].headers).toMatchObject({ 'x-jscad-turn-id': a, 'x-jscad-round': '1' })
+      expect(fetchMock.mock.calls[1][1].headers['x-jscad-turn-id']).toBe(b)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  const summarizedTurn = async () => {
+    const fetchMock = vi.fn(async () => new Response('data: {"choices":[{"delta":{"content":"did stuff"}}]}\n\ndata: [DONE]\n\n'))
+    vi.stubGlobal('fetch', fetchMock)
+    window.localStorage.removeItem('jscad-ai.relay')
+    try {
+      const big = 'x'.repeat(13_000)
+      const stored = [{ role: 'user', content: `start ${big}`, chatId: 'chat-s' }, { role: 'assistant', content: big }]
+      const runTurnFn = vi.fn(async () => ({ messages: [] }))
+      const { q, type } = openChat({
+        runTurnFn,
+        storage: { readConversation: async () => ({ messages: stored, updated: 1 }), writeConversation: vi.fn(async () => {}) },
+        projectId: 'p1',
+        getProvider: () => own,
+        getSummarizer: () => ({ kind: 'openai', model: 'cheap', apiKey: 'k' }),
+      })
+      await vi.waitFor(() => expect(q('.chat-msg.assistant')?.textContent).toBe(big))
+      type('go on')
+      await vi.waitFor(() => expect(runTurnFn).toHaveBeenCalledTimes(1))
+      return { headers: fetchMock.mock.calls[0][1].headers, turnId: runTurnFn.mock.calls[0][0].turnId }
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }
+
+  it('logs a summarizer request under the chat and turn, marked as a summary and with no round', async () => {
+    const { headers, turnId } = await summarizedTurn()
+    expect(headers).toMatchObject({ 'x-jscad-chat-id': 'chat-s', 'x-jscad-turn-id': turnId, 'x-jscad-purpose': 'summary' })
+    expect(headers).not.toHaveProperty('x-jscad-round')
+  })
+
+  it('sends no log header for a summarizer request when recording is off', async () => {
+    localStorage.setItem('jscad-ai.tos', JSON.stringify({ version: TOS_VERSION, at: 0, recordOwnChats: false }))
+    const { headers } = await summarizedTurn()
+    expect(Object.keys(headers).filter((h) => h.startsWith('x-jscad-'))).toEqual([])
   })
 })
 describe('effort passthrough', () => {

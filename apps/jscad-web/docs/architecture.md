@@ -844,7 +844,8 @@ forwarded POST to `<dir>/YYYY-MM-DD.jsonl` (`chatLogDir` in
 that repo is cloned at `~/src/jscad-chat-evals` or `$JSCAD_CHAT_DATA`, else
 `~/.local/state/jscad-chat/logs` with `$XDG_STATE_HOME` when set;
 `JSCAD_CHAT_LOG=<dir>` moves it regardless, `=0` turns it off): time, the
-`x-jscad-chat-id` header the chat sends, provider kind, sub-path, status, the
+`x-jscad-chat-id`, `x-jscad-turn-id`, `x-jscad-round` and `x-jscad-purpose`
+headers the chat sends (`chatHeadersOf`), provider kind, sub-path, status, the
 request body without `tools` and with each inline image as a `[image: <mime>,
 <w>x<h>]` text part (`toLogRequest`), the response text and the elapsed ms. Headers
 are never written. The response is teed while it streams, and a failed write
@@ -856,7 +857,8 @@ timeout, a dropped connection) cuts the page's response off and logs an
 `error`; a page that
 closes aborts the upstream request. `server.js` answers 500 to any handler
 that throws, so one bad request cannot end the launcher. Neither relay forwards
-`x-jscad-chat-id`, and the production relay does not log.
+the `x-jscad-*` headers; the production relay logs the same record (see
+`server/RELAY.md`).
 
 Each turn sends `buildMessages` (`packages/agent-loop/src/context.js`): the
 system prompt; prior turns, newest first, as whole user/assistant pairs until
@@ -877,15 +879,20 @@ instead of vanishing. `forModel` in `src/aiChat.js` passes an assistant reply's
 can order the block, and drops the stored reasoning before `buildMessages`
 sees it. The project files come
 from the file cache the frame runs (`fileSystem.projectFiles`).
-The chat sends its per-project session id as `x-jscad-chat-id` when it goes
-through the relay, and not to a custom base URL. The eval builds its messages
-with the same function.
+The chat sends its conversation's chat id as `x-jscad-chat-id` when it goes
+through the relay, and not to a custom base URL, with a fresh
+`x-jscad-turn-id` per user message and `x-jscad-round` from `runTurn`. The
+summarizer's request carries the same chat and turn ids, `x-jscad-purpose:
+summary` and no round. The eval builds its messages with the same function.
 
 A project's conversation is stored in that project's own storage mode
 (`local`, `rowboat` or `disk`, the same routing as its file writes, via
-`src/storage/session.js`). New chat clears the project's stored conversation
-and starts a fresh provider session, so the next turn is not grouped with the
-previous one.
+`src/storage/session.js`). Each stored user message carries the conversation's
+`chatId`, so a reloaded page keeps logging the conversation under one id and
+opencode keeps one session for it; a stored conversation without one gets a
+fresh id on its next turn. New chat clears the project's stored conversation
+and starts a fresh chat id and provider session, so the next turn is not
+grouped with the previous one.
 
 Chat settings live in the drawer's gear dialog (`src/aiAccount.js`), in the
 order a user fills them: provider, API key and its custody mode, model, API
@@ -1506,7 +1513,8 @@ only to improve jscad-web, and only with the user's consent: the first turn
 opens a versioned gate (`src/aiConsent.js`, `localStorage['jscad-ai.tos'] =
 {version, at, recordOwnChats}`), and the optional "Save my chats" box defaults on
 but can be turned off, which sets `localStorage['jscad-ai.log'] = 'off'` and
-omits the `x-jscad-chat-id` header so the relay never logs the turn. Free
+omits the `x-jscad-chat-id` header, and with it the turn, round and purpose
+headers, so the relay never logs the turn or its summary request. Free
 jscad-web turns are the exception: they always record and cannot be opted out,
 which the gate states plainly. Bumping `TOS_VERSION` re-prompts without deleting the prior
 choice, which the gate pre-checks. The launcher relay writes each logged turn to
