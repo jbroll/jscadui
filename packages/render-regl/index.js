@@ -233,6 +233,13 @@ export function RenderRegl(reglOrOptions) {
 
   let renderTimer
   const tmFunc = typeof requestAnimationFrame === 'undefined' ? setTimeout : requestAnimationFrame
+  const cancelTm = typeof cancelAnimationFrame === 'undefined' ? clearTimeout : cancelAnimationFrame
+
+  function cancelPendingRender() {
+    if (!renderTimer) return
+    cancelTm(renderTimer)
+    renderTimer = null
+  }
 
   function updateView(delay = 8) {
     if (renderTimer) return
@@ -302,7 +309,10 @@ export function RenderRegl(reglOrOptions) {
     state.canvas.height = height
     currentPerspectiveCamera.setProjection(state.camera, state.camera, { width, height })
     currentPerspectiveCamera.update(state.camera, state.camera)
-    updateView()
+    if (!renderer || !renderOptions) return updateView()
+    // Setting canvas.width clears the drawing buffer; a deferred render would paint a blank frame first
+    cancelPendingRender()
+    updateAndRender()
   }
 
   const setBg = (bg = [1, 1, 1]) => {
@@ -389,10 +399,7 @@ export function RenderRegl(reglOrOptions) {
     el.appendChild(canvas)
 
     const destroy = () => {
-      if (renderTimer) {
-        cancelAnimationFrame(renderTimer)
-        renderTimer = null
-      }
+      cancelPendingRender()
       entities.length = 0
       renderer?.destroy?.()
       renderer = null

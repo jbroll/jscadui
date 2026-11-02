@@ -55,6 +55,8 @@ function resize ({ width, height }) {
   canvas.width = width
   canvas.height = height
   engine.resize()
+  // resize clears the drawing buffer; waiting for the render loop would paint a blank frame first
+  _scene.render()
 }
 
 const handlers = {

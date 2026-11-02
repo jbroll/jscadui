@@ -95,6 +95,13 @@ export function RenderThreejs({
   }
 
   const tmFunc = typeof requestAnimationFrame === 'undefined' ? setTimeout : requestAnimationFrame
+  const cancelTm = typeof cancelAnimationFrame === 'undefined' ? clearTimeout : cancelAnimationFrame
+
+  function cancelPendingRender() {
+    if (!renderTimer) return
+    cancelTm(renderTimer)
+    renderTimer = null
+  }
 
   function updateView(delay = 8) {
     if (renderTimer || !renderer) return
@@ -135,7 +142,9 @@ export function RenderThreejs({
     _camera.aspect = width / height
     _camera.updateProjectionMatrix()
     renderer.setSize(width, height)
-    updateView()
+    // setSize clears the drawing buffer; a deferred render would paint a blank frame first
+    cancelPendingRender()
+    updateAndRender()
   }
 
   const handlers = { setScene }
@@ -189,11 +198,7 @@ export function RenderThreejs({
     el.appendChild(canvas)
 
     const destroy = () => {
-      // Cancel pending animation frame
-      if (renderTimer) {
-        cancelAnimationFrame(renderTimer)
-        renderTimer = null
-      }
+      cancelPendingRender()
       built.clear()
       // Clear scene
       groups.forEach(group => _scene?.remove(group))
