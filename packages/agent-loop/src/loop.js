@@ -251,7 +251,9 @@ export const toolDetail = (input) => {
  * `false` removes the tool from `buildTools` output). `afterToolCall(name, input, result)` may replace the result
  * (`{result}` or a string); a throw becomes a tool error. Denials, rewrites
  * and hook failures are results the model sees, never turn failures.
- * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,onText?:Function,onReasoning?:Function,onUsage?:Function,onStatus?:Function,beforeToolCall?:Function,afterToolCall?:Function,signal?:AbortSignal,toolTimeoutMs?:number,maxRounds?:number,capFinalAnswer?:boolean,toolChoice?:'none'|'auto'|'any',api?:'fluent'|'modeling',vision?:boolean}} options
+ * Every `provider.send` gets `{turnId, round}`: `turnId` (made up when not
+ * given) names the turn, `round` counts its requests from 1.
+ * @param {{conversation:{messages:Array<object>},provider:{send:Function},requestTool:Function,turnId?:string,onText?:Function,onReasoning?:Function,onUsage?:Function,onStatus?:Function,beforeToolCall?:Function,afterToolCall?:Function,signal?:AbortSignal,toolTimeoutMs?:number,maxRounds?:number,capFinalAnswer?:boolean,toolChoice?:'none'|'auto'|'any',api?:'fluent'|'modeling',vision?:boolean}} options
  * @returns {Promise<{messages:Array<object>,rounds:number,stopped:string|undefined}>} a NEW conversation; the input is never mutated. `stopped` is `'max_rounds'` at the round cap or `'doom_loop'` on a triple repeat. A rejection carries the messages so far as `error.messages`.
  */
 export const runTurn = (options) => {
@@ -262,6 +264,7 @@ export const runTurn = (options) => {
   // the app leaves this on so a capped turn still answers.
   const capFinalAnswer = options.capFinalAnswer ?? true
   const tools = typeof options.toolFilter === 'function' ? buildTools(options.api ?? DEFAULT_API, { vision: options.vision }).filter((tool) => options.toolFilter(tool.name)) : buildTools(options.api ?? DEFAULT_API, { vision: options.vision })
+  const turnId = options.turnId ?? crypto.randomUUID()
   const messages = [...conversation.messages]
   const viewImageBudget = Math.max(0, MAX_VIEW_IMAGE_CHARS - userImageChars(messages))
   let rounds = 0
@@ -298,7 +301,7 @@ export const runTurn = (options) => {
         const text = []
         try {
           report({ phase: 'thinking' })
-          const closing = provider.send([...messages, { role: 'user', content: MAX_STEPS_PROMPT }], [], { toolChoice: 'none' })[Symbol.asyncIterator]()
+          const closing = provider.send([...messages, { role: 'user', content: MAX_STEPS_PROMPT }], [], { toolChoice: 'none', turnId, round: rounds })[Symbol.asyncIterator]()
           try {
             for (;;) {
               const { done, value } = await nextOrAbort(closing, signal)
@@ -335,7 +338,7 @@ export const runTurn = (options) => {
           let stopReason
           let reasoningChars = 0
           report({ phase: 'thinking' })
-          iterator = provider.send(messages, tools, { toolChoice: options.toolChoice })[Symbol.asyncIterator]()
+          iterator = provider.send(messages, tools, { toolChoice: options.toolChoice, turnId, round: rounds })[Symbol.asyncIterator]()
           try {
             for (;;) {
               const { done, value } = await nextOrAbort(iterator, signal)
@@ -376,7 +379,8 @@ export const runTurn = (options) => {
           if (text.length === 0 && toolCalls.length === 0) {
             if (refusal.length > 0 || stopReason === 'refusal') throw new RefusalError(refusal.join(''))
             // Free models sometimes end a round with nothing; the same request
-            // usually answers. A length stop would only run out again.
+            // usually answers. A length stop would only run out again. The
+            // resend keeps the round's number, so the log shows it as a retry.
             if (!resent && !OUT_OF_TOKENS.has(stopReason)) {
               resent = true
               rounds -= 1

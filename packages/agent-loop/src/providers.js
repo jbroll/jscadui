@@ -127,6 +127,18 @@ export const encodeBody = (body, maxBodyBytes) => {
   return json
 }
 
+// The relay's chat-log headers ride only with a chat id: the client omits the
+// id when the user opted out of recording, and then no turn data may go either.
+export const chatLogHeaders = (config, { turnId, round } = {}) => {
+  if (!config.chatId) return {}
+  const headers = { 'x-jscad-chat-id': config.chatId }
+  const turn = turnId ?? config.turnId
+  if (turn) headers['x-jscad-turn-id'] = turn
+  if (round !== undefined) headers['x-jscad-round'] = String(round)
+  if (config.purpose) headers['x-jscad-purpose'] = config.purpose
+  return headers
+}
+
 /**
  * Retries a fetch that has not yet produced a response body: a 429/5xx status,
  * a provider error code meaning overloaded/rate-limited, or a network error.
@@ -449,7 +461,7 @@ export async function* parseAnthropicStream(body) {
 const anthropicProvider = (config) => {
   const sessionId = config.sessionId ?? crypto.randomUUID()
   return {
-    async *send(messages, tools, { toolChoice } = {}) {
+    async *send(messages, tools, { toolChoice, turnId, round } = {}) {
       const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n')
       const body = {
         model: config.model,
@@ -471,11 +483,11 @@ const anthropicProvider = (config) => {
         'content-type': 'application/json',
         'x-api-key': config.apiKey,
         'anthropic-version': ANTHROPIC_API_VERSION,
+        ...chatLogHeaders(config, { turnId, round }),
       }
       // Free jscad-web models are zen-served, like opencode-go; the relay
       // forwards this header upstream.
       if (config.kind === 'opencode-go' || config.kind === 'jscad-web') headers['x-opencode-session'] = sessionId
-      if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
       yield* streamWithRetry(
         'anthropic',
         `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind] ?? PROVIDER_BASE_URLS.anthropic}/v1/messages`,
@@ -590,7 +602,7 @@ export async function* parseOpenAIStream(body) {
 const openaiProvider = (config) => {
   const sessionId = config.sessionId ?? crypto.randomUUID()
   return {
-    async *send(messages, tools, { toolChoice } = {}) {
+    async *send(messages, tools, { toolChoice, turnId, round } = {}) {
       const body = {
         model: config.model,
         stream: true,
@@ -606,11 +618,11 @@ const openaiProvider = (config) => {
       const headers = {
         'content-type': 'application/json',
         authorization: `Bearer ${config.apiKey}`,
+        ...chatLogHeaders(config, { turnId, round }),
       }
       // Free jscad-web models are zen-served, like opencode-go; the relay
       // forwards this header upstream.
       if (config.kind === 'opencode-go' || config.kind === 'jscad-web') headers['x-opencode-session'] = sessionId
-      if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
       yield* streamWithRetry(
         'openai',
         `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/chat/completions`,
@@ -623,7 +635,10 @@ const openaiProvider = (config) => {
 
 /**
  * `maxBodyBytes`, when set, refuses a larger request body with `RequestTooLargeError` before it is posted.
- * @param {{kind:'anthropic'|'openai'|'opencode-go'|'meta'|'jscad-web',apiKey:string,model:string,baseUrl?:string,sessionId?:string,effort?:string,chatId?:string,temperature?:number,maxTokens?:number,maxBodyBytes?:number}} config
+ * `chatId` turns on the relay's chat-log headers; `turnId` (overridden by
+ * `send`'s) and `purpose` ride with it. `send(messages, tools, {toolChoice,
+ * turnId, round})` names the request's turn and round.
+ * @param {{kind:'anthropic'|'openai'|'opencode-go'|'meta'|'jscad-web',apiKey:string,model:string,baseUrl?:string,sessionId?:string,effort?:string,chatId?:string,turnId?:string,purpose?:string,temperature?:number,maxTokens?:number,maxBodyBytes?:number}} config
  */
 export const createProvider = (config) => {
   if (!config.apiKey) throw new Error('createProvider: apiKey is required')

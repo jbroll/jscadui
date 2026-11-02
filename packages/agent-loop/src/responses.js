@@ -2,7 +2,7 @@
 // Grok, GPT Luna) are served here instead of `/v1/chat/completions`. Shape
 // follows the public Responses API; verified against mocks only until budget
 // allows a live run.
-import { encodeBody, PROVIDER_BASE_URLS, ssePayloads, streamWithRetry } from './providers.js'
+import { chatLogHeaders, encodeBody, PROVIDER_BASE_URLS, ssePayloads, streamWithRetry } from './providers.js'
 import { parseToolArguments } from './toolArguments.js'
 
 const toResponsesTool = (tool) => ({
@@ -110,7 +110,7 @@ export const responsesProvider = (config) => {
   const url = `${config.baseUrl ?? PROVIDER_BASE_URLS[config.kind]}/v1/responses`
   const configKey = `${config.kind}|${url}|${config.model}`
   return {
-    async *send(messages, tools, { toolChoice } = {}) {
+    async *send(messages, tools, { toolChoice, turnId, round } = {}) {
       const body = {
         model: config.model,
         stream: true,
@@ -124,9 +124,9 @@ export const responsesProvider = (config) => {
       const headers = {
         'content-type': 'application/json',
         authorization: `Bearer ${config.apiKey}`,
+        ...chatLogHeaders(config, { turnId, round }),
       }
       if (config.kind === 'opencode-go') headers['x-opencode-session'] = sessionId
-      if (config.chatId) headers['x-jscad-chat-id'] = config.chatId
       const post = (payload) => streamWithRetry('responses', url, { method: 'POST', headers, body: encodeBody(payload, config.maxBodyBytes) }, parseResponsesStream)
       try {
         yield* post(body)

@@ -943,6 +943,39 @@ describe('chat id header', () => {
     for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS)) void e
     expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('x-jscad-chat-id')
   })
+
+  it.each([
+    ['anthropic', 'm'],
+    ['openai', 'm'],
+    ['meta', 'muse-spark-1.3'],
+  ])('%s sends the turn id, round and purpose beside the chat id', async (kind, model) => {
+    fetchMock.mockResolvedValue(new Response(sseBody('')))
+    const provider = createProvider({ kind, apiKey: 'k', model, baseUrl: 'https://relay.test', chatId: 'chat-1', purpose: 'summary' })
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS, { turnId: 'turn-1', round: 3 })) void e
+    const headers = fetchMock.mock.calls[0][1].headers
+    expect(headers).toMatchObject({ 'x-jscad-chat-id': 'chat-1', 'x-jscad-turn-id': 'turn-1', 'x-jscad-round': '3', 'x-jscad-purpose': 'summary' })
+  })
+
+  it('takes the turn id from the config when send names none, and sends no round without one', async () => {
+    fetchMock.mockResolvedValue(new Response(sseBody('')))
+    const provider = createProvider({ kind: 'openai', apiKey: 'k', model: 'm', baseUrl: 'https://relay.test', chatId: 'chat-1', turnId: 'turn-9' })
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS)) void e
+    const headers = fetchMock.mock.calls[0][1].headers
+    expect(headers['x-jscad-turn-id']).toBe('turn-9')
+    expect(headers).not.toHaveProperty('x-jscad-round')
+    expect(headers).not.toHaveProperty('x-jscad-purpose')
+  })
+
+  it.each([
+    ['anthropic', 'm'],
+    ['openai', 'm'],
+    ['meta', 'muse-spark-1.3'],
+  ])('%s sends no x-jscad header without a chatId', async (kind, model) => {
+    fetchMock.mockResolvedValue(new Response(sseBody('')))
+    const provider = createProvider({ kind, apiKey: 'k', model, baseUrl: 'https://relay.test', turnId: 't', purpose: 'summary' })
+    for await (const e of provider.send([{ role: 'user', content: 'hi' }], TOOLS, { turnId: 'turn-1', round: 1 })) void e
+    expect(Object.keys(fetchMock.mock.calls[0][1].headers).filter((h) => h.startsWith('x-jscad-'))).toEqual([])
+  })
 })
 
 describe('openai request settings', () => {

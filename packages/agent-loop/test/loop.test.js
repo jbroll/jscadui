@@ -5,10 +5,13 @@ import { buildTools } from '../src/tools.js'
 
 const roundsProvider = (rounds) => {
   const sent = []
+  const opts = []
   return {
     sent,
-    async *send(messages, _tools) {
+    opts,
+    async *send(messages, _tools, options) {
       sent.push([...messages])
+      opts.push(options)
       for (const event of rounds.shift() ?? []) yield event
     },
   }
@@ -108,6 +111,24 @@ describe('runTurn', () => {
     const silent = roundsProvider([call, empty, empty])
     const error = await runTurn({ conversation, provider: silent, requestTool: vi.fn(async () => '{"ok":true}') }).catch((e) => e)
     expect(error).toMatchObject({ name: 'EmptyReplyError', stopReason: 'stop' })
+  })
+
+  it('names every send with the turn id and its 1-based round, a resend keeping its round', async () => {
+    const empty = [{ type: 'done', stopReason: 'stop' }]
+    const call = [{ type: 'tool_use', id: 't1', name: 'measure', input: {} }, { type: 'done', stopReason: 'tool_calls' }]
+    const provider = roundsProvider([call, empty, [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'stop' }]])
+    const conversation = { messages: [{ role: 'user', content: 'hi' }] }
+    await runTurn({ conversation, provider, requestTool: vi.fn(async () => '{"ok":true}'), turnId: 'turn-1' })
+    expect(provider.opts.map((o) => [o.turnId, o.round])).toEqual([['turn-1', 1], ['turn-1', 2], ['turn-1', 2]])
+  })
+
+  it('makes up one turn id for the whole turn when none is given', async () => {
+    const call = [{ type: 'tool_use', id: 't1', name: 'measure', input: {} }, { type: 'done', stopReason: 'tool_calls' }]
+    const provider = roundsProvider([call, [{ type: 'text', text: 'done' }, { type: 'done', stopReason: 'stop' }]])
+    await runTurn({ conversation: { messages: [{ role: 'user', content: 'hi' }] }, provider, requestTool: vi.fn(async () => '{"ok":true}') })
+    const [first, second] = provider.opts
+    expect(first.turnId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(second.turnId).toBe(first.turnId)
   })
 
   it('rejects a refused round with the provider refusal, not as an empty reply', async () => {
@@ -417,7 +438,7 @@ describe('runTurn', () => {
     const seen = []
     const provider = {
       async *send(_messages, tools, opts) {
-        seen.push({ tools, toolChoice: opts?.toolChoice })
+        seen.push({ tools, toolChoice: opts?.toolChoice, round: opts?.round })
         if (seen.length <= 2) {
           yield { type: 'tool_use', id: `t${seen.length}`, name: 'check', input: { n: seen.length } }
           yield { type: 'done', stopReason: 'tool_use' }
@@ -437,7 +458,7 @@ describe('runTurn', () => {
     })
     expect(result.stopped).toBe('max_rounds')
     expect(result.rounds).toBe(2)
-    expect(seen[2]).toEqual({ tools: [], toolChoice: 'none' })
+    expect(seen[2]).toEqual({ tools: [], toolChoice: 'none', round: 3 })
     expect(result.messages.at(-1)).toMatchObject({ role: 'assistant', content: 'out of steps, here is what I have' })
     expect(texts).toContain('out of steps, here is what I have')
   })

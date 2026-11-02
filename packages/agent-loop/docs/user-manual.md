@@ -116,6 +116,13 @@ and the message `the request is N bytes, over the L-byte limit; send fewer or
 smaller images, or start a new chat`). The app sets it to the relay's 1 MB
 when it goes through the relay; without it nothing is checked.
 
+`createProvider({ chatId, turnId, purpose })` turns on the relay's chat-log
+headers: `x-jscad-chat-id`, plus `x-jscad-turn-id` (the `turnId` that `send`
+names, else the config's), `x-jscad-round` when `send` names a `round`, and
+`x-jscad-purpose`. Without `chatId` none of them is sent, which is how the app
+keeps an own-key opt-out and a custom base URL out of the log
+(`chatLogHeaders` in `src/providers.js`).
+
 ### Model spec
 
 `notes/model-spec.md` is the project's durable instructions: design intent,
@@ -179,8 +186,13 @@ flow, slicer tuning) is explicitly out. Bodies stay under 250 words and
 ## Turn status
 
 ```js
-runTurn({ conversation, provider, requestTool, onText, onReasoning, onUsage, onStatus, beforeToolCall, afterToolCall, signal, toolTimeoutMs, maxRounds, capFinalAnswer, toolChoice, api })
+runTurn({ conversation, provider, requestTool, turnId, onText, onReasoning, onUsage, onStatus, beforeToolCall, afterToolCall, signal, toolTimeoutMs, maxRounds, capFinalAnswer, toolChoice, api })
 ```
+
+Every `provider.send` gets `{ toolChoice, turnId, round }`: `turnId` is the
+caller's, or a fresh UUID for the turn, and `round` numbers the turn's
+requests from 1. An empty-reply resend is a retry of its round and repeats the
+round's number; the closing tools-off request at the cap is `maxRounds + 1`.
 
 `runTurn` makes one provider request per round and repeats while the reply
 carries tool calls. It stops after `maxRounds` requests (`DEFAULT_MAX_ROUNDS`,
