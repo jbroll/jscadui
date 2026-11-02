@@ -6,6 +6,7 @@ import { buildMessages, buildSystemPrompt, createProvider, DEFAULT_API, effectiv
 import { readOverride, readVisionCache, resolveCatalogVision } from './modelVision.js'
 import { checkTurn, FREE_NOTICE_MESSAGE, getRecordOwnChats, isFreeSelection, openConsentGate, TOS_REQUIRED_MESSAGE } from './aiConsent.js'
 import { imageFiles, MAX_CHAT_IMAGES, prepareImage as defaultPrepareImage } from './chatImages.js'
+import { createMarkdownStream, renderMarkdown } from './chatMarkdown.js'
 
 /* global __RELAY_ORIGIN__ */
 const RELAY_OVERRIDE_KEY = 'jscad-ai.relay'
@@ -306,7 +307,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   let status = null
   let startedAt = 0
   let ticker = null
-  let assistantEl = null
+  let assistantStream = null
   // The step's open reasoning block, and the steps this turn has finished.
   let reasoning = null
   let turnReasoning = []
@@ -500,6 +501,17 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     return node
   }
 
+  const addAssistant = (text) => {
+    const node = addMessage('', 'assistant')
+    node.append(renderMarkdown(text))
+    return node
+  }
+
+  const endAssistant = () => {
+    assistantStream?.flush()
+    assistantStream = null
+  }
+
   const addStopped = () => addMessage('Stopped', 'stopped')
 
   // A stored image that kept only its type and size draws as a marker.
@@ -545,12 +557,12 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   const renderLoaded = (messages) => {
     transcript = messages.filter((m) => m.role === 'user' || m.role === 'assistant' || isSummaryMsg(m))
     messagesEl.innerHTML = ''
-    assistantEl = null
+    assistantStream = null
     turnReasoning = []
     for (const m of transcript) {
       for (const step of m.reasoning ?? []) addReasoningBlock(thoughtLabel(step.seconds), step.text)
       if (m.role === 'user') addUserMessage(m.content, m.images)
-      else if (m.role === 'assistant' && m.content) addMessage(m.content, 'assistant')
+      else if (m.role === 'assistant' && m.content) addAssistant(m.content)
       if (m.stopped) addStopped()
       if (m.undo?.length > 0) addUndo(m)
     }
@@ -569,7 +581,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     })
     transcript = []
     messagesEl.innerHTML = ''
-    assistantEl = null
+    assistantStream = null
     turnReasoning = []
     if (!storage || !id) return
     try {
@@ -596,7 +608,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     if (running) return
     transcript = []
     messagesEl.innerHTML = ''
-    assistantEl = null
+    assistantStream = null
     turnReasoning = []
     const id = pid()
     if (id) sessions.delete(id)
@@ -616,7 +628,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     const stick = atBottom()
     if (!reasoning) {
       reasoning = { ...addReasoningBlock(thinkingLabel(0), ''), startedAt: Date.now(), text: '' }
-      assistantEl = null
+      endAssistant()
     }
     reasoning.text += text
     reasoning.textEl.textContent += text
@@ -819,7 +831,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
   // always has content to feed back.
   const handleTool = async (name, input) => {
     if (typeof input?.path === 'string') turnMentions.push(input.path)
-    if (live()) { endReasoning(); assistantEl = null }
+    if (live()) { endReasoning(); endAssistant() }
     const finish = live() ? addToolLine(name, input) : () => {}
     try {
       const result = await requestTool(name, input)
@@ -889,7 +901,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
     commit(local)
     setRunning(true)
     if (live()) addUserMessage(message, images)
-    assistantEl = null
+    assistantStream = null
     aborter = new AbortController()
     const { signal } = aborter
     let assistantText = ''
@@ -966,10 +978,16 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         onText: (text) => {
           assistantText += text
           if (!live()) return
-          const stick = atBottom()
-          if (!assistantEl) assistantEl = addMessage('', 'assistant')
-          assistantEl.textContent += text
-          follow(stick)
+          if (!assistantStream) {
+            assistantStream = createMarkdownStream(addMessage('', 'assistant'), {
+              around: (render) => {
+                const stick = atBottom()
+                render()
+                follow(stick)
+              },
+            })
+          }
+          assistantStream.append(text)
         },
         onReasoning: (text) => { if (live()) addReasoning(text) },
         onStatus: (next) => { if (live()) setStatus(next) },
@@ -1003,7 +1021,7 @@ export const initChat = ({ container, requestTool, getProvider, getSummarizer = 
         commit(replied ? [...local.slice(0, -1), { ...local.at(-1), undo }] : [...local, { role: 'assistant', content: '', undo }])
         if (live()) addUndo(local.at(-1))
       }
-      assistantEl = null
+      endAssistant()
       turnProject = null
       aborter = null
       setRunning(false)

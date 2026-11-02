@@ -425,6 +425,26 @@ describe('chat input', () => {
     expect(messages.scrollTop).toBe(1000)
     turn.release()
   })
+
+  it('renders a streamed reply as markdown from the accumulated text', async () => {
+    const turn = heldTurn()
+    const { q, type } = openChat({ runTurnFn: turn.runTurnFn })
+    type('a cube')
+    await vi.waitFor(() => expect(turn.runTurnFn).toHaveBeenCalledTimes(1))
+    turn.args().onText('Use **cub')
+    turn.args().onText('oid** <b>here</b>')
+    await vi.waitFor(() => expect(q('.chat-msg.assistant strong')?.textContent).toBe('cuboid'))
+    expect(q('.chat-msg.assistant b')).toBeNull()
+    turn.release()
+  })
+
+  it('renders a resumed reply as markdown', async () => {
+    const stored = [{ role: 'user', content: 'a cube' }, { role: 'assistant', content: '```js\ncube()\n```' }]
+    const storage = { readConversation: async () => ({ messages: stored, updated: 1 }), writeConversation: vi.fn(async () => {}) }
+    const { q } = openChat({ runTurnFn: vi.fn(), storage, projectId: 'p1' })
+    await vi.waitFor(() => expect(q('.chat-msg.assistant pre code')?.textContent).toBe('cube()'))
+    expect(q('.chat-msg.assistant .chat-code-copy')).not.toBeNull()
+  })
 })
 
 describe('model reasoning', () => {

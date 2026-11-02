@@ -106,6 +106,15 @@ A transpiled `.scad` file exposes a clean JS surface:
   `area_$f$obj`, variables as values or `$`-reading thunks). Generated files
   call each other through it; JS callers want the names above.
 
+## Formatted replies
+
+The assistant's replies show as markdown: paragraphs, headings, **bold**,
+*italic*, `inline code`, fenced code blocks, bulleted and numbered lists
+(nested by indent), pipe tables, and `http`/`https` links, which open in a
+new tab. Anything else, HTML included, shows as the literal text. Each code
+block has a `Copy` button that copies the block and shows `Copied`. Replies
+format as they stream, and a reopened conversation shows them the same way.
+
 ## Images in the chat
 
 Paste an image into the chat input, drop one on the chat panel, or pick files

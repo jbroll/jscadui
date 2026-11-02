@@ -939,13 +939,21 @@ the reader is already there, within 40px of it; a reader who scrolled up to an
 earlier reply is left where they are. A conversation loaded on project switch
 still scrolls to its end.
 
+`src/chatMarkdown.js` renders reply text as markdown by building DOM nodes,
+never `innerHTML`, so model output cannot inject markup; unsupported syntax,
+HTML and non-`http(s)` links stay literal text. While streaming,
+`createMarkdownStream` re-renders the reply segment from its accumulated text
+at most once per animation frame, measuring the scroll-follow rule around each
+render, and flushes when the segment ends (a tool call, reasoning, or the end
+of the turn). `renderLoaded` draws stored replies through the same renderer.
+
 The message list shows each kind of row differently, light and dark alike
 (`--chat-*` variables on `#ai-chat`, redefined under `.dark`):
 
 | Row | Element | Look |
 |---|---|---|
 | User message | `.chat-msg.user` | right-aligned bubble tinted from the drawer's blue toggle; attached images as thumbnails (`.chat-user-images`) that open the `.chat-view-overlay` dialog |
-| Reply text | `.chat-msg.assistant` | plain text on the panel |
+| Reply text | `.chat-msg.assistant` | markdown on the panel: code blocks (`.chat-code`, with a `.chat-code-copy` button) and tables (`.chat-table`) on the tool-row tint, scrolling sideways when wide |
 | Reasoning | `<details class="chat-reasoning">` | smaller muted text behind a thin left rule, collapsed |
 | Tool call | `<details class="chat-tool">` | one monospace row: tool, its path, query or format (`toolDetail` from agent-loop), and `…`, `ok` or `failed`; opening it shows the input and the result; a `view` result auto-opens with thumbnail images (`.chat-tool-images`) that open full-size in a `.chat-view-overlay` dialog |
 | Error | `.chat-msg.error` | red-tinted block with a red left rule |
