@@ -7,7 +7,8 @@ export const CAPTURES = '__jscadExportCaptures'
 export const makerFiles = files =>
   Object.keys(files).filter(path => typeof files[path] === 'string' && exportsMaker(files[path]))
 
-export const exportScript = (entry, paths) => `const makerFiles = ${JSON.stringify(paths)}
+// The entry loads last so its load-time destructuring binds the wrappers.
+export const exportScript = (entry, paths) => `const makerFiles = ${JSON.stringify(paths.filter(path => path !== entry))}
 const main = async (params) => {
   const captures = globalThis[${JSON.stringify(CAPTURES)}] = []
   const pending = []
@@ -18,7 +19,8 @@ const main = async (params) => {
       const mod = require('./' + file)
       for (const maker of Object.keys(mod)) {
         const original = mod[maker]
-        if (!/^make[A-Z]/.test(maker) || typeof original !== 'function') continue
+        // Babel's \`export { x } from\` is a getter-only property; its source file gets wrapped instead.
+        if (!/^make[A-Z]/.test(maker) || typeof original !== 'function' || !Object.getOwnPropertyDescriptor(mod, maker)?.writable) continue
         originals.push([mod, maker, original])
         mod[maker] = function (...args) {
           const outer = depth === 0

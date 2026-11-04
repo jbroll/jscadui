@@ -78,10 +78,14 @@ describe('exportScript', () => {
   const g1 = { id: 1 }
   const g2 = { id: 2 }
 
+  // A function stands for a module body: it runs on the first require, like a real load.
   const run = async (modules, makers, params = {}) => {
     const module = { exports: {} }
-    const require = path => modules[path]
-    new Function('require', 'module', 'exports', exportScript('main.js', makers))(require, module, module.exports)
+    const require = path => {
+      if (typeof modules[path] === 'function') modules[path] = modules[path](require)
+      return modules[path]
+    }
+    new Function('require', 'module', 'exports', `'use strict';${exportScript('main.js', makers)}`)(require, module, module.exports)
     const value = await module.exports.main(params)
     return { value, captures: globalThis[CAPTURES] }
   }
@@ -150,6 +154,46 @@ describe('exportScript', () => {
     const modules = { './a.js': { makeA: () => g1 }, './main.js': { main: () => g2 } }
     const { captures } = await run(modules, ['a.js'])
     expect(captures).toEqual([])
+  })
+
+  it('captures a maker the entry destructures at load', async () => {
+    const modules = {
+      './a.js': () => ({ makeA: () => g1 }),
+      './main.js': require => {
+        const { makeA } = require('./a.js')
+        return { main: () => makeA() }
+      },
+    }
+    const { captures } = await run(modules, ['a.js'])
+    expect(captures).toEqual([{ maker: 'makeA', file: 'a.js', value: g1 }])
+  })
+
+  it('captures a destructured maker when the entry is itself a maker file', async () => {
+    const modules = {
+      './main.js': require => {
+        const { makeA } = require('./a.js')
+        return { makeMain: () => g2, main: () => makeA() }
+      },
+      './a.js': () => ({ makeA: () => g1 }),
+    }
+    const { captures } = await run(modules, ['main.js', 'a.js'])
+    expect(captures).toEqual([{ maker: 'makeA', file: 'a.js', value: g1 }])
+  })
+
+  it('skips a getter-only re-export and captures through its source', async () => {
+    const modules = {
+      './a.js': () => ({ __esModule: true, makeB: () => g2 }),
+      './c.js': require => {
+        const a = require('./a.js')
+        return Object.defineProperty({ __esModule: true }, 'makeB', { enumerable: true, get: () => a.makeB })
+      },
+      './main.js': require => {
+        const c = require('./c.js')
+        return { main: () => c.makeB() }
+      },
+    }
+    const { captures } = await run(modules, ['c.js', 'a.js'])
+    expect(captures).toEqual([{ maker: 'makeB', file: 'a.js', value: g2 }])
   })
 })
 
