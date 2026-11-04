@@ -31,6 +31,8 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
   let held = null
   // Held while another run has the frame: neither side's model is loaded.
   const BORROWED = Symbol('borrowed')
+  // Settles once a borrowed run's restore is done; the panel and the chat wait on it.
+  let borrowed = Promise.resolve()
   let entryMesh = null
 
   const keyOf = (plan) => plan.url ?? plan.path
@@ -46,6 +48,12 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
     return plan.kind === 'none' ? { plan: viewPlan(all, declared()), none: plan.path } : { plan, none: null }
   }
 
+  const restore = async () => {
+    const { plan } = await viewerPlan()
+    await load(plan, { user: true })
+    held = keyOf(plan)
+  }
+
   const render = async () => {
     const { plan, none } = await viewerPlan()
     held = keyOf(plan)
@@ -55,6 +63,7 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
   }
 
   const ensureEntry = async () => {
+    await borrowed
     if (selected === undefined && held !== BORROWED) return null
     const plan = await entryPlan()
     if (plan.path && held === plan.path) return null
@@ -98,6 +107,7 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
     },
     ensureEntry,
     ensureView: async () => {
+      await borrowed
       if (selected === undefined && held !== BORROWED) return
       const plan = viewPlan(await files(), declared(), selected)
       if (plan.kind === 'none' || held === keyOf(plan)) return
@@ -107,12 +117,12 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
     /** Lend the frame to `run`, then load the viewer's own model back with the user's params. */
     borrow: async (run) => {
       held = BORROWED
+      const { promise, resolve } = Promise.withResolvers()
+      borrowed = promise
       try {
         return await run()
       } finally {
-        const { plan } = await viewerPlan()
-        await load(plan, { user: true })
-        held = keyOf(plan)
+        await restore().finally(resolve)
       }
     },
     /** The entry's mesh for the chat's view, or null when the viewer shows the entry itself. */

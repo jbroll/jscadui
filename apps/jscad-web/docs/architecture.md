@@ -1239,9 +1239,17 @@ recorded in `projectBuilds`.
 
 The Project (zip) export (`exportProject` in `main.js`, the zip and naming in
 `src/projectExport.js`) borrows the frame for one run of its own.
-`viewRuns.borrow(run)` marks the frame as holding neither side's model, so a
-chat read or a user run during the export reloads its own; after `run`, failed
-or not, it loads the viewer's plan back with the user's params and marks it held.
+`viewRuns.borrow(run)` marks the frame as holding neither side's model; after
+`run`, failed or not, it loads the viewer's plan back with the user's params and
+marks it held. `ensureEntry` and `ensureView` wait for that restore before they
+look at what the frame holds, so a chat read or a slider move during the export
+neither lands between the export's load and its reads nor mixes models into
+the zip. The export answers `open a project to export it` when the viewer's
+last load is not under `PROJECT_BASE` (an example, a URL script) or the last
+drop was loose files rather than a folder (`droppedFiles`, cleared when a
+project opens), and shows its unsaved-edits notice only when an edited editor
+buffer differs from the project file's saved text (`unsavedEdits`), since a
+run saves the buffer without marking it clean.
 Inside, the page loads a synthesized entry, `.export-view.js`
 (`exportScript`), as a plan of kind `export` that is not recorded as the
 build. Its `main` requires every project file that exports a maker

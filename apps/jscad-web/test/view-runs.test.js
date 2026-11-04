@@ -143,13 +143,10 @@ describe('createViewRuns', () => {
     const { views, runs } = setup()
     await views.render()
     runs.length = 0
-    await views.borrow(async () => {
-      runs.push(['borrowed'])
-      await views.ensureEntry()
-    })
+    await views.borrow(async () => runs.push(['borrowed']))
     await views.ensureEntry()
     await views.ensureView()
-    expect(runs).toEqual([['borrowed'], ['load', 'main.js'], ['load-user', 'main.js']])
+    expect(runs).toEqual([['borrowed'], ['load-user', 'main.js']])
   })
 
   it('a borrowed run with a part selected loads the part back with the user params', async () => {
@@ -169,12 +166,45 @@ describe('createViewRuns', () => {
     expect(runs).toEqual([['load-user', 'main.js']])
   })
 
-  it('a user export during a borrowed run loads the view back first, with nothing selected', async () => {
+  it("a chat read started during a borrowed run waits for the view's restore, then loads the entry", async () => {
+    const { views, runs } = setup()
+    await views.show('truck.js')
+    runs.length = 0
+    let read
+    await views.borrow(async () => {
+      read = views.ensureEntry()
+      await Promise.resolve()
+      runs.push(['borrowed'])
+    })
+    await read
+    expect(runs).toEqual([['borrowed'], ['load-user', '.part-view.js'], ['load', 'main.js']])
+  })
+
+  it('a param change started during a borrowed run waits for the restore and then has nothing to load', async () => {
     const { views, runs } = setup()
     await views.render()
     runs.length = 0
-    await views.borrow(() => views.ensureView())
-    expect(runs).toEqual([['load-user', 'main.js'], ['load-user', 'main.js']])
+    let change
+    await views.borrow(async () => {
+      change = views.ensureView()
+      await Promise.resolve()
+      runs.push(['borrowed'])
+    })
+    await change
+    expect(runs).toEqual([['borrowed'], ['load-user', 'main.js']])
+  })
+
+  it('a read waiting on a borrowed run that fails still goes ahead', async () => {
+    const { views, runs } = setup()
+    await views.show('truck.js')
+    runs.length = 0
+    let read
+    await expect(views.borrow(async () => {
+      read = views.ensureEntry()
+      throw new Error('boom')
+    })).rejects.toThrow('boom')
+    await read
+    expect(runs).toEqual([['load-user', '.part-view.js'], ['load', 'main.js']])
   })
 
   it('a rename of the selected file moves the selection', async () => {

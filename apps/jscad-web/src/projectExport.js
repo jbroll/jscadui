@@ -56,6 +56,13 @@ const main = async (params) => {
 module.exports = { main }
 `
 
+// A run saves its buffer without marking it clean, so dirty means differs from the saved text.
+export const unsavedEdits = (buffers, files) =>
+  buffers.some(([path, text]) => {
+    const bare = path.replace(/^\//, '')
+    return bare in files && files[bare] !== text
+  })
+
 export const partName = maker => {
   const name = maker.replace(/^make/, '')
   return name[0].toLowerCase() + name.slice(1)

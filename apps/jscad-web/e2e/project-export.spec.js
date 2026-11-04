@@ -29,6 +29,21 @@ const exportProject = async (page) => {
   await page.locator('#export-button').click()
 }
 
+const downloadZip = async (page) => {
+  const download = page.waitForEvent('download', { timeout: 60_000 })
+  await exportProject(page)
+  const zip = await download
+  return { name: zip.suggestedFilename(), entries: unzipSync(readFileSync(await zip.path())) }
+}
+
+const expectNotAProject = async (page) => {
+  let downloaded = false
+  page.on('download', () => { downloaded = true })
+  await exportProject(page)
+  await expect(page.locator('#error-bar')).toContainText('open a project to export it')
+  expect(downloaded).toBe(false)
+}
+
 test.describe('Project (zip) export', () => {
   test('downloads the code, params and one STL per printed part, and leaves the viewer as it was', async ({ page }) => {
     test.setTimeout(120_000)
@@ -44,34 +59,46 @@ test.describe('Project (zip) export', () => {
     }
     for (const [i, path] of ['base.js', 'peg.js', 'main.js'].entries()) await runInEditor(page, path, { discard: i > 0 })
     await expect(page.locator('#error-bar')).not.toHaveClass(/visible/)
-    await page.keyboard.insertText('// not run\n')
     const readVertices = () => page.evaluate(() => document.documentElement.dataset.vertices)
     await expect.poll(readVertices).toMatch(/^[1-9]/)
     const vertices = await readVertices()
 
-    const download = page.waitForEvent('download', { timeout: 60_000 })
-    await exportProject(page)
-    const zip = await download
-    expect(zip.suggestedFilename()).toBe('Untitled.zip')
-    const entries = unzipSync(readFileSync(await zip.path()))
-    expect(Object.keys(entries).sort()).toEqual(['base.js', 'main.js', 'params.json', 'peg.js', 'stl/Untitled.stl', 'stl/base.stl', 'stl/peg-x2.stl'])
-    expect(strFromU8(entries['main.js'])).toBe(sources['main.js'])
-    expect(JSON.parse(strFromU8(entries['params.json']))).toEqual({})
-
-    await expect(page.locator('#error-bar')).toContainText('unsaved edits are not in the export')
+    const zip = await downloadZip(page)
+    expect(zip.name).toBe('Untitled.zip')
+    expect(Object.keys(zip.entries).sort()).toEqual(['base.js', 'main.js', 'params.json', 'peg.js', 'stl/Untitled.stl', 'stl/base.stl', 'stl/peg-x2.stl'])
+    expect(strFromU8(zip.entries['main.js'])).toBe(sources['main.js'])
+    expect(JSON.parse(strFromU8(zip.entries['params.json']))).toEqual({})
     await expect(page.locator('#export-button')).toBeEnabled()
+    await expect(page.locator('#error-bar')).not.toHaveClass(/visible/)
     expect(await page.evaluate(() => document.documentElement.dataset.render)).not.toBe('error')
     expect(await readVertices()).toBe(vertices)
+
+    await page.keyboard.insertText('// not run\n')
+    const edited = await downloadZip(page)
+    expect(strFromU8(edited.entries['main.js'])).toBe(sources['main.js'])
+    await expect(page.locator('#error-bar')).toContainText('unsaved edits are not in the export')
   })
 
   test('an example is not a project: no download, and the error says so', async ({ page }) => {
     await page.goto('/')
     await dismissWelcome(page)
     await waitForRender(page)
-    let downloaded = false
-    page.on('download', () => { downloaded = true })
-    await exportProject(page)
-    await expect(page.locator('#error-bar')).toContainText('open a project to export it')
-    expect(downloaded).toBe(false)
+    await expectNotAProject(page)
+  })
+
+  test('a dropped single file is not a project: no download, and the error says so', async ({ page }) => {
+    await page.goto('/')
+    await dismissWelcome(page)
+    await waitForRender(page)
+    await page.evaluate((source) => {
+      const file = { kind: 'file', name: 'peg.js', getFile: async () => new File([source], 'peg.js') }
+      const dataTransfer = { items: [{ kind: 'file', getAsFileSystemHandle: async () => file }] }
+      const drop = new Event('drop', { bubbles: true, cancelable: true })
+      Object.defineProperty(drop, 'dataTransfer', { value: dataTransfer })
+      document.body.dispatchEvent(drop)
+    }, "const { cylinder } = require('@jscad/modeling').primitives\nmodule.exports = { main: () => cylinder({ radius: 2, height: 4 }) }\n")
+    await expect(page.locator('#editor-file')).toContainText('peg.js')
+    await waitForRender(page)
+    await expectNotAProject(page)
   })
 })

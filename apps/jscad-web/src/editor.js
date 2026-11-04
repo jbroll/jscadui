@@ -192,6 +192,9 @@ let confirmFn
 /** @returns {boolean} whether any open path has unsaved edits */
 export const isDirty = () => buffer.isDirty()
 
+/** @returns {[string, string][]} each edited path with its buffered text */
+export const dirtyBuffers = () => buffer.dirtyEntries()
+
 /**
  * The gate before a whole-project replace: true to proceed. Clean buffers
  * proceed silently; a dirty buffer asks the injected confirm dialog.

@@ -58,4 +58,11 @@ describe('editor buffer', () => {
     b.remember('/a.js', 'a3')
     expect(b.isDirtyPath('/a.js')).toBe(false)
   })
+
+  it('lists the dirty paths with their text', () => {
+    const b = createEditorBuffer()
+    b.remember('/a.js', 'a1')
+    b.edit('/b.js', 'b2')
+    expect(b.dirtyEntries()).toEqual([['/b.js', 'b2']])
+  })
 })

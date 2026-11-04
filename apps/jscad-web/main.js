@@ -53,7 +53,7 @@ import { renderViews } from './src/aiViewRender.js'
 import { createProjectBuilds, projectEntry } from './src/projectBuild.js'
 import { createViewRuns } from './src/viewRuns.js'
 import { createExport } from './src/aiExport.js'
-import { EXPORT_VIEW, exportScript, makerFiles, stlEntries, zipProject } from './src/projectExport.js'
+import { EXPORT_VIEW, exportScript, makerFiles, stlEntries, unsavedEdits, zipProject } from './src/projectExport.js'
 import { downloadBlob } from '@jscadui/scene'
 // Nothing here may import ./src/storage/schema.js: its zod 4 types are more
 // than the root TS 4.9 gate can parse (see root tsconfig).
@@ -440,6 +440,8 @@ const recordEdit = async (script, path, { entry } = {}) => {
 let currentProjectId = 'default'
 // The entry of whatever was opened last: a stored project or a dropped folder.
 let currentEntry
+// Loose dropped files run from the cache under the last project's id, but are no stored project.
+let droppedFiles = false
 
 // The paths the current agent turn wrote (collected as showFile runs, cleared
 // when the next turn starts) and the tree's entry/touched marks.
@@ -483,6 +485,7 @@ const switchProject = createProjectSwitch({
     }
     currentProjectId = id
     currentEntry = entry
+    droppedFiles = false
     if (typeof name === 'string' && name) exporter.exportConfig.projectName = name
     refreshFileMeta()
     chatControls?.switchTo(id)
@@ -574,8 +577,10 @@ fileSystem.setupDragDrop(dropModal, async (dataTransfer, target) => {
     if (row.dataset.projectId === currentProjectId) await switchProject(currentProjectId).catch(setError)
     return
   }
+  const folder = entries.length === 1 && entries[0].isDirectory
+  droppedFiles = !folder
   await fileSystem.handleFileDrop(dataTransfer, fsDeps, entries)
-  if (entries.length === 1 && entries[0].isDirectory) {
+  if (folder) {
     const created = await projectManager.createFromDrop(entries, { readDir, readAsText }).catch(setError)
     if (created) await switchProject(created.id).catch(setError)
   }
@@ -843,14 +848,14 @@ async function loadPlan(plan, { user }) {
 // The parts are captured by a synthesized entry that wraps the makers; the worker's
 // require cache is cleared around it so a cached main.js neither keeps nor leaves wrappers.
 const exportProject = async () => {
-  if (!currentProjectId || !lastScriptUrl?.startsWith(PROJECT_BASE)) throw new Error('open a project to export it')
+  if (droppedFiles || !lastScriptUrl?.startsWith(PROJECT_BASE)) throw new Error('open a project to export it')
   const files = await fileSystem.projectFiles()
   const entry = projectEntry(files, currentEntry)
   if (!entry) throw noEntry()
   // A selected part's panel holds the part's params, not the entry's.
   const user = viewRuns.selected() === undefined
   const { params, userInteractedPaths } = user ? paramsCtrl.getWorkerParams() : { params: {}, userInteractedPaths: [] }
-  if (editor.isDirty()) setNotice('unsaved edits are not in the export')
+  if (unsavedEdits(editor.dirtyBuffers(), files)) setNotice('unsaved edits are not in the export')
   const makers = makerFiles(files)
   const clearCache = () => workerApi.jscadClearFileCache({ files: [...makers, entry], root: PROJECT_BASE })
   const { assembly, parts } = await viewRuns.borrow(async () => {

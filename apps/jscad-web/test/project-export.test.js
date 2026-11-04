@@ -1,6 +1,6 @@
 import { strFromU8, unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
-import { CAPTURES, exportScript, makerFiles, partName, stlEntries, zipProject } from '../src/projectExport.js'
+import { CAPTURES, exportScript, makerFiles, partName, stlEntries, unsavedEdits, zipProject } from '../src/projectExport.js'
 
 const a = new Uint8Array([1, 2, 3])
 const a2 = new Uint8Array([1, 2, 3])
@@ -225,5 +225,21 @@ describe('makerFiles', () => {
       'lib/d.js': 'module.exports = { W: 1 }',
     }
     expect(makerFiles(files)).toEqual(['truck.js'])
+  })
+})
+
+describe('unsavedEdits', () => {
+  const files = { 'main.js': 'saved', 'lib/a.js': 'a' }
+
+  it('is false when every dirty buffer matches its saved text', () => {
+    expect(unsavedEdits([['/main.js', 'saved'], ['lib/a.js', 'a']], files)).toBe(false)
+  })
+
+  it('is true when any project buffer differs, including a kept buffer of another file', () => {
+    expect(unsavedEdits([['/main.js', 'saved'], ['/lib/a.js', 'a2']], files)).toBe(true)
+  })
+
+  it('ignores buffers that are not project files, such as an example url', () => {
+    expect(unsavedEdits([['https://example.com/x.js', 'x'], ['jscad.example.js', 'y']], files)).toBe(false)
   })
 })

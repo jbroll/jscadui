@@ -12,6 +12,7 @@
  *   prune: (paths:Set<string>) => void,
  *   isDirty: () => boolean,
  *   isDirtyPath: (path:string) => boolean,
+ *   dirtyEntries: () => [string, string][],
  * }}
  */
 export function createEditorBuffer() {
@@ -30,5 +31,6 @@ export function createEditorBuffer() {
     },
     isDirty: () => dirty.size > 0,
     isDirtyPath: (path) => dirty.has(path),
+    dirtyEntries: () => [...dirty].map((path) => [path, buffers.get(path)]),
   }
 }
