@@ -514,6 +514,17 @@ its default. A freshly opened model — a different url, or a different
 default, clears the user's edits and collapses the tree, then redraws the
 model.
 
+A project entry's panel also has Save and Restore, over the project file
+`params.json` (`src/savedParams.js`): the user-set values, keyed by param path,
+in the same shape the project export writes. Save stores it through
+`storageSession.writeThrough` like any project file and adds it to the frame's
+file cache. A fresh open of the entry folds the saved values the code still
+declares into the carried values as user-set, so the existing "carried value
+differs" re-run draws them; a re-run of the same model carries the user's
+values instead. Restore applies the file over `ParamsTree.defaults()` and
+re-runs. A part file's panel is keyed by the part's own params, so `params.json`
+applies only to the entry's load (`record`), never to a dropped file.
+
 ### Streamed runs
 
 An `ALL.js` grid does not return its geometry. While the worker runs a model's

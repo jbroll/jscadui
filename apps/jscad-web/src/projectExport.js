@@ -1,6 +1,7 @@
 import { requireClosure } from '@jscadui/agent-loop'
 import { strToU8, zipSync } from 'fflate'
 import { exportsMaker } from './projectBuild.js'
+import { PARAMS_FILE, serializeSaved } from './savedParams.js'
 
 export const EXPORT_VIEW = '.export-view.js'
 export const CAPTURES = '__jscadExportCaptures'
@@ -114,7 +115,7 @@ export const zipProject = ({ name, files, params, assembly, parts }) => {
   for (const [path, content] of Object.entries(files)) {
     entries[path] = typeof content === 'string' ? strToU8(content) : new Uint8Array(content)
   }
-  entries['params.json'] = strToU8(JSON.stringify(params, null, 2))
+  entries[PARAMS_FILE] = strToU8(serializeSaved(params))
   const assemblyPath = `stl/${name}.stl` in parts ? `stl/${name}-assembly.stl` : `stl/${name}.stl`
   entries[assemblyPath] = assembly
   Object.assign(entries, parts)

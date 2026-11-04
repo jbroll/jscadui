@@ -75,6 +75,7 @@ import { createMeshRefs } from './src/meshRefs.js'
 import { PROJECT_BASE } from './src_frame/fileMap.js'
 import * as fileSystem from './src/fileSystem.js'
 import * as paramsUI from './src/paramsUI.js'
+import { PARAMS_FILE, applicableSaved, readSaved, serializeSaved } from './src/savedParams.js'
 import { clearReloadTimestamp } from './src/reloadDetection.js'
 import { missingSaveHandleMessage, saveRoute } from './src/saveFile.js'
 import { createDocs, createIndexLoader } from './src/apiIndex.js'
@@ -618,6 +619,32 @@ const resetParams = () => {
   paramsUI.scheduleModelUpdate(() => paramsUI.runModelUpdate(modelUpdateDeps()))
 }
 
+// Save and Restore act on the project's params.json: the values the user
+// changed, keyed by param path, the same file the project export writes.
+let restoreButton
+const saveParams = async () => {
+  const text = serializeSaved(exportParams(true, paramsCtrl.getWorkerParams()))
+  await storageSession.writeThrough(currentProjectId, PARAMS_FILE, text, { message: 'params' })
+  await writeProjectFile(PARAMS_FILE, text)
+  showFiles(await fileSystem.projectFiles())
+  refreshHeader()
+  if (restoreButton) restoreButton.disabled = false
+}
+
+const restoreParams = async () => {
+  const tree = paramsUI.getParamsTreeView()
+  const saved = readSaved(await fileSystem.projectFiles())
+  if (!tree || !saved) return
+  if (saved.error) return setNotice(saved.error)
+  const defaults = tree.defaults()
+  const values = applicableSaved(saved.values, defaults)
+  paramsCtrl.params = { ...defaults, ...values }
+  paramsCtrl.userInteracted.clear()
+  for (const path of Object.keys(values)) paramsCtrl.userInteracted.add(path)
+  tree.update({ values: paramsCtrl.params })
+  paramsUI.scheduleModelUpdate(() => paramsUI.runModelUpdate(modelUpdateDeps()))
+}
+
 // The zoom-to-fit toggle fits the camera to the model on screen; the model is
 // not re-run for a camera change.
 const fitViewToModel = () => {
@@ -733,6 +760,15 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
         expandedPaths: savedExpanded,
         defaults,
       })
+      // A part file's panel holds the part's params, which params.json does not key.
+      const projectEntryLoad = record && !droppedFiles && url.startsWith(PROJECT_BASE)
+      const saved = projectEntryLoad ? readSaved(files) : null
+      if (saved?.error && !sameModel) setNotice(saved.error)
+      else if (saved?.values && !sameModel) {
+        const values = applicableSaved(saved.values, defaults)
+        Object.assign(carried.values, values)
+        carried.userInteracted.push(...Object.keys(values))
+      }
       Object.assign(paramsCtrl.params, carried.values)
       for (const path of carried.userInteracted) {
         paramsCtrl.userInteracted.add(path)
@@ -743,7 +779,13 @@ const jscadScript = async ({ script, url = './jscad.model.js', base = currentBas
       const paramsDiv = byId('paramsDiv')
       paramsDiv.innerHTML = ''
 
-      const { showHiddenCheckbox } = paramsUI.buildParamsHeader(paramsHeader, { onReset: resetParams })
+      const header = paramsUI.buildParamsHeader(paramsHeader, {
+        onReset: resetParams,
+        ...(projectEntryLoad ? { onSave: () => saveParams().catch(setError), onRestore: () => restoreParams().catch(setError) } : {}),
+      })
+      const { showHiddenCheckbox } = header
+      restoreButton = header.restoreButton
+      if (restoreButton) restoreButton.disabled = !saved?.values
 
       // Tree container
       const treeContainer = document.createElement('div')

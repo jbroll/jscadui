@@ -57,4 +57,10 @@ describe('createParamsTree collapse state', () => {
     expect(view.reset()).toEqual({ 'part.size': 1, 'part.h': 2 })
     expect(view.getExpandedPaths()).toEqual([])
   })
+
+  it('defaults reads the code defaults and leaves the expansion alone', () => {
+    const { view } = make({ expandedPaths: ['part'] }, { 'part.size': 9, 'part.h': 7 })
+    expect(view.defaults()).toEqual({ 'part.size': 1, 'part.h': 2 })
+    expect(view.getExpandedPaths()).toEqual(['part'])
+  })
 })

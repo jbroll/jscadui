@@ -84,6 +84,16 @@ set and the nodes you had open; opening a different model starts from its own
 defaults. Reset in the parameter header returns every parameter to its declared
 default.
 
+In a project, Save in the parameter header writes the values you changed to
+`params.json` beside the project's files, keyed by parameter path, so they sync
+and export with the project. Opening the project applies them over the
+defaults, skipping any parameter the code no longer declares. Restore puts the
+panel back to the saved values; it is disabled until the project has a
+`params.json`. Reset leaves the file alone, so Restore still brings the saved
+values back. A part file's panel, an example and a dropped file have no Save or
+Restore. A `params.json` that is not a JSON object shows a notice, and the
+model opens at its defaults.
+
 Ctrl+S saves the open project. A file with a dropped-folder handle is written
 back to disk through it; a file in an app-stored project needs no separate save
 — the run already stored it — so Ctrl+S does not open a Save As picker. Only a

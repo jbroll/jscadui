@@ -347,6 +347,16 @@ export const createParamsTree = (options) => {
     return result
   }
 
+  const collectDefaults = () => {
+    const defaults = {}
+    const walk = (node) => {
+      for (const param of node.params) defaults[param.path] = param.default
+      for (const child of Object.values(node.children)) walk(child)
+    }
+    if (tree) walk(tree)
+    return defaults
+  }
+
   // Initial render
   render()
 
@@ -412,13 +422,9 @@ export const createParamsTree = (options) => {
       render()
     },
     getExpandedPaths: () => collectPaths(tree).filter((path) => !collapsed.has(path)),
+    defaults: collectDefaults,
     reset: () => {
-      const defaults = {}
-      const walk = (node) => {
-        for (const param of node.params) defaults[param.path] = param.default
-        for (const child of Object.values(node.children)) walk(child)
-      }
-      if (tree) walk(tree)
+      const defaults = collectDefaults()
       values = { ...defaults }
       collapsed.clear()
       if (tree && startCollapsed) {

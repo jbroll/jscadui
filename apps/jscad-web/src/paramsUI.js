@@ -429,7 +429,7 @@ export function injectParamsStyles() {
  * @param {{onReset?: () => void}} [options]
  * @returns {{ showHiddenCheckbox: HTMLInputElement }}
  */
-export function buildParamsHeader(paramsHeader, { onReset } = {}) {
+export function buildParamsHeader(paramsHeader, { onReset, onSave, onRestore } = {}) {
   paramsHeader.innerHTML = ''
 
   const controls = document.createElement('div')
@@ -457,16 +457,21 @@ export function buildParamsHeader(paramsHeader, { onReset } = {}) {
   collapseBtn.onclick = () => paramsTreeView?.collapseAll()
   controls.appendChild(collapseBtn)
 
-  if (onReset) {
-    const resetBtn = document.createElement('button')
-    resetBtn.id = 'params-reset'
-    resetBtn.textContent = 'Reset'
-    resetBtn.style.cssText = 'font-size:11px;padding:2px 6px;cursor:pointer;'
-    resetBtn.onclick = () => onReset()
-    controls.appendChild(resetBtn)
+  const addButton = (id, label, onClick) => {
+    const button = document.createElement('button')
+    button.id = id
+    button.textContent = label
+    button.style.cssText = 'font-size:11px;padding:2px 6px;cursor:pointer;'
+    button.onclick = () => onClick()
+    controls.appendChild(button)
+    return button
   }
+
+  const saveButton = onSave && addButton('params-save', 'Save', onSave)
+  const restoreButton = onRestore && addButton('params-restore', 'Restore', onRestore)
+  if (onReset) addButton('params-reset', 'Reset', onReset)
 
   paramsHeader.appendChild(controls)
 
-  return { showHiddenCheckbox }
+  return { showHiddenCheckbox, saveButton, restoreButton }
 }
