@@ -30,7 +30,7 @@ const EXPORTS_MAKER = [
   /\bexport\s*\{[^}]*\bmake[A-Z][^}]*\}/,
 ]
 
-const exportsMaker = (text) => EXPORTS_MAKER.some((pattern) => pattern.test(text))
+export const exportsMaker = (text) => EXPORTS_MAKER.some((pattern) => pattern.test(text))
 
 /**
  * The file a project build runs: agent-loop's resolveEntry, else the entry the

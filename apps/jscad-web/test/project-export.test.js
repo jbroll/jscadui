@@ -1,6 +1,6 @@
 import { strFromU8, unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
-import { partName, stlEntries, zipProject } from '../src/projectExport.js'
+import { CAPTURES, exportScript, makerFiles, partName, stlEntries, zipProject } from '../src/projectExport.js'
 
 const a = new Uint8Array([1, 2, 3])
 const a2 = new Uint8Array([1, 2, 3])
@@ -71,5 +71,96 @@ describe('zipProject', () => {
   it('works with no parts', () => {
     const out = unzipSync(zipProject({ name: 'truck', files, params, assembly, parts: {} }))
     expect(Object.keys(out).sort()).toEqual(['lib/data.bin', 'main.js', 'params.json', 'stl/truck.stl'])
+  })
+})
+
+describe('exportScript', () => {
+  const g1 = { id: 1 }
+  const g2 = { id: 2 }
+
+  const run = async (modules, makers, params = {}) => {
+    const module = { exports: {} }
+    const require = path => modules[path]
+    new Function('require', 'module', 'exports', exportScript('main.js', makers))(require, module, module.exports)
+    const value = await module.exports.main(params)
+    return { value, captures: globalThis[CAPTURES] }
+  }
+
+  it('captures a maker main calls directly', async () => {
+    const a = { makeA: () => g1 }
+    const modules = { './a.js': a, './main.js': { main: () => [a.makeA()] } }
+    const { value, captures } = await run(modules, ['a.js'])
+    expect(value).toEqual([g1])
+    expect(captures).toEqual([{ maker: 'makeA', file: 'a.js', value: g1 }])
+  })
+
+  it('captures only the outer maker when one maker calls another', async () => {
+    const b = { makeB: () => g2 }
+    const a = { makeA: () => [g1, b.makeB()] }
+    const modules = { './a.js': a, './lib/b.js': b, './main.js': { main: () => a.makeA() } }
+    const { captures } = await run(modules, ['a.js', 'lib/b.js'])
+    expect(captures).toEqual([{ maker: 'makeA', file: 'a.js', value: [g1, g2] }])
+  })
+
+  it('captures concurrent async makers', async () => {
+    const a = { makeA: async () => g1, makeB: async () => g2 }
+    const modules = { './a.js': a, './main.js': { main: async () => await Promise.all([a.makeA(), a.makeB()]) } }
+    const { captures } = await run(modules, ['a.js'])
+    expect(captures).toEqual([
+      { maker: 'makeA', file: 'a.js', value: g1 },
+      { maker: 'makeB', file: 'a.js', value: g2 },
+    ])
+  })
+
+  it('captures an ESM-shaped module', async () => {
+    const a = { __esModule: true, makeA: () => g1 }
+    const modules = { './a.js': a, './main.js': { __esModule: true, main: () => a.makeA() } }
+    const { captures } = await run(modules, ['a.js'])
+    expect(captures).toEqual([{ maker: 'makeA', file: 'a.js', value: g1 }])
+  })
+
+  it('records a promised array as one capture', async () => {
+    const a = { makeA: () => Promise.resolve([g1, g2]) }
+    const modules = { './a.js': a, './main.js': { main: () => a.makeA() } }
+    const { captures } = await run(modules, ['a.js'])
+    expect(captures).toEqual([{ maker: 'makeA', file: 'a.js', value: [g1, g2] }])
+  })
+
+  it('restores the original makers after main resolves', async () => {
+    const makeA = () => g1
+    const a = { makeA }
+    const modules = { './a.js': a, './main.js': { main: () => a.makeA() } }
+    await run(modules, ['a.js'])
+    expect(a.makeA).toBe(makeA)
+  })
+
+  it('restores the original makers after main rejects', async () => {
+    const makeA = () => g1
+    const makeBad = () => {
+      throw new Error('bad')
+    }
+    const a = { makeA, makeBad }
+    const modules = { './a.js': a, './main.js': { main: () => [a.makeA(), a.makeBad()] } }
+    await expect(run(modules, ['a.js'])).rejects.toThrow('bad')
+    expect(a.makeA).toBe(makeA)
+    expect(a.makeBad).toBe(makeBad)
+  })
+
+  it('captures nothing from a maker file main never calls', async () => {
+    const modules = { './a.js': { makeA: () => g1 }, './main.js': { main: () => g2 } }
+    const { captures } = await run(modules, ['a.js'])
+    expect(captures).toEqual([])
+  })
+})
+
+describe('makerFiles', () => {
+  it('lists the text files that export a maker', () => {
+    const mainSrc = 'const { makeTruck } = require("./truck.js")\nmodule.exports = { main: () => makeTruck() }'
+    const files = {
+      'main.js': mainSrc,
+      'truck.js': 'module.exports = { makeTruck }',
+      'lib/d.js': 'module.exports = { W: 1 }',
+    }
+    expect(makerFiles(files)).toEqual(['truck.js'])
   })
 })

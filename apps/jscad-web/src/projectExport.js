@@ -1,4 +1,53 @@
 import { strToU8, zipSync } from 'fflate'
+import { exportsMaker } from './projectBuild.js'
+
+export const EXPORT_VIEW = '.export-view.js'
+export const CAPTURES = '__jscadExportCaptures'
+
+export const makerFiles = files =>
+  Object.keys(files).filter(path => typeof files[path] === 'string' && exportsMaker(files[path]))
+
+export const exportScript = (entry, paths) => `const makerFiles = ${JSON.stringify(paths)}
+const main = async (params) => {
+  const captures = globalThis[${JSON.stringify(CAPTURES)}] = []
+  const pending = []
+  const originals = []
+  let depth = 0
+  try {
+    for (const file of makerFiles) {
+      const mod = require('./' + file)
+      for (const maker of Object.keys(mod)) {
+        const original = mod[maker]
+        if (!/^make[A-Z]/.test(maker) || typeof original !== 'function') continue
+        originals.push([mod, maker, original])
+        mod[maker] = function (...args) {
+          const outer = depth === 0
+          depth++
+          let ret
+          try {
+            ret = original.apply(this, args)
+          } finally {
+            depth--
+          }
+          if (outer) {
+            const record = { maker, file }
+            captures.push(record)
+            // A rejection reaches main through its own await; drop the record instead of leaving it unhandled.
+            pending.push(Promise.resolve(ret).then(value => { record.value = value }, () => captures.splice(captures.indexOf(record), 1)))
+          }
+          return ret
+        }
+      }
+    }
+    const value = await require(${JSON.stringify(`./${entry}`)}).main(params)
+    await Promise.all(pending)
+    return value
+  } finally {
+    for (const [mod, maker, original] of originals) mod[maker] = original
+  }
+}
+module.exports = { main }
+`
 
 export const partName = maker => {
   const name = maker.replace(/^make/, '')
