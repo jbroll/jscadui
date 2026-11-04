@@ -53,7 +53,7 @@ import { renderViews } from './src/aiViewRender.js'
 import { createProjectBuilds, projectEntry } from './src/projectBuild.js'
 import { createViewRuns } from './src/viewRuns.js'
 import { createExport } from './src/aiExport.js'
-import { EXPORT_VIEW, exportScript, makerFiles, stlEntries, unsavedEdits, zipProject } from './src/projectExport.js'
+import { EXPORT_VIEW, exportParams, exportScript, makerFiles, stlEntries, unsavedEdits, zipProject } from './src/projectExport.js'
 import { downloadBlob } from '@jscadui/scene'
 // Nothing here may import ./src/storage/schema.js: its zod 4 types are more
 // than the root TS 4.9 gate can parse (see root tsconfig).
@@ -855,9 +855,9 @@ const exportProject = async () => {
   if (!entry) throw noEntry()
   // A selected part's panel holds the part's params, not the entry's.
   const user = viewRuns.selected() === undefined
-  const { params, userInteractedPaths } = user ? paramsCtrl.getWorkerParams() : { params: {}, userInteractedPaths: [] }
+  const params = exportParams(user, paramsCtrl.getWorkerParams())
   if (unsavedEdits(editor.dirtyBuffers(), files)) setNotice('unsaved edits are not in the export')
-  const makers = makerFiles(files)
+  const makers = makerFiles(files, entry)
   const clearCache = () => workerApi.jscadClearFileCache({ files: [...makers, entry], root: PROJECT_BASE })
   const { assembly, parts } = await viewRuns.borrow(async () => {
     await clearCache()
@@ -867,7 +867,8 @@ const exportProject = async () => {
       const { data } = (await workerApi.jscadExportData({ format: 'stlb' })) ?? {}
       return { assembly: data, parts: (await workerApi.jscadExportParts({ format: 'stlb' })).parts }
     } finally {
-      await clearCache()
+      // A failed clear must not replace the run's own error.
+      await clearCache().catch((error) => console.warn('export: clearing the file cache failed', error))
     }
   })
   if (!assembly) throw new Error('export produced no geometry')
@@ -877,7 +878,7 @@ const exportProject = async () => {
   const zip = zipProject({
     name: fileName,
     files,
-    params: Object.fromEntries(userInteractedPaths.map((path) => [path, params[path]])),
+    params,
     assembly: new Uint8Array(await new Blob([assembly].flat()).arrayBuffer()),
     parts: stlEntries(parts),
   })

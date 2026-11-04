@@ -1,14 +1,16 @@
+import { requireClosure } from '@jscadui/agent-loop'
 import { strToU8, zipSync } from 'fflate'
 import { exportsMaker } from './projectBuild.js'
 
 export const EXPORT_VIEW = '.export-view.js'
 export const CAPTURES = '__jscadExportCaptures'
 
-export const makerFiles = files =>
-  Object.keys(files).filter(path => typeof files[path] === 'string' && exportsMaker(files[path]))
+export const makerFiles = (files, entry) =>
+  [...requireClosure(files, entry)].filter(path => typeof files[path] === 'string' && exportsMaker(files[path]))
 
 // The entry loads last so its load-time destructuring binds the wrappers.
 // Run state is module-scoped: a rerun of main on the same load calls the wrappers the cached entry bound first.
+// No getParameterDefinitions: require would wrap this view as a legacy module; it wraps a legacy entry, which injects its own defaults.
 export const exportScript = (entry, paths) => `const makerFiles = ${JSON.stringify(paths.filter(path => path !== entry))}
 let captures
 let pending
@@ -46,7 +48,8 @@ const main = async (params) => {
         }
       }
     }
-    const value = await require(${JSON.stringify(`./${entry}`)}).main(params)
+    const mod = require(${JSON.stringify(`./${entry}`)})
+    const value = await (typeof mod === 'function' ? mod : mod.main)(params)
     await Promise.all(pending)
     return value
   } finally {
@@ -71,6 +74,7 @@ export const partName = maker => {
 const sameBytes = (x, y) => x.length === y.length && x.every((v, i) => v === y[i])
 
 const fileBase = file => file.split('/').pop().replace(/\.js$/, '')
+const filePrefix = file => file.replace(/\.js$/, '').replaceAll('/', '-')
 
 export const stlEntries = parts => {
   const makers = new Map()
@@ -83,13 +87,16 @@ export const stlEntries = parts => {
     else outputs.push({ data, count: 1 })
   }
 
-  const nameCount = {}
-  for (const { maker } of makers.values()) nameCount[partName(maker)] = (nameCount[partName(maker)] ?? 0) + 1
+  const tally = names => names.reduce((counts, name) => ({ ...counts, [name]: (counts[name] ?? 0) + 1 }), {})
+  const all = [...makers.values()]
+  const nameCount = tally(all.map(({ maker }) => partName(maker)))
+  const baseCount = tally(all.map(({ maker, file }) => `${fileBase(file)}-${partName(maker)}`))
 
   const entries = {}
-  for (const { maker, file, outputs } of makers.values()) {
+  for (const { maker, file, outputs } of all) {
     const part = partName(maker)
-    const base = nameCount[part] > 1 ? `${fileBase(file)}-${part}` : part
+    const prefixed = `${fileBase(file)}-${part}`
+    const base = nameCount[part] === 1 ? part : baseCount[prefixed] === 1 ? prefixed : `${filePrefix(file)}-${part}`
     outputs.forEach(({ data, count }, i) => {
       const number = outputs.length > 1 ? `-${i + 1}` : ''
       const times = count > 1 ? `-x${count}` : ''
@@ -99,10 +106,13 @@ export const stlEntries = parts => {
   return entries
 }
 
+export const exportParams = (user, { params, userInteractedPaths }) =>
+  user ? Object.fromEntries(userInteractedPaths.map(path => [path, params[path]])) : {}
+
 export const zipProject = ({ name, files, params, assembly, parts }) => {
   const entries = {}
   for (const [path, content] of Object.entries(files)) {
-    entries[path] = typeof content === 'string' ? strToU8(content) : content
+    entries[path] = typeof content === 'string' ? strToU8(content) : new Uint8Array(content)
   }
   entries['params.json'] = strToU8(JSON.stringify(params, null, 2))
   const assemblyPath = `stl/${name}.stl` in parts ? `stl/${name}-assembly.stl` : `stl/${name}.stl`

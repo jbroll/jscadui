@@ -251,16 +251,20 @@ as `<project name>.<extension>`. **Project (zip)** downloads `<project name>.zip
 holding everything needed to print the open project:
 
 - every project file at its project path, as last run or saved (unsaved editor
-  edits are left out, with a notice);
+  edits are left out, with a notice); STL, TTF and OTF files byte for byte, all
+  others as text;
 - `params.json`, the parameter values you changed, `{}` when none;
 - `stl/<project name>.stl`, the assembly `main()` returns;
 - one binary STL per part under `stl/`: the value a `make<Part>` function
-  exported by a project file returns when `main()` calls it directly, before
+  exported by a file the entry requires returns when `main()` calls it directly, before
   `main()` moves or colors it. `makeSideFrame` writes `stl/sideFrame.stl`. A
   part `main()` makes N identical times is one `stl/<part>-x<N>.stl`; different
   outputs of one maker are numbered `-1`, `-2`, … in call order. When two files
   export the same maker name, the file's base name prefixes both
-  (`truck-sideFrame.stl`).
+  (`truck-sideFrame.stl`), or its whole path when the base names match too
+  (`a-frame-sideFrame.stl`). A part with no 3D solid, such as a 2D profile
+  `main()` extrudes, is left out. Makers defined in the entry file itself are
+  not captured as separate parts; put parts in their own files.
 
 The assembly and the parts come from one run: with `main.js` (the entry)
 selected, the values its parameter panel shows; with any other file selected,

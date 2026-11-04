@@ -1241,10 +1241,13 @@ The Project (zip) export (`exportProject` in `main.js`, the zip and naming in
 `src/projectExport.js`) borrows the frame for one run of its own.
 `viewRuns.borrow(run)` marks the frame as holding neither side's model; after
 `run`, failed or not, it loads the viewer's plan back with the user's params and
-marks it held. `ensureEntry` and `ensureView` wait for that restore before they
-look at what the frame holds, so a chat read or a slider move during the export
-neither lands between the export's load and its reads nor mixes models into
-the zip. The export answers `open a project to export it` when the viewer's
+marks it held. Every frame operation of `viewRuns` (`render`, `show`, `open`,
+`ensureEntry`, `ensureView`) waits for that restore before it starts, and a
+borrow waits for the operations already started to finish before its run, so a
+chat build, a file click, an editor run, a chat read or a slider move during the
+export neither lands between the export's load and its reads nor mixes models
+into the zip. Only these leaves are gated: `build` composes two of them, and a
+gated operation calling another would wait on a borrow that waits on it. The export answers `open a project to export it` when the viewer's
 last load is not under `PROJECT_BASE` (an example, a URL script) or the last
 drop loaded loose files rather than a folder (`droppedFiles`, set only for a
 drop with files in it, cleared when a project opens), and shows its unsaved-edits notice only when an edited editor
@@ -1252,10 +1255,15 @@ buffer differs from the project file's saved text (`unsavedEdits`), since a
 run saves the buffer without marking it clean.
 Inside, the page loads a synthesized entry, `.export-view.js`
 (`exportScript`), as a plan of kind `export` that is not recorded as the
-build. Its `main` requires every project file that exports a maker
-(`makerFiles`), replaces each writable `make[A-Z]*` export with a wrapper, then
-requires the entry and calls its `main` with the run's params. The entry loads
-last, so its load-time destructuring binds the wrappers. A wrapper records its
+build. Its `main` requires the maker files the entry requires (`makerFiles`,
+over agent-loop's `requireClosure`), replaces each writable `make[A-Z]*` export
+with a wrapper, then requires the entry and calls its `main`, or the entry
+itself when it is a function (`module.exports = main`), with the run's params.
+The entry loads last, so its load-time destructuring binds the wrappers. The
+view exports no `getParameterDefinitions`: `require` wraps any module that
+exports one beside `main` (`wrapLegacyModule`), so it already wraps a legacy
+entry, whose wrapped `main` injects its own defaults, and it would wrap the
+view too and fail on a view whose entry has none. A wrapper records its
 call only when no other wrapper is running: depth rises on entry and falls when
 the call returns, before its promise settles, so `Promise.all` over two makers
 records both and a maker called from inside another does not. The run state
@@ -1264,6 +1272,9 @@ its first load, and `jscadExportData` may rerun `main` on the same load. The
 originals go back in a `finally`. The captures land in
 `globalThis.__jscadExportCaptures`, where `jscadExportData({ format: 'stlb' })`
 and then `jscadExportParts({ format: 'stlb' })` read the assembly and the parts.
+`jscadExportParts` keeps only each part's 3D solids (`polygons`, or a
+`ManifoldGeom3`), the only ones the STL serializer takes, and drops a part with
+none.
 The page calls both on `workerApi` directly: the `withLoaded` proxies would
 reload the viewer's or the chat's model over the export script first. The
 worker's require cache is cleared for the maker files and the entry before the

@@ -1,6 +1,6 @@
 import { strFromU8, unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
-import { CAPTURES, exportScript, makerFiles, partName, stlEntries, unsavedEdits, zipProject } from '../src/projectExport.js'
+import { CAPTURES, exportParams, exportScript, makerFiles, partName, stlEntries, unsavedEdits, zipProject } from '../src/projectExport.js'
 
 const a = new Uint8Array([1, 2, 3])
 const a2 = new Uint8Array([1, 2, 3])
@@ -41,6 +41,14 @@ describe('stlEntries', () => {
       'stl/frame-sideFrame.stl': b,
     })
   })
+
+  it('prefixes the folder path when two files share a base name and a maker name', () => {
+    const parts = [part('makeSideFrame', a, 'a/frame.js'), part('makeSideFrame', b, 'b/frame.js')]
+    expect(stlEntries(parts)).toEqual({
+      'stl/a-frame-sideFrame.stl': a,
+      'stl/b-frame-sideFrame.stl': b,
+    })
+  })
 })
 
 describe('zipProject', () => {
@@ -66,6 +74,12 @@ describe('zipProject', () => {
     const out = unzipSync(zipProject({ name: 'truck', files, params, assembly, parts }))
     expect(Array.from(out['stl/truck.stl'])).toEqual([1, 2, 3])
     expect(Array.from(out['stl/truck-assembly.stl'])).toEqual([7, 7])
+  })
+
+  it('keeps the bytes of a binary file read as an ArrayBuffer', () => {
+    const stl = new Uint8Array([5, 6, 7, 8])
+    const out = unzipSync(zipProject({ name: 'truck', files: { 'a.stl': stl.buffer }, params, assembly, parts: {} }))
+    expect(Array.from(out['a.stl'])).toEqual([5, 6, 7, 8])
   })
 
   it('works with no parts', () => {
@@ -214,6 +228,26 @@ describe('exportScript', () => {
     const { captures } = await run(modules, ['c.js', 'a.js'])
     expect(captures).toEqual([{ maker: 'makeB', file: 'a.js', value: g2 }])
   })
+
+  it('runs an entry that exports main as the module itself', async () => {
+    const a = { makeA: () => g1 }
+    const modules = { './a.js': a, './main.js': () => () => a.makeA() }
+    const { value, captures } = await run(modules, ['a.js'])
+    expect(value).toBe(g1)
+    expect(captures).toEqual([{ maker: 'makeA', file: 'a.js', value: g1 }])
+  })
+})
+
+describe('exportParams', () => {
+  const worker = { params: { w: 3, h: 2, label: 'x' }, userInteractedPaths: ['w', 'label'] }
+
+  it('holds the values the user changed when the entry is selected', () => {
+    expect(exportParams(true, worker)).toEqual({ w: 3, label: 'x' })
+  })
+
+  it('is empty when a part is selected', () => {
+    expect(exportParams(false, worker)).toEqual({})
+  })
 })
 
 describe('makerFiles', () => {
@@ -224,7 +258,16 @@ describe('makerFiles', () => {
       'truck.js': 'module.exports = { makeTruck }',
       'lib/d.js': 'module.exports = { W: 1 }',
     }
-    expect(makerFiles(files)).toEqual(['truck.js'])
+    expect(makerFiles(files, 'main.js')).toEqual(['truck.js'])
+  })
+
+  it('leaves out a maker file the entry does not require', () => {
+    const files = {
+      'main.js': 'const { makeTruck } = require("./truck.js")\nmodule.exports = { main: () => makeTruck() }',
+      'truck.js': 'module.exports = { makeTruck }',
+      'draft.js': 'module.exports = { makeHalf(',
+    }
+    expect(makerFiles(files, 'main.js')).toEqual(['truck.js'])
   })
 })
 

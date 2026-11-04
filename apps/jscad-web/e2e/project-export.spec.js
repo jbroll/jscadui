@@ -73,6 +73,14 @@ test.describe('Project (zip) export', () => {
     expect(await page.evaluate(() => document.documentElement.dataset.render)).not.toBe('error')
     expect(await readVertices()).toBe(vertices)
 
+    const stlList = (entries) => Object.keys(entries).filter((path) => path.startsWith('stl/')).sort()
+    expect(stlList((await downloadZip(page)).entries)).toEqual(stlList(zip.entries))
+    await page.evaluate(() => delete document.documentElement.dataset.render)
+    await page.locator('.cm-content').press('Shift+Enter')
+    await waitForRender(page)
+    expect(await page.evaluate(() => document.documentElement.dataset.render)).toBe('ok')
+    expect(await readVertices()).toBe(vertices)
+
     await page.keyboard.insertText('// not run\n')
     const edited = await downloadZip(page)
     expect(strFromU8(edited.entries['main.js'])).toBe(sources['main.js'])

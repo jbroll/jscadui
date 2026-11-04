@@ -741,3 +741,6 @@ from the 2026-10-01 review.
 - **A model of only reference parts exports an empty file.** Every part is
   filtered out of the export and nothing tells the user why (prod chat
   972a48f1-8caa-4412-aa22-cb7e03f76087).
+- **Images in a project are read as text (jscad-web).** `BINARY_EXT` in
+  `apps/jscad-web/src/projectFiles.js` lists only STL, TTF and OTF, so a PNG or
+  other image is corrupted in storage and in the Project (zip) export.

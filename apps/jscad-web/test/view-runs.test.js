@@ -207,6 +207,40 @@ describe('createViewRuns', () => {
     expect(runs).toEqual([['load-user', '.part-view.js'], ['load', 'main.js']])
   })
 
+  it('a render or show started during a borrowed run paints only after the restore', async () => {
+    const { views, runs } = setup()
+    await views.render()
+    runs.length = 0
+    let painted
+    await views.borrow(async () => {
+      painted = Promise.all([views.render(), views.show('truck.js')])
+      await new Promise((resolve) => setTimeout(resolve))
+      runs.push(['borrowed'])
+    })
+    await painted
+    expect(runs).toEqual([['borrowed'], ['load-user', 'main.js'], ['paint', 'main.js'], ['paint', '.part-view.js']])
+  })
+
+  it('a borrow waits for an ensureEntry already past its check to finish before its run begins', async () => {
+    const { views, runs, deps } = setup()
+    await views.show('truck.js')
+    runs.length = 0
+    const { promise: loaded, resolve } = Promise.withResolvers()
+    deps.load.mockImplementationOnce(async (plan) => {
+      runs.push(['load-start', plan.path])
+      await loaded
+      runs.push(['load-end', plan.path])
+      return { outcome: {} }
+    })
+    const read = views.ensureEntry()
+    await new Promise((r) => setTimeout(r))
+    const lent = views.borrow(async () => runs.push(['borrowed']))
+    await new Promise((r) => setTimeout(r))
+    resolve()
+    await Promise.all([read, lent])
+    expect(runs).toEqual([['load-start', 'main.js'], ['load-end', 'main.js'], ['borrowed'], ['load-user', '.part-view.js']])
+  })
+
   it('a rename of the selected file moves the selection', async () => {
     const { views } = setup()
     await views.show('truck.js')

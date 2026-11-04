@@ -31,8 +31,21 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
   let held = null
   // Held while another run has the frame: neither side's model is loaded.
   const BORROWED = Symbol('borrowed')
-  // Settles once a borrowed run's restore is done; the panel and the chat wait on it.
+  // Settles once a borrowed run's restore is done; every frame operation waits on it.
   let borrowed = Promise.resolve()
+  // Frame operations past that wait; a borrow lets them finish before it takes the frame.
+  const inFlight = new Set()
+  // Only leaf operations: a gated caller of a gated op would deadlock against a borrow waiting on it.
+  const gated = (op) => async (...args) => {
+    for (let seen; seen !== borrowed;) await (seen = borrowed)
+    const run = op(...args)
+    inFlight.add(run)
+    try {
+      return await run
+    } finally {
+      inFlight.delete(run)
+    }
+  }
   let entryMesh = null
 
   const keyOf = (plan) => plan.url ?? plan.path
@@ -54,7 +67,7 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
     held = keyOf(plan)
   }
 
-  const render = async () => {
+  const paintView = async () => {
     const { plan, none } = await viewerPlan()
     held = keyOf(plan)
     const outcome = await paint(plan)
@@ -62,8 +75,7 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
     return outcome
   }
 
-  const ensureEntry = async () => {
-    await borrowed
+  const ensureEntry = gated(async () => {
     if (selected === undefined && held !== BORROWED) return null
     const plan = await entryPlan()
     if (plan.path && held === plan.path) return null
@@ -71,31 +83,33 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
     const { outcome, mesh } = await load(plan, { user: false })
     entryMesh = mesh ?? null
     return outcome
-  }
+  })
 
-  // The viewer follows `path` unless it has no part to show.
-  const show = async (path) => {
+  // The viewer follows `path` unless it has no part to show. Gated whole, as
+  // `show` and `open`, so a borrow's restore loads the selection the export saw.
+  const showView = async (path) => {
     const plan = viewPlan(await files(), declared(), path)
     if (plan.kind === 'none') {
-      const outcome = await render()
+      const outcome = await paintView()
       tell(outcome, plan.path)
       return outcome
     }
     selected = plan.kind === 'entry' ? undefined : plan.path
-    return render()
+    return paintView()
   }
+  const render = gated(paintView)
 
   return {
     /** The file the viewer follows, or undefined for the entry. */
     selected: () => selected,
     render,
-    show,
+    show: gated(showView),
     /** A project switch opens on `path`, the project's stored entry. */
-    open: (path) => {
+    open: gated((path) => {
       selected = undefined
       held = null
-      return show(path)
-    },
+      return showView(path)
+    }),
     /**
      * The chat's build: the viewer redraws what it follows, and the report
      * comes from the entry, loaded without drawing when the viewer follows a part.
@@ -106,20 +120,22 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
       return (await ensureEntry()) ?? outcome
     },
     ensureEntry,
-    ensureView: async () => {
-      await borrowed
+    ensureView: gated(async () => {
       if (selected === undefined && held !== BORROWED) return
       const plan = viewPlan(await files(), declared(), selected)
       if (plan.kind === 'none' || held === keyOf(plan)) return
       held = keyOf(plan)
       await load(plan, { user: true })
-    },
+    }),
     /** Lend the frame to `run`, then load the viewer's own model back with the user's params. */
     borrow: async (run) => {
-      held = BORROWED
+      const prior = borrowed
       const { promise, resolve } = Promise.withResolvers()
       borrowed = promise
       try {
+        await prior
+        await Promise.allSettled(inFlight)
+        held = BORROWED
         return await run()
       } finally {
         await restore().finally(resolve)
