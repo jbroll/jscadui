@@ -10,15 +10,15 @@ const sources = {
 }
 
 // A run leaves the buffer dirty, so opening the next file asks to discard it.
-const runInEditor = async (page, path, { discard }) => {
+const runInEditor = async (page, path, { discard, source = sources[path] }) => {
   await page.locator('#editor-file').click()
   await page.locator(`#editor-files .file-node[data-path="/${path}"] .file-open`).click()
   if (discard) await page.locator('.confirm-ok').click()
-  await expect(page.locator('#editor-file')).toContainText(`/${path}`)
+  await expect(page.locator('#editor-file')).toContainText(path)
   const content = page.locator('.cm-content')
   await content.click()
   await page.keyboard.press('ControlOrMeta+a')
-  await page.keyboard.insertText(sources[path])
+  await page.keyboard.insertText(source)
   await content.press('Shift+Enter')
   await waitForRender(page)
 }
@@ -77,6 +77,24 @@ test.describe('Project (zip) export', () => {
     const edited = await downloadZip(page)
     expect(strFromU8(edited.entries['main.js'])).toBe(sources['main.js'])
     await expect(page.locator('#error-bar')).toContainText('unsaved edits are not in the export')
+  })
+
+  test('a dragged text drop loads nothing, so the open project still exports', async ({ page }) => {
+    test.setTimeout(120_000)
+    await page.goto('/')
+    await dismissWelcome(page)
+    await waitForRender(page)
+    await page.locator('#editor-header .project-new').click()
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.vertices)).toBe('0')
+    await runInEditor(page, 'main.js', { discard: false, source: "const { cuboid } = require('@jscad/modeling').primitives\nmodule.exports = { main: () => cuboid() }\n" })
+    await page.evaluate(() => {
+      const dataTransfer = { items: [{ kind: 'string', type: 'text/plain' }] }
+      const drop = new Event('drop', { bubbles: true, cancelable: true })
+      Object.defineProperty(drop, 'dataTransfer', { value: dataTransfer })
+      document.body.dispatchEvent(drop)
+    })
+    const zip = await downloadZip(page)
+    expect(Object.keys(zip.entries).sort()).toEqual(['main.js', 'params.json', 'stl/Untitled.stl'])
   })
 
   test('an example is not a project: no download, and the error says so', async ({ page }) => {

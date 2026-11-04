@@ -440,7 +440,7 @@ const recordEdit = async (script, path, { entry } = {}) => {
 let currentProjectId = 'default'
 // The entry of whatever was opened last: a stored project or a dropped folder.
 let currentEntry
-// Loose dropped files run from the cache under the last project's id, but are no stored project.
+// Loose dropped files replace the cache and run under the last project's id, but are no stored project.
 let droppedFiles = false
 
 // The paths the current agent turn wrote (collected as showFile runs, cleared
@@ -578,8 +578,9 @@ fileSystem.setupDragDrop(dropModal, async (dataTransfer, target) => {
     return
   }
   const folder = entries.length === 1 && entries[0].isDirectory
-  droppedFiles = !folder
   await fileSystem.handleFileDrop(dataTransfer, fsDeps, entries)
+  // An empty drop (dragged text or a link) leaves the cache and the open project as they were.
+  if (entries.length && !folder) droppedFiles = true
   if (folder) {
     const created = await projectManager.createFromDrop(entries, { readDir, readAsText }).catch(setError)
     if (created) await switchProject(created.id).catch(setError)

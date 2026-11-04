@@ -264,8 +264,8 @@ holding everything needed to print the open project:
 
 The assembly and the parts come from one run: with `main.js` (the entry)
 selected, the values its parameter panel shows; with any other file selected,
-the code's defaults. An example, a URL script or a dropped single file is not
-a project and answers `open a project to export it`.
+the code's defaults. An example, a URL script or dropped loose files (rather
+than a folder) are not a project and answer `open a project to export it`.
 
 ## Deployment
 

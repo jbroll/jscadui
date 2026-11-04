@@ -1246,8 +1246,8 @@ look at what the frame holds, so a chat read or a slider move during the export
 neither lands between the export's load and its reads nor mixes models into
 the zip. The export answers `open a project to export it` when the viewer's
 last load is not under `PROJECT_BASE` (an example, a URL script) or the last
-drop was loose files rather than a folder (`droppedFiles`, cleared when a
-project opens), and shows its unsaved-edits notice only when an edited editor
+drop loaded loose files rather than a folder (`droppedFiles`, set only for a
+drop with files in it, cleared when a project opens), and shows its unsaved-edits notice only when an edited editor
 buffer differs from the project file's saved text (`unsavedEdits`), since a
 run saves the buffer without marking it clean.
 Inside, the page loads a synthesized entry, `.export-view.js`
