@@ -28,9 +28,9 @@ let workerApi
  * Initialize the exporter with the worker API.
  * Dynamically fetches available export formats from the worker.
  * @param {JscadWorker} newWorkerApi
- * @param {{ onError?: (err: unknown) => void }} [options]
+ * @param {{ onError?: (err: unknown) => void, exportProject?: () => Promise<void> }} [options]
  */
-export const init = async (newWorkerApi, { onError = (err) => console.error(err) } = {}) => {
+export const init = async (newWorkerApi, { onError = (err) => console.error(err), exportProject } = {}) => {
   workerApi = newWorkerApi
 
   // Fetch available formats from the worker (single source of truth). A frame
@@ -51,6 +51,7 @@ export const init = async (newWorkerApi, { onError = (err) => console.error(err)
       extension: format.extension,
       execute: () => exportAsFile(format.id, format.extension, onError),
     })),
+    { name: 'project', label: 'Project (zip)', execute: exportProject },
     { name: 'scriptUrl', label: 'Copy to clipboard script url', execute: () => exportToScriptUrl() },
   ]
 

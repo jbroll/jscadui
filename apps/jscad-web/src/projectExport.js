@@ -8,12 +8,16 @@ export const makerFiles = files =>
   Object.keys(files).filter(path => typeof files[path] === 'string' && exportsMaker(files[path]))
 
 // The entry loads last so its load-time destructuring binds the wrappers.
+// Run state is module-scoped: a rerun of main on the same load calls the wrappers the cached entry bound first.
 export const exportScript = (entry, paths) => `const makerFiles = ${JSON.stringify(paths.filter(path => path !== entry))}
+let captures
+let pending
+let depth
 const main = async (params) => {
-  const captures = globalThis[${JSON.stringify(CAPTURES)}] = []
-  const pending = []
+  captures = globalThis[${JSON.stringify(CAPTURES)}] = []
+  pending = []
+  depth = 0
   const originals = []
-  let depth = 0
   try {
     for (const file of makerFiles) {
       const mod = require('./' + file)
@@ -33,9 +37,10 @@ const main = async (params) => {
           }
           if (outer) {
             const record = { maker, file }
+            const captured = captures
             captures.push(record)
             // A rejection reaches main through its own await; drop the record instead of leaving it unhandled.
-            pending.push(Promise.resolve(ret).then(value => { record.value = value }, () => captures.splice(captures.indexOf(record), 1)))
+            pending.push(Promise.resolve(ret).then(value => { record.value = value }, () => captured.splice(captured.indexOf(record), 1)))
           }
           return ret
         }

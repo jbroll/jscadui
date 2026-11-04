@@ -139,6 +139,44 @@ describe('createViewRuns', () => {
     expect(views.selected()).toBe(undefined)
   })
 
+  it('a borrowed run with nothing selected loads the entry back for the user; the chat then reuses it', async () => {
+    const { views, runs } = setup()
+    await views.render()
+    runs.length = 0
+    await views.borrow(async () => {
+      runs.push(['borrowed'])
+      await views.ensureEntry()
+    })
+    await views.ensureEntry()
+    await views.ensureView()
+    expect(runs).toEqual([['borrowed'], ['load', 'main.js'], ['load-user', 'main.js']])
+  })
+
+  it('a borrowed run with a part selected loads the part back with the user params', async () => {
+    const { views, runs } = setup()
+    await views.show('truck.js')
+    runs.length = 0
+    expect(await views.borrow(async () => 'zip')).toBe('zip')
+    await views.ensureView()
+    expect(runs).toEqual([['load-user', '.part-view.js']])
+  })
+
+  it('a borrowed run that throws still loads the view back and passes the error on', async () => {
+    const { views, runs } = setup()
+    await views.render()
+    runs.length = 0
+    await expect(views.borrow(async () => { throw new Error('boom') })).rejects.toThrow('boom')
+    expect(runs).toEqual([['load-user', 'main.js']])
+  })
+
+  it('a user export during a borrowed run loads the view back first, with nothing selected', async () => {
+    const { views, runs } = setup()
+    await views.render()
+    runs.length = 0
+    await views.borrow(() => views.ensureView())
+    expect(runs).toEqual([['load-user', 'main.js'], ['load-user', 'main.js']])
+  })
+
   it('a rename of the selected file moves the selection', async () => {
     const { views } = setup()
     await views.show('truck.js')

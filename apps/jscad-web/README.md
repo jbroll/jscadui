@@ -244,7 +244,29 @@ entry. A file with its own `main` that the entry does not require, such as
 `bracket/index.js` dropped beside `main.js`, becomes the project's entry, so
 the project reopens on it.
 
-## Deployment
+## Export
+
+The export dropdown under the parameters writes the model in the chosen format
+as `<project name>.<extension>`. **Project (zip)** downloads `<project name>.zip`
+holding everything needed to print the open project:
+
+- every project file at its project path, as last run or saved (unsaved editor
+  edits are left out, with a notice);
+- `params.json`, the parameter values you changed, `{}` when none;
+- `stl/<project name>.stl`, the assembly `main()` returns;
+- one binary STL per part under `stl/`: the value a `make<Part>` function
+  exported by a project file returns when `main()` calls it directly, before
+  `main()` moves or colors it. `makeSideFrame` writes `stl/sideFrame.stl`. A
+  part `main()` makes N identical times is one `stl/<part>-x<N>.stl`; different
+  outputs of one maker are numbered `-1`, `-2`, … in call order. When two files
+  export the same maker name, the file's base name prefixes both
+  (`truck-sideFrame.stl`).
+
+The assembly and the parts come from one run: with `main.js` (the entry)
+selected, the values its parameter panel shows; with any other file selected,
+the code's defaults. An example or a URL script is not a project and answers
+`open a project to export it`.
+
 
 Production is Apache (see [architecture](docs/architecture.md#deployment)).
 To preview the production build locally run:

@@ -29,6 +29,8 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
   let selected
   // What the frame last loaded: a plan's url or path; null when unknown.
   let held = null
+  // Held while another run has the frame: neither side's model is loaded.
+  const BORROWED = Symbol('borrowed')
   let entryMesh = null
 
   const keyOf = (plan) => plan.url ?? plan.path
@@ -38,11 +40,14 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
   }
   const entryPlan = async () => viewPlan(await files(), declared())
 
-  const render = async () => {
+  const viewerPlan = async () => {
     const all = await files()
-    let plan = viewPlan(all, declared(), selected)
-    const none = plan.kind === 'none' ? plan.path : null
-    if (none) plan = viewPlan(all, declared())
+    const plan = viewPlan(all, declared(), selected)
+    return plan.kind === 'none' ? { plan: viewPlan(all, declared()), none: plan.path } : { plan, none: null }
+  }
+
+  const render = async () => {
+    const { plan, none } = await viewerPlan()
     held = keyOf(plan)
     const outcome = await paint(plan)
     if (none) tell(outcome, none)
@@ -50,7 +55,7 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
   }
 
   const ensureEntry = async () => {
-    if (selected === undefined) return null
+    if (selected === undefined && held !== BORROWED) return null
     const plan = await entryPlan()
     if (plan.path && held === plan.path) return null
     held = plan.path
@@ -93,11 +98,22 @@ export const createViewRuns = ({ files, declared, paint, load, notice }) => {
     },
     ensureEntry,
     ensureView: async () => {
-      if (selected === undefined) return
+      if (selected === undefined && held !== BORROWED) return
       const plan = viewPlan(await files(), declared(), selected)
       if (plan.kind === 'none' || held === keyOf(plan)) return
       held = keyOf(plan)
       await load(plan, { user: true })
+    },
+    /** Lend the frame to `run`, then load the viewer's own model back with the user's params. */
+    borrow: async (run) => {
+      held = BORROWED
+      try {
+        return await run()
+      } finally {
+        const { plan } = await viewerPlan()
+        await load(plan, { user: true })
+        held = keyOf(plan)
+      }
     },
     /** The entry's mesh for the chat's view, or null when the viewer shows the entry itself. */
     entryMesh: () => (selected === undefined ? null : entryMesh),

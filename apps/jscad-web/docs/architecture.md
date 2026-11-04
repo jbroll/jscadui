@@ -273,7 +273,7 @@ the worker must not hash meshes for an answer the frame drops. Progress posted
 during the reload is relayed and restarts the kill timer, so a large export
 cannot time out for lack of beats; cells are dropped, since no app run waits on
 them, but still restart the timer. When no `jscadMain` has run since that script loaded,
-those three reload it with `runMain: true` instead, so the load's own run
+those four reload it with `runMain: true` instead, so the load's own run
 provides the solids; a grid streams its cells, which the frame drops because no
 app run is pending, and `withSolids` re-runs it as it does after any grid.
 Requests that arrive meanwhile wait behind the reload in order; a reload that
@@ -1236,6 +1236,31 @@ replaced it: `ensureEntry` runs before the chat's frame reads (`chatApi` in
 `main.js`), `ensureView` before the user's param change, render-engine switch
 or export (`userApi`), carrying the user's params. Only the entry's loads are
 recorded in `projectBuilds`.
+
+The Project (zip) export (`exportProject` in `main.js`, the zip and naming in
+`src/projectExport.js`) borrows the frame for one run of its own.
+`viewRuns.borrow(run)` marks the frame as holding neither side's model, so a
+chat read or a user run during the export reloads its own; after `run`, failed
+or not, it loads the viewer's plan back with the user's params and marks it held.
+Inside, the page loads a synthesized entry, `.export-view.js`
+(`exportScript`), as a plan of kind `export` that is not recorded as the
+build. Its `main` requires every project file that exports a maker
+(`makerFiles`), replaces each writable `make[A-Z]*` export with a wrapper, then
+requires the entry and calls its `main` with the run's params. The entry loads
+last, so its load-time destructuring binds the wrappers. A wrapper records its
+call only when no other wrapper is running: depth rises on entry and falls when
+the call returns, before its promise settles, so `Promise.all` over two makers
+records both and a maker called from inside another does not. The run state
+lives at module scope because the cached entry keeps the wrappers it bound on
+its first load, and `jscadExportData` may rerun `main` on the same load. The
+originals go back in a `finally`. The captures land in
+`globalThis.__jscadExportCaptures`, where `jscadExportData({ format: 'stlb' })`
+and then `jscadExportParts({ format: 'stlb' })` read the assembly and the parts.
+The page calls both on `workerApi` directly: the `withLoaded` proxies would
+reload the viewer's or the chat's model over the export script first. The
+worker's require cache is cleared for the maker files and the entry before the
+run, so a cached `main.js` does not hold unwrapped makers, and after it, so no
+wrapper outlives the export.
 
 An editor run of a model of its own (it exports a `main`, and the entry
 neither requires nor imports it, directly or through other files) records it

@@ -53,6 +53,8 @@ import { renderViews } from './src/aiViewRender.js'
 import { createProjectBuilds, projectEntry } from './src/projectBuild.js'
 import { createViewRuns } from './src/viewRuns.js'
 import { createExport } from './src/aiExport.js'
+import { EXPORT_VIEW, exportScript, makerFiles, stlEntries, zipProject } from './src/projectExport.js'
+import { downloadBlob } from '@jscadui/scene'
 // Nothing here may import ./src/storage/schema.js: its zod 4 types are more
 // than the root TS 4.9 gate can parse (see root tsconfig).
 import { createLocalStorage } from './src/storage/local.js'
@@ -816,25 +818,65 @@ const viewRuns = createViewRuns({
     }
     return jscadScript(planRequest(plan, await fileSystem.projectFiles()))
   },
-  // Drawn by nothing: the result's meshes are kept whole (no held refs) for the chat's view.
-  load: async (plan, { user }) => {
-    if (plan.kind === 'entry' && !plan.path) return { outcome: { error: noEntry() } }
-    const files = await fileSystem.projectFiles()
-    const { record, ...request } = planRequest(plan, files)
-    let outcome
-    try {
-      const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
-      let result = await sendScript(workerApi, files, { ...request, source: loadSource({ url: request.url, projectId: currentProjectId }), useGpuNormals, runId: newRunId(), held: [] }, getChatApi())
-      if (user && paramsCtrl.userInteracted.size) result = { ...result, ...(await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId: newRunId(), held: [] })) }
-      outcome = { result }
-    } catch (error) {
-      outcome = { error }
-    }
-    if (record) projectBuilds.recordLoad(request.url, outcome)
-    return { outcome, mesh: outcome.result?.entities }
-  },
+  load: (plan, options) => loadPlan(plan, options),
   notice: setNotice,
 })
+
+// Drawn by nothing: the result's meshes are kept whole (no held refs) for the chat's view.
+async function loadPlan(plan, { user }) {
+  if (plan.kind === 'entry' && !plan.path) return { outcome: { error: noEntry() } }
+  const files = await fileSystem.projectFiles()
+  const { record, ...request } = planRequest(plan, files)
+  let outcome
+  try {
+    const useGpuNormals = viewState.viewer?.supportsGpuNormals ?? false
+    let result = await sendScript(workerApi, files, { ...request, source: loadSource({ url: request.url, projectId: currentProjectId }), useGpuNormals, runId: newRunId(), held: [] }, getChatApi())
+    if (user && paramsCtrl.userInteracted.size) result = { ...result, ...(await workerApi.jscadMain({ ...paramsCtrl.getWorkerParams(), runId: newRunId(), held: [] })) }
+    outcome = { result }
+  } catch (error) {
+    outcome = { error }
+  }
+  if (record) projectBuilds.recordLoad(request.url, outcome)
+  return { outcome, mesh: outcome.result?.entities }
+}
+
+// The parts are captured by a synthesized entry that wraps the makers; the worker's
+// require cache is cleared around it so a cached main.js neither keeps nor leaves wrappers.
+const exportProject = async () => {
+  if (!currentProjectId || !lastScriptUrl?.startsWith(PROJECT_BASE)) throw new Error('open a project to export it')
+  const files = await fileSystem.projectFiles()
+  const entry = projectEntry(files, currentEntry)
+  if (!entry) throw noEntry()
+  // A selected part's panel holds the part's params, not the entry's.
+  const user = viewRuns.selected() === undefined
+  const { params, userInteractedPaths } = user ? paramsCtrl.getWorkerParams() : { params: {}, userInteractedPaths: [] }
+  if (editor.isDirty()) setNotice('unsaved edits are not in the export')
+  const makers = makerFiles(files)
+  const clearCache = () => workerApi.jscadClearFileCache({ files: [...makers, entry], root: PROJECT_BASE })
+  const { assembly, parts } = await viewRuns.borrow(async () => {
+    await clearCache()
+    try {
+      const { outcome } = await loadPlan({ kind: 'export', path: entry, url: EXPORT_VIEW, script: exportScript(entry, makers) }, { user })
+      if (outcome.error) throw outcome.error
+      const { data } = (await workerApi.jscadExportData({ format: 'stlb' })) ?? {}
+      return { assembly: data, parts: (await workerApi.jscadExportParts({ format: 'stlb' })).parts }
+    } finally {
+      await clearCache()
+    }
+  })
+  if (!assembly) throw new Error('export produced no geometry')
+  const name = (await projectManager.listAll()).find((p) => p.id === currentProjectId)?.name
+  if (name) exporter.exportConfig.projectName = name
+  const fileName = exporter.exportConfig.projectName.replaceAll('/', '-')
+  const zip = zipProject({
+    name: fileName,
+    files,
+    params: Object.fromEntries(userInteractedPaths.map((path) => [path, params[path]])),
+    assembly: new Uint8Array(await new Blob([assembly].flat()).arrayBuffer()),
+    parts: stlEntries(parts),
+  })
+  downloadBlob(new Blob([zip], { type: 'application/zip' }), `${fileName}.zip`)
+}
 
 const withLoaded = (ensure, names) => new Proxy(workerApi, {
   get: (target, name) => (names.includes(name) ? async (...args) => { await ensure(); return target[name](...args) } : target[name]),
@@ -1008,7 +1050,7 @@ if (diskEntry === null) {
   }
 }
 
-await exporter.init(userApi, { onError: setError })
+await exporter.init(userApi, { onError: setError, exportProject })
 
 // ============== Default Script ==============
 if (loadDefault && !hasRemoteScript) {

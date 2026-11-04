@@ -168,6 +168,25 @@ describe('exportScript', () => {
     expect(captures).toEqual([{ maker: 'makeA', file: 'a.js', value: g1 }])
   })
 
+  it('captures again when main reruns on the same load, as a param change or export rerun does', async () => {
+    const modules = {
+      './a.js': () => ({ makeA: () => g1 }),
+      './main.js': require => {
+        const { makeA } = require('./a.js')
+        return { main: () => makeA() }
+      },
+    }
+    const module = { exports: {} }
+    const require = path => {
+      if (typeof modules[path] === 'function') modules[path] = modules[path](require)
+      return modules[path]
+    }
+    new Function('require', 'module', 'exports', `'use strict';${exportScript('main.js', ['a.js'])}`)(require, module, module.exports)
+    await module.exports.main({})
+    await module.exports.main({})
+    expect(globalThis[CAPTURES]).toEqual([{ maker: 'makeA', file: 'a.js', value: g1 }])
+  })
+
   it('captures a destructured maker when the entry is itself a maker file', async () => {
     const modules = {
       './main.js': require => {
