@@ -87,6 +87,50 @@ test.describe('Project (zip) export', () => {
     await expect(page.locator('#error-bar')).toContainText('unsaved edits are not in the export')
   })
 
+  test('a model of several parts exports with the values set in the params panel', async ({ page }) => {
+    test.setTimeout(120_000)
+    await page.goto('/')
+    await dismissWelcome(page)
+    await waitForRender(page)
+    await page.locator('#editor-header .project-new').click()
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.vertices)).toBe('0')
+    page.once('dialog', (dialog) => dialog.accept('parts.js'))
+    await page.locator('#editor-header .file-new').click()
+    await expect(page.locator('#editor-files .file-node[data-path="/parts.js"]')).toBeAttached()
+    await runInEditor(page, 'parts.js', {
+      discard: false,
+      source: "const jf = require('@jbroll/jscad-fluent')\nconst makePlate = (length) => jf.cuboid({ size: [10, length, 2] })\nconst makePin = (length) => jf.cylinder({ radius: 1, height: length })\nmodule.exports = { makePlate, makePin }\n",
+    })
+    await runInEditor(page, 'main.js', {
+      discard: true,
+      source: "const { makePlate, makePin } = require('./parts.js')\nconst main = (params) => {\n  params.length = { type: 'slider', default: 20, min: 5, max: 80, step: 1 }\n  return [makePlate(params.length), makePin(params.length).translateX(20)]\n}\nmodule.exports = { main }\n",
+    })
+    await page.locator('#paramsHeader button', { hasText: 'Expand' }).click()
+    const length = page.locator('#paramsTreeContainer input[data-param-path="length"]')
+    await length.fill('40')
+    await length.press('Enter')
+    await waitForRender(page)
+
+    const zip = await downloadZip(page)
+    expect(JSON.parse(strFromU8(zip.entries['params.json']))).toEqual({ length: 40 })
+    const extent = (stl, axis) => {
+      const view = new DataView(stl.buffer, stl.byteOffset, stl.byteLength)
+      let min = Infinity
+      let max = -Infinity
+      for (let t = 0; t < view.getUint32(80, true); t++) {
+        for (let v = 0; v < 3; v++) {
+          const x = view.getFloat32(84 + t * 50 + 12 + v * 12 + axis * 4, true)
+          min = Math.min(min, x)
+          max = Math.max(max, x)
+        }
+      }
+      return max - min
+    }
+    expect(extent(zip.entries['stl/plate.stl'], 1)).toBeCloseTo(40)
+    expect(extent(zip.entries['stl/pin.stl'], 2)).toBeCloseTo(40)
+    expect(extent(zip.entries['stl/Untitled.stl'], 1)).toBeCloseTo(40)
+  })
+
   test('a dragged text drop loads nothing, so the open project still exports', async ({ page }) => {
     test.setTimeout(120_000)
     await page.goto('/')

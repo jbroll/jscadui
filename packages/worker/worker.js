@@ -494,9 +494,8 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
 
         // I2 fix: Prune stale paths from userInteracted to prevent memory leak
         // Only keep paths that exist in the current parameter structure
-        const discoveredSet = new Set(proxyState.discovered)
         for (const path of workerState.userInteracted) {
-          if (!discoveredSet.has(path)) {
+          if (!proxyState.discoveredPaths.has(path)) {
             workerState.userInteracted.delete(path)
           }
         }
