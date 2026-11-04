@@ -1606,6 +1606,20 @@ read and written over the launcher's `/api/fs` and followed through its
 through the server is parked on the `park/github-app-storage` branch.
 A rowboat save re-uploads only files whose content hash differs from the file
 row's stored blob key, so unchanged files cost no upload.
+`createRowboatStorage` is async: it awaits the rowboat client's `db.ready()`
+before returning, since the client throws `StoreNotReadyError` on any read
+before the store is open. A failed open (`StoreUpgradeError`,
+`StoreNewerThanBundleError`, `StoreBelowFloorError`) rejects the factory, so
+`getRowboatStore` in `main.js` logs `rowboat init failed` and the session stays
+local-only. `ready()` takes the Web Lock `rowboat-open:<store>`, so a browser
+without `navigator.locks` cannot open the store.
+Deploy order: the rowboat server that checks `wireVersion` must be deployed
+before a jscad-web bundle carrying this client (store shape 1). An older
+bundle still open in a tab writes the retired `authorized_groups` record on
+every pull, which fails every later sync round of the shape-1 store; a server
+that refuses a body with no `wireVersion` stops that pull first (rowboat
+`docs/characteristics.md`, "A rowboat release never strands a browser store's
+unpushed work").
 The `local` backend is backed by IndexedDB (`src/storage/idb.js`): the Maps
 are the working copy and every write mirrors into object stores, so a reload
 reads the work back. When `indexedDB` is absent (private mode, the compute

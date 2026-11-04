@@ -525,7 +525,7 @@ const getRowboatStore = async () => {
       const info = await fetchSyncToken()
       if (!info) return null
       const { createRowboatStorage } = await import('./src/storage/rowboat.js')
-      rowboatStore = createRowboatStorage({
+      rowboatStore = await createRowboatStorage({
         syncBase: info.syncBase,
         identity: user.id,
         getHeaders: async () => {

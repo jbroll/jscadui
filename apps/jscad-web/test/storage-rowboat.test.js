@@ -26,7 +26,7 @@ const transcriptStorage = (fetchFn) =>
 
 describe('rowboat backend', () => {
   it('writes files then reads them back from the local store', async () => {
-    const store = transcriptStorage(vi.fn(async () => new Response('{}')))
+    const store = await transcriptStorage(vi.fn(async () => new Response('{}')))
     await store.writeFiles('p1', { 'main.js': MAIN }, { message: 'first', name: 'Gear', entry: 'main.js' })
     const project = await store.readProject('p1')
     expect(project.files).toEqual({ 'main.js': MAIN })
@@ -47,7 +47,7 @@ describe('rowboat backend', () => {
       }
       return new Response(JSON.stringify({ changes: {}, timestamp: 1, hasMore: false, maxPurgedCursor: 0, mergeRule: 2 }))
     })
-    const store = transcriptStorage(fetchFn)
+    const store = await transcriptStorage(fetchFn)
     await store.writeFiles('p2', { 'main.js': 'v1' }, { message: 'one', name: 'P2', entry: 'main.js' })
     await store.writeFiles('p2', { 'main.js': 'v2' }, { message: 'two' })
     await store.sync()
@@ -60,7 +60,7 @@ describe('rowboat backend', () => {
   })
 
   it('writes without a version row when asked, and snapshots the stored files as one', async () => {
-    const store = transcriptStorage(vi.fn(async () => new Response('{}')))
+    const store = await transcriptStorage(vi.fn(async () => new Response('{}')))
     await store.writeFiles('p4', { 'main.js': 'v1' }, { message: 'create', name: 'P4', entry: 'main.js' })
     await store.writeFiles('p4', { 'main.js': 'v2!', 'lib.js': 'l' }, { message: 'chat', version: false })
     expect((await store.listVersions('p4')).map((v) => v.message)).toEqual(['create'])
@@ -80,7 +80,7 @@ describe('rowboat backend', () => {
       },
       fetch: async () => { throw new Error('unexpected blob fetch') },
     }
-    const store = createRowboatStorage({
+    const store = await createRowboatStorage({
       syncBase: 'http://fake/db/x/api/sync',
       identity: 'u1',
       getHeaders: async () => ({}),
@@ -97,15 +97,27 @@ describe('rowboat backend', () => {
   })
 
   it('persists a conversation per project', async () => {
-    const store = transcriptStorage(vi.fn(async () => new Response('{}')))
+    const store = await transcriptStorage(vi.fn(async () => new Response('{}')))
     const messages = [{ role: 'user', content: 'make a gear' }]
     await store.writeConversation('p3', messages)
     expect((await store.readConversation('p3')).messages).toEqual(messages)
     await store.close()
   })
 
+  it('rejects the open of a store a newer bundle left behind', async () => {
+    const identity = `u-newer-${crypto.randomUUID()}`
+    await new Promise((resolve, reject) => {
+      const req = indexedDB.open(`jscad-web::${identity}`, 99_000)
+      req.onupgradeneeded = () => req.result.createObjectStore('projects')
+      req.onsuccess = () => { req.result.close(); resolve() }
+      req.onerror = () => reject(req.error)
+    })
+    await expect(createRowboatStorage({ syncBase: 'http://fake/db/x/api/sync', identity, dbOptions }))
+      .rejects.toMatchObject({ name: 'StoreNewerThanBundleError' })
+  })
+
   it('removes a file row so it is not read back', async () => {
-    const store = transcriptStorage(vi.fn(async () => new Response('{}')))
+    const store = await transcriptStorage(vi.fn(async () => new Response('{}')))
     await store.writeFiles('p6', { 'main.js': 'main', 'lib.js': 'lib-content' }, { message: 'create', name: 'P6', entry: 'main.js' })
     await store.removeFiles('p6', ['lib.js'])
     expect((await store.readProject('p6')).files).toEqual({ 'main.js': 'main' })
@@ -136,7 +148,7 @@ describe('rowboat edit coalescing', () => {
 
   it('folds a burst of edits into one row holding the latest manifest', async () => {
     vi.setSystemTime(1_000_000)
-    const store = contentStore()
+    const store = await contentStore()
     await store.writeFiles('p1', { 'main.js': 'v1' }, { message: 'create', name: 'P', entry: 'main.js' })
     await store.writeFiles('p1', { 'main.js': 'v2' }, edit)
     vi.setSystemTime(1_060_000)
@@ -150,7 +162,7 @@ describe('rowboat edit coalescing', () => {
 
   it('mints a new row once the idle window has passed', async () => {
     vi.setSystemTime(1_000_000)
-    const store = contentStore()
+    const store = await contentStore()
     await store.writeFiles('p2', { 'main.js': 'v1' }, edit)
     vi.setSystemTime(1_000_000 + 300000 + 1)
     await store.writeFiles('p2', { 'main.js': 'v2' }, edit)
@@ -161,7 +173,7 @@ describe('rowboat edit coalescing', () => {
 
   it('never folds across a different coalesce key', async () => {
     vi.setSystemTime(1_000_000)
-    const store = contentStore()
+    const store = await contentStore()
     await store.writeFiles('p3', { 'main.js': 'v1' }, edit)
     await store.writeFiles('p3', { 'main.js': 'v2' }, { message: 'edit', coalesceKey: 'other', coalesceMs: 300000 })
 
@@ -171,7 +183,7 @@ describe('rowboat edit coalescing', () => {
 
   it('always mints a row for a restore even inside the window', async () => {
     vi.setSystemTime(1_000_000)
-    const store = contentStore()
+    const store = await contentStore()
     await store.writeFiles('p4', { 'main.js': 'v1' }, edit)
     await store.writeFiles('p4', { 'main.js': 'v0' }, { message: 'restore abcdef12', coalesceKey: 'edit', coalesceMs: 300000 })
 
@@ -181,7 +193,7 @@ describe('rowboat edit coalescing', () => {
 
   it('skips the row when the manifest matches the latest version', async () => {
     vi.setSystemTime(1_000_000)
-    const store = contentStore()
+    const store = await contentStore()
     await store.writeFiles('p5', { 'main.js': 'v1' }, edit)
     await store.writeFiles('p5', { 'main.js': 'v1' }, edit)
 
@@ -192,7 +204,7 @@ describe('rowboat edit coalescing', () => {
 
   it('never folds an edit onto a snapshot row that landed inside the window', async () => {
     vi.setSystemTime(1_000_000)
-    const store = contentStore()
+    const store = await contentStore()
     await store.writeFiles('p8', { 'main.js': 'v1' }, edit)
     await store.snapshot('p8', { message: 'chat' })
     await store.writeFiles('p8', { 'main.js': 'v2' }, edit)
@@ -206,7 +218,7 @@ describe('rowboat edit coalescing', () => {
   })
 
   it('snapshots only when the stored manifest differs from the latest version', async () => {
-    const store = contentStore()
+    const store = await contentStore()
     await store.writeFiles('p6', { 'main.js': 'v1' }, { message: 'create', name: 'P6', entry: 'main.js' })
     expect(await store.snapshotUnique('p6', { message: 'unique' })).toBe(false)
     await store.writeFiles('p6', { 'main.js': 'v2' }, { message: 'edit', version: false })
@@ -217,7 +229,7 @@ describe('rowboat edit coalescing', () => {
   })
 
   it('snapshots the first version when the project has none', async () => {
-    const store = contentStore()
+    const store = await contentStore()
     await store.writeFiles('p7', { 'main.js': 'v1' }, { name: 'P7', entry: 'main.js', version: false })
     expect(await store.snapshotUnique('p7', { message: 'unique' })).toBe(true)
     expect((await store.listVersions('p7')).map((v) => v.message)).toEqual(['unique'])
@@ -226,7 +238,7 @@ describe('rowboat edit coalescing', () => {
 
   it('pins the newest row when it holds the stored files and is not coalescing', async () => {
     vi.setSystemTime(1_000_000)
-    const store = contentStore()
+    const store = await contentStore()
     await store.writeFiles('p9', { 'main.js': 'v1' }, { message: 'create', name: 'P9', entry: 'main.js' })
     const [create] = await store.listVersions('p9')
     vi.setSystemTime(1_001_000)
@@ -237,7 +249,7 @@ describe('rowboat edit coalescing', () => {
 
   it('pins a new before chat row when the files changed since the newest row', async () => {
     vi.setSystemTime(1_000_000)
-    const store = contentStore()
+    const store = await contentStore()
     await store.writeFiles('p10', { 'main.js': 'v1' }, { message: 'create', name: 'P10', entry: 'main.js' })
     vi.setSystemTime(1_001_000)
     await store.writeFiles('p10', { 'main.js': 'v2' }, { message: 'edit', version: false })
@@ -252,7 +264,7 @@ describe('rowboat edit coalescing', () => {
 
   it('pins a new row over a coalescing edit row with the same files', async () => {
     vi.setSystemTime(1_000_000)
-    const store = contentStore()
+    const store = await contentStore()
     await store.writeFiles('p11', { 'main.js': 'v1' }, edit)
     vi.setSystemTime(1_001_000)
     const versionId = await store.pinVersion('p11', { message: 'before chat' })

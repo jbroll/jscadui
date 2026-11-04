@@ -32,7 +32,9 @@ const sameManifest = (a, b) => {
   return x.length === y.length && x.every((key, i) => key === y[i])
 }
 
-export function createRowboatStorage(options) {
+// Resolves once the store is open; a failed open (StoreUpgradeError,
+// StoreNewerThanBundleError, ...) rejects here and stays rejected until reload.
+export async function createRowboatStorage(options) {
   const {
     syncBase,
     filesBase = `${syncBase}/files`,
@@ -46,6 +48,7 @@ export function createRowboatStorage(options) {
 
   const dbName = storeName(APP_NAME, identity)
   const db = buildRowboatDb(dbName, manifest, [], undefined, dbOptions)
+  await db.ready()
 
   const authFetch = async (input, init) => {
     const headers = { ...(await getHeaders()), ...(init?.headers ?? {}) }
