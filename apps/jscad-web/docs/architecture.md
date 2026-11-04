@@ -1611,7 +1611,8 @@ before returning, since the client throws `StoreNotReadyError` on any read
 before the store is open. A failed open (`StoreUpgradeError`,
 `StoreNewerThanBundleError`, `StoreBelowFloorError`) rejects the factory, so
 `getRowboatStore` in `main.js` logs `rowboat init failed` and the session stays
-local-only. `ready()` takes the Web Lock `rowboat-open:<store>`, so a browser
+local-only. Later calls for that store rethrow the same error without opening
+again, since the client expects the rejection to stand until reload. `ready()` takes the Web Lock `rowboat-open:<store>`, so a browser
 without `navigator.locks` cannot open the store.
 Deploy order: the rowboat server that checks `wireVersion` must be deployed
 before a jscad-web bundle carrying this client (store shape 1). An older

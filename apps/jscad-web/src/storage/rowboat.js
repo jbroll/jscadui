@@ -32,8 +32,10 @@ const sameManifest = (a, b) => {
   return x.length === y.length && x.every((key, i) => key === y[i])
 }
 
-// Resolves once the store is open; a failed open (StoreUpgradeError,
-// StoreNewerThanBundleError, ...) rejects here and stays rejected until reload.
+// The rowboat client wants a failed open to stand until the page reloads, so a
+// later call for the same store rethrows instead of rerunning the upgrade.
+const failedOpens = new Map()
+
 export async function createRowboatStorage(options) {
   const {
     syncBase,
@@ -47,8 +49,14 @@ export async function createRowboatStorage(options) {
   } = options
 
   const dbName = storeName(APP_NAME, identity)
+  if (failedOpens.has(dbName)) throw failedOpens.get(dbName)
   const db = buildRowboatDb(dbName, manifest, [], undefined, dbOptions)
-  await db.ready()
+  try {
+    await db.ready()
+  } catch (err) {
+    failedOpens.set(dbName, err)
+    throw err
+  }
 
   const authFetch = async (input, init) => {
     const headers = { ...(await getHeaders()), ...(init?.headers ?? {}) }

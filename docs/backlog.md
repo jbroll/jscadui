@@ -686,6 +686,13 @@ from the 2026-10-01 review.
   prompt before plan-then-build is measured on it, by rounds and `checkRate`.
   Gate: `--regrade` of the existing baselines moves no other fixture's total.
 
+- **Rowboat store open handling (jscad-web).** A failed rowboat store open is
+  only logged (`rowboat init failed`), never shown in the UI. Not wired from
+  the rowboat client README's "Opening a store" steps: `onBlocked` (ask the
+  user to close other tabs), `onSuperseded` / `StoreSupersededError` (prompt a
+  reload), the `onStopped` reload on `bundle_behind`, and the
+  `StoreBelowFloorError` path (`exportPending`, then `replaceStoreFromExport`).
+
 - **Chat settings follow-ups (jscad-web).** The model list has not been seen
   with a real Meta key. Form controls stay light in dark mode, and the drawer
   header wraps the gear onto its own line when the sign-in copy is long.

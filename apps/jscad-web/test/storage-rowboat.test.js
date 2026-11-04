@@ -112,8 +112,18 @@ describe('rowboat backend', () => {
       req.onsuccess = () => { req.result.close(); resolve() }
       req.onerror = () => reject(req.error)
     })
-    await expect(createRowboatStorage({ syncBase: 'http://fake/db/x/api/sync', identity, dbOptions }))
-      .rejects.toMatchObject({ name: 'StoreNewerThanBundleError' })
+    const open = () => createRowboatStorage({ syncBase: 'http://fake/db/x/api/sync', identity, dbOptions })
+    const first = await open().catch((err) => err)
+    expect(first).toMatchObject({ name: 'StoreNewerThanBundleError' })
+
+    // With the newer store gone a fresh open would succeed, so a second
+    // rejection proves the factory did not open again.
+    await new Promise((resolve, reject) => {
+      const req = indexedDB.deleteDatabase(`jscad-web::${identity}`)
+      req.onsuccess = resolve
+      req.onerror = () => reject(req.error)
+    })
+    await expect(open()).rejects.toBe(first)
   })
 
   it('removes a file row so it is not read back', async () => {
