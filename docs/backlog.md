@@ -744,3 +744,9 @@ from the 2026-10-01 review.
 - **Images in a project are read as text (jscad-web).** `BINARY_EXT` in
   `apps/jscad-web/src/projectFiles.js` lists only STL, TTF and OTF, so a PNG or
   other image is corrupted in storage and in the Project (zip) export.
+- **Function-entry defaults lost in project export.** An entry written as
+  `module.exports = main` with `main.getParameterDefinitions` attached to the
+  function. The normal run reads the defaults from the function
+  (`packages/worker/worker.js`), but the export view requires the entry and only
+  `packages/require/src/require.js` wraps a module that exports both `main` and
+  `getParameterDefinitions` as properties, so the export calls `main` without them.
