@@ -61,6 +61,13 @@ describe('zipProject', () => {
     expect(Array.from(out['stl/wheel.stl'])).toEqual([1, 2, 3])
   })
 
+  it('writes the assembly as <name>-assembly.stl when a part has the project name', () => {
+    const parts = { 'stl/truck.stl': a }
+    const out = unzipSync(zipProject({ name: 'truck', files, params, assembly, parts }))
+    expect(Array.from(out['stl/truck.stl'])).toEqual([1, 2, 3])
+    expect(Array.from(out['stl/truck-assembly.stl'])).toEqual([7, 7])
+  })
+
   it('works with no parts', () => {
     const out = unzipSync(zipProject({ name: 'truck', files, params, assembly, parts: {} }))
     expect(Object.keys(out).sort()).toEqual(['lib/data.bin', 'main.js', 'params.json', 'stl/truck.stl'])

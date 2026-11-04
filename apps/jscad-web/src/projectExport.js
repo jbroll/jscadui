@@ -42,7 +42,8 @@ export const zipProject = ({ name, files, params, assembly, parts }) => {
     entries[path] = typeof content === 'string' ? strToU8(content) : content
   }
   entries['params.json'] = strToU8(JSON.stringify(params, null, 2))
-  entries[`stl/${name}.stl`] = assembly
+  const assemblyPath = `stl/${name}.stl` in parts ? `stl/${name}-assembly.stl` : `stl/${name}.stl`
+  entries[assemblyPath] = assembly
   Object.assign(entries, parts)
   return zipSync(entries)
 }
