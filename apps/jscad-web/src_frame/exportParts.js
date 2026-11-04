@@ -1,5 +1,6 @@
 import { withTransferable } from '@jscadui/postmessage'
 import { exportableSolids } from '@jscadui/worker/src/exportable.js'
+import { isEmptyShape } from '@jscadui/agent-loop/src/optionChecks.js'
 
 // Pinned to src/projectExport.js by test: importing it would pull fflate into the frame bundle.
 export const CAPTURES = '__jscadExportCaptures'
@@ -9,7 +10,7 @@ export const exportParts = async ({ toSolids, serialize }) => {
   delete globalThis[CAPTURES]
   const parts = []
   for (const { maker, file, value } of captures) {
-    const solids = exportableSolids(await toSolids(value))
+    const solids = exportableSolids(await toSolids(value)).filter((solid) => !isEmptyShape(solid))
     if (!solids.length) continue
     const { data } = serialize(solids)
     parts.push({ maker, file, data: new Uint8Array(await new Blob(data).arrayBuffer()) })

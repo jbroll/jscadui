@@ -31,6 +31,7 @@ import { sealMessageListeners } from './sealMessages.js'
 import { createWithSolids } from './withSolids.js'
 import { serializeSolids } from './serializeSolids.js'
 import { exportParts } from './exportParts.js'
+import { createRenderExport } from './renderExport.js'
 import { installOptionWarnings } from './optionWarnings.js'
 import { installRunConsole } from './consoleCapture.js'
 import { createModelIsolation } from './modelIsolation.js'
@@ -120,27 +121,13 @@ const serializerFor = (format, options = {}) => {
   return (solids) => serializeSolids(jscadIo[config.serializerKey], { ...config.defaultOptions, ...options }, solids)
 }
 
-const jscadExportData = async ({ format, options = {} }) => {
-  const serialize = serializerFor(format, options)
-  // Only a model that reads $preview can differ between the two modes, and
-  // re-running one is expensive, so ask the runtime whether it ever mattered.
-  // A streamed grid is re-run for the export anyway, in preview mode.
-  const renderMode = !lastRunStreamed() && _openscad?.j$.previewUsed
-  // The flip's re-runs rewrite the worker's solids, so they stay inside the
-  // withSolids queue; a measure or check in flight must not serialize a
-  // half-switched preview.
-  return await withSolids(async (solids) => {
-    if (!renderMode) return serialize(solids)
-    try {
-      setScadPreview(false)
-      await jscadMain({ params: currentParams() })
-      return serialize(currentSolids())
-    } finally {
-      setScadPreview(true)
-      await jscadMain({ params: currentParams() })
-    }
-  })
-}
+const renderExport = createRenderExport({ withSolids, jscadMain, currentSolids, currentParams, setScadPreview })
+
+// Only a model that reads $preview can differ between the two modes, and
+// re-running one is expensive, so ask the runtime whether it ever mattered.
+// A streamed grid is re-run for the export anyway, in preview mode.
+const jscadExportData = ({ format, options = {} }) =>
+  renderExport(!lastRunStreamed() && _openscad?.j$.previewUsed, serializerFor(format, options))
 
 const jscadExportParts = ({ format }) => exportParts({ toSolids, serialize: serializerFor(format) })
 

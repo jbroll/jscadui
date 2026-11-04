@@ -183,11 +183,12 @@ const EXTRA_METHOD_SPECS = {
 }
 
 // Manifold shapes convert their polygons lazily, so ask them first.
-const isEmptyShape = (shape) => {
+export const isEmptyShape = (shape) => {
   if (shape === null || typeof shape !== 'object') return false
   if (typeof shape.isEmpty === 'function') return shape.isEmpty() === true
   if (Array.isArray(shape.polygons)) return shape.polygons.length === 0
   if (Array.isArray(shape.sides)) return shape.sides.length === 0
+  if (Array.isArray(shape.points) && !Array.isArray(shape.faces)) return shape.points.length === 0
   return false
 }
 

@@ -151,8 +151,11 @@ buffers ride the transfer list on both hops, so they cross without a copy.
 project export script left in `globalThis.__jscadExportCaptures`. It turns each
 capture's value into solids with the worker's `toSolids`, the same flatten,
 part split and tree evaluation `jscadMain` applies to `main()`'s return,
-serializes each part on its own, drops parts with no exportable geometry,
-deletes the global, and answers `{ parts: [{ maker, file, data }] }`.
+serializes each part on its own, drops parts with no exportable geometry (no
+polygons, sides or points, or a Manifold shape whose `isEmpty()` holds),
+deletes the global, and answers `{ parts: [{ maker, file, data }] }`. When
+`jscadExportData` flips a `$preview` model to render mode, it puts the render
+run's captures back after the preview re-run, so the parts match the assembly.
 
 Notifications relay the same way. The worker sends two, a grid's
 `jscadCells` and `jscadProgress` (see Streamed runs). It also sends
