@@ -142,10 +142,17 @@ wraps the iframe in the `postMessage`, `addEventListener` and
 `removeEventListener` a `Worker` offers, so `messageProxy` drives it the way it
 drove the local worker. `jscadInit`, `jscadScript`, `jscadSetFiles`,
 `jscadMain`, `jscadMeasure`, `jscadCheck`, `jscadGetExportFormats`,
-`jscadExportData` and the cache clears all reach the frame's worker;
+`jscadExportData`, `jscadExportParts` and the cache clears all reach the frame's worker;
 `jscadAbort` is the frame's own, stopping the active run without reaching a
 worker (see the stop path below). Geometry
 buffers ride the transfer list on both hops, so they cross without a copy.
+
+`jscadExportParts({ format })` reads the maker captures the last run of the
+project export script left in `globalThis.__jscadExportCaptures`. It turns each
+capture's value into solids with the worker's `toSolids`, the same flatten,
+part split and tree evaluation `jscadMain` applies to `main()`'s return,
+serializes each part on its own, drops parts with no exportable geometry,
+deletes the global, and answers `{ parts: [{ maker, file, data }] }`.
 
 Notifications relay the same way. The worker sends two, a grid's
 `jscadCells` and `jscadProgress` (see Streamed runs). It also sends
@@ -254,10 +261,11 @@ notice: that notice makes `frameSetup.js` replay the script and the last run and
 start the stopped model again. What the worker held is answered `AbortError`,
 the promoted spare or a fresh worker takes over, and an abort with no active
 worker starts none. A promoted worker has the setup but no model,
-so before it runs `jscadMain`, `jscadExportData`, `jscadMeasure` or
-`jscadCheck` the frame sends it the last script with `runMain: false`, and for
-the last three also the last `jscadMain` with `stream: false`, since they read
-that run's solids. The replay carries neither the app's `held` nor its `runId`:
+so before it runs `jscadMain`, `jscadExportData`, `jscadExportParts`,
+`jscadMeasure` or `jscadCheck` the frame sends it the last script with
+`runMain: false`, and for all but `jscadMain` also the last `jscadMain` with
+`stream: false`, since they read that run's solids, or for `jscadExportParts`
+the maker captures that run left. The replay carries neither the app's `held` nor its `runId`:
 the worker must not hash meshes for an answer the frame drops. Progress posted
 during the reload is relayed and restarts the kill timer, so a large export
 cannot time out for lack of beats; cells are dropped, since no app run waits on

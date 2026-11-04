@@ -19,6 +19,7 @@ import {
   setRunConsole,
   setRunSummary,
   setRunWarnings,
+  toSolids,
 } from '@jscadui/worker'
 import { asGeometry, summarizeRun } from '@jscadui/agent-loop/src/buildReport.js'
 import { readFileWeb, require, requireHandlers, jscadClearTempCache, clearFileCache, setScadExportsWrapper, setUserModuleWrapper, setLibraryPrefixes } from '@jscadui/require'
@@ -29,6 +30,7 @@ import { createImportData } from './importData.js'
 import { sealMessageListeners } from './sealMessages.js'
 import { createWithSolids } from './withSolids.js'
 import { serializeSolids } from './serializeSolids.js'
+import { exportParts } from './exportParts.js'
 import { installOptionWarnings } from './optionWarnings.js'
 import { installRunConsole } from './consoleCapture.js'
 import { createModelIsolation } from './modelIsolation.js'
@@ -111,11 +113,15 @@ setRunSummary((run) => summarizeRun(run, (items) => modelTools().measure(items),
 
 const jscadCheck = ({ bed, options = {} }) => withSolids((solids) => modelTools().check(asGeometry(solids), { ...options, bed }))
 
-const jscadExportData = async ({ format, options = {} }) => {
+const serializerFor = (format, options = {}) => {
   const jscadIo = require('@jscad/io', null, readFileWeb)
   const config = defaultSerializerConfigs.find((c) => c.id === format)
   if (!config) throw new Error(`Unknown export format: ${format}`)
-  const serialize = (solids) => serializeSolids(jscadIo[config.serializerKey], { ...config.defaultOptions, ...options }, solids)
+  return (solids) => serializeSolids(jscadIo[config.serializerKey], { ...config.defaultOptions, ...options }, solids)
+}
+
+const jscadExportData = async ({ format, options = {} }) => {
+  const serialize = serializerFor(format, options)
   // Only a model that reads $preview can differ between the two modes, and
   // re-running one is expensive, so ask the runtime whether it ever mattered.
   // A streamed grid is re-run for the export anyway, in preview mode.
@@ -135,6 +141,8 @@ const jscadExportData = async ({ format, options = {} }) => {
     }
   })
 }
+
+const jscadExportParts = ({ format }) => exportParts({ toSolids, serialize: serializerFor(format) })
 
 // The export dropdown asks the engine which formats it has.
 const jscadGetExportFormats = () =>
@@ -168,6 +176,7 @@ initWorker({
     jscadGetExportFormats,
     jscadMeasure,
     jscadCheck,
+    jscadExportParts,
     jscadSetFiles,
     jscadClearTempCache: () => {
       jscadClearTempCache()

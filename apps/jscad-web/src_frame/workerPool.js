@@ -3,8 +3,9 @@ import { RECYCLE_HEAP_BYTES, trapped } from './gridRun.js'
 
 const RESPONSE = '__RESPONSE__'
 
-export const NEEDS_MODEL = new Set(['jscadMain', 'jscadExportData', 'jscadMeasure', 'jscadCheck'])
-export const NEEDS_SOLIDS = new Set(['jscadExportData', 'jscadMeasure', 'jscadCheck'])
+// A parts export reads the captures the last run left, so a worker without them replays that run.
+export const NEEDS_MODEL = new Set(['jscadMain', 'jscadExportData', 'jscadExportParts', 'jscadMeasure', 'jscadCheck'])
+export const NEEDS_SOLIDS = new Set(['jscadExportData', 'jscadExportParts', 'jscadMeasure', 'jscadCheck'])
 
 const ignore = () => {}
 

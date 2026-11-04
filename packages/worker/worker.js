@@ -264,6 +264,27 @@ const evaluateRoot = async (evaluate, node, memo) => {
   return evaluated
 }
 
+// Without an evaluator (Node, no bundle) geometry passes through untouched.
+const evaluateNodes = async (evaluate, nodes, memo) => {
+  const solids = []
+  const ghosts = []
+  for (const node of nodes) {
+    const evaluated = evaluate
+      ? await evaluateRoot(evaluate, node, memo)
+      : { solids: node === undefined || node === null ? [] : [node], ghosts: [] }
+    solids.push(...evaluated.solids)
+    ghosts.push(...evaluated.ghosts)
+  }
+  return { solids, ghosts }
+}
+
+// The solids jscadMain would keep for `value` as main()'s return, evaluated outside its run.
+export const toSolids = async (value) => {
+  const nodes = splitParts(flatten(value)).flatMap((part) => part.nodes)
+  const { solids } = await evaluateNodes(loadBoundEvaluate(), nodes, memoFromSpecials(createBuildContext()))
+  return solids.filter((solid) => !solid?.previewOnly)
+}
+
 // A root ghost streams under this trailing claim. Split part keys are digits
 // joined by '+' (model-tree splitter), so a word can never collide with one:
 // a count like `${parts.length}` can, once an anchor merge shrinks the part
@@ -386,17 +407,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
   // bundles); evaluate them against the live build memo the way the eager
   // measurement seam does, instead of the post-build snapshot below.
   const evaluateStreamed = boundEvaluate
-    ? async (nodes) => {
-      const live = memoFromSpecials(ctx)
-      const solids = []
-      const ghosts = []
-      for (const node of nodes) {
-        const evaluated = await evaluateRoot(boundEvaluate, node, live)
-        solids.push(...evaluated.solids)
-        ghosts.push(...evaluated.ghosts)
-      }
-      return { solids, ghosts }
-    }
+    ? (nodes) => evaluateNodes(boundEvaluate, nodes, memoFromSpecials(ctx))
     : undefined
   const { hook, emitted } = stream
     ? createStreamHook({
@@ -462,19 +473,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
 
     treeTime = performance.now() - time
 
-    const evaluateRootNode = (node) => boundEvaluate
-      ? evaluateRoot(boundEvaluate, node, memo)
-      : Promise.resolve({ solids: node === undefined || node === null ? [] : [node], ghosts: [] })
-    const evaluateNodes = async (nodes) => {
-      const solids = []
-      const ghosts = []
-      for (const node of nodes) {
-        const evaluated = await evaluateRootNode(node)
-        solids.push(...evaluated.solids)
-        ghosts.push(...evaluated.ghosts)
-      }
-      return { solids, ghosts }
-    }
+    const evaluateRun = (nodes) => evaluateNodes(boundEvaluate, nodes, memo)
 
     const buildResult = (entities) => {
       const result = { entities, treeTime, execTime, convTime }
@@ -516,7 +515,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
       const claimed = []
       for (const part of modelParts) {
         if (!await hook.claim(part.key)) continue
-        const { solids, ghosts } = await evaluateNodes(part.nodes)
+        const { solids, ghosts } = await evaluateRun(part.nodes)
         claimed.push(...solids)
         // Kept while claiming so the catch below preserves the parts already built.
         workerState.solids = claimed
@@ -524,7 +523,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
         if (ghosts.length) await hook.emit(ghosts)
       }
       if (rootGhostNodes.length && await hook.claim(ROOT_GHOST_KEY)) {
-        const { solids, ghosts } = await evaluateNodes(rootGhostNodes)
+        const { solids, ghosts } = await evaluateRun(rootGhostNodes)
         await hook.emit([...solids, ...ghosts])
       }
       execTime = performance.now() - time
@@ -545,7 +544,7 @@ export async function jscadMain({ params, skipLog: _skipLog, userInteractedPaths
       workerState.solids = []
     } else {
       time = performance.now()
-      const { solids: evaluated, ghosts: evaluatedGhosts } = await evaluateNodes([...modelParts.flatMap((part) => part.nodes), ...rootGhostNodes])
+      const { solids: evaluated, ghosts: evaluatedGhosts } = await evaluateRun([...modelParts.flatMap((part) => part.nodes), ...rootGhostNodes])
       // % and # ghosts are drawn but never exported, so they stay out of solids
       const previewGhosts = evaluated.filter((g) => g?.previewOnly)
       workerState.solids = evaluated.filter((g) => !g?.previewOnly)
@@ -783,9 +782,7 @@ const evaluateScratch = async (value, { ctx, evaluate }) => {
   if (!evaluate) return value
   const nodes = splitParts(value).flatMap((part) => part.nodes)
   if (!nodes.some(isTreeNode)) return value
-  const memo = memoFromSpecials(ctx)
-  const solids = []
-  for (const node of nodes) solids.push(...(await evaluateRoot(evaluate, node, memo)).solids)
+  const { solids } = await evaluateNodes(evaluate, nodes, memoFromSpecials(ctx))
   return solids.filter((solid) => !solid?.previewOnly)
 }
 

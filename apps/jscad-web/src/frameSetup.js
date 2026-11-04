@@ -97,7 +97,7 @@ const createReplay = (proxy) => {
     }
   }
 
-  const needsModel = new Set(['jscadMain', 'jscadExportData', 'jscadMeasure', 'jscadCheck'])
+  const needsModel = new Set(['jscadMain', 'jscadExportData', 'jscadExportParts', 'jscadMeasure', 'jscadCheck'])
 
   return {
     record,

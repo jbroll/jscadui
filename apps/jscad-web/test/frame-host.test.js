@@ -730,6 +730,22 @@ describe('trap retirement', () => {
     expect(posted.slice(1)).toEqual([{ method: RESPONSE, id: 5, params: { data: ['solid'] } }])
   })
 
+  it('runs the last main before a parts export on the promoted worker, so the captures exist', () => {
+    const { workers, send, posted } = withSpare()
+    send({ method: 'jscadMain', id: 4, params: [{ params: { size: 2 } }] })
+    answerLast(workers[0], { entities: [], trapped: true })
+
+    send({ method: 'jscadExportParts', id: 5, params: [{ format: 'stlb' }] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadScript', params: [{ script: 'main', runMain: false }] })
+    answerLast(workers[1], { def: [], params: {} })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadMain', params: [{ params: { size: 2 }, stream: false }] })
+    answerLast(workers[1], { entities: [] })
+    expect(lastSent(workers[1])).toMatchObject({ method: 'jscadExportParts', params: [{ format: 'stlb' }] })
+    answerLast(workers[1], { parts: [] })
+
+    expect(posted.slice(1)).toEqual([{ method: RESPONSE, id: 5, params: { parts: [] } }])
+  })
+
   it('replays without held or runId', () => {
     const { workers, send } = withSpare()
     send({ method: 'jscadMain', id: 4, params: [{ params: { size: 2 }, stream: true, runId: 9, held: [{ hash: 'abc' }] }] })
