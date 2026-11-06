@@ -53,6 +53,23 @@ chosen in the chat's settings: fluent (`@jbroll/jscad-fluent`) or modeling
 (`@jscad/modeling`). It needs no account or chat turn. Escape or the × closes
 the panel.
 
+## Parameters
+
+A model that exports `getParameterDefinitions` gets a parameter panel; changing
+a value re-runs the model. Reset returns every value to the code's defaults.
+
+In a project, the panel header also has Save and Restore. Save writes the
+values you changed to `params.json` beside the project's files, keyed by
+parameter path, so they sync and export with the project. Opening the project
+applies them over the defaults, skipping any parameter the code no longer
+declares. Restore puts the panel back to the saved values; it is disabled until
+the project has a `params.json`. Reset leaves the file alone, so Restore still
+brings the saved values back.
+
+A part file's panel, an example and a dropped file have no Save or Restore. A
+`params.json` that is not a JSON object shows a notice, and the model opens at
+its defaults.
+
 ## Parts browser
 
 "Browse Parts…" in the menu opens a panel of catalog hardware — nuts, screws,
